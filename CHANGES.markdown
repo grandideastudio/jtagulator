@@ -1,6 +1,6 @@
 1.1:
 ----
-Release date: **Not yet**
+Release date: **August 1, 2013**
 
 * Added support for UART discovery and pass through mode (8N1).
 
