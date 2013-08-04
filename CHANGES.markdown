@@ -1,3 +1,10 @@
+1.1.1:
+------
+Release date: **August 6, 2013**
+
+* Modifed `UART_Scan` and `UART_Passthrough` to stop the UART cog (`jdcogserial`) at the end of the functions. This prevents the cog from maintaining control of the pins, which would prevent subsequent, non-UART commands from working. 
+
+
 1.1:
 ----
 Release date: **August 1, 2013**
