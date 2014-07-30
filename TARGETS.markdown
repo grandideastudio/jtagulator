@@ -1,49 +1,58 @@
 Known Good Targets
 -------------------
-Last updated: **February 21, 2014**
 
-While there's no way to know of all devices that have successfully been used with the 
-[JTAGulator][1], we do our best to keep track. If you have additions, [let us know][2]!
+We do our best to keep track of devices that have successfully been used with the  
+[JTAGulator][1]. If you have additions, please [let us know][2]!
 
 
 JTAG
 ----
 
-* Analog Devices AD6521 Baseband (BlackBerry 7290)
+* BlackBerry 7250: Qualcomm MSM6500 (ARM926EJ-S)
 
-* Analog Devices AD6529 (ARM7TDMI) (BlackBerry 7290)
+* BlackBerry 7290: Analog Devices AD6521 Baseband, Analog Devices AD6529 (ARM7TDMI)
 
-* Broadcom BCM4702 (Linksys WRT54G v1.1)
+* bladeRF: Cypress EZ-USB FX3 (ARM926EJ-S)
 
-* Broadcom BCM4712 (Linksys WRT54G v2 rXH)
+* D-Link DWL-900AP+: Samsung S3C4510B01-QER0 (ARM7TDMI), Lattice ispMACH iM4A3-32 CPLD
 
-* Broadcom BCM5354KFBG (Linksys WRT54G2 v1.3) 
+* DEFCON 17 Badge: Freescale MC56F8006
 
-* Cypress EZ-USB FX3 (ARM926EJ-S) (bladeRF)
+* DEFCON 18 Badge: Freescale MC56F8006
 
-* Freescale MC56F8006 (DEFCON 17 Badge)
+* HP iPAQ h1930: Samsung S3C2410 (ARM920T)
 
-* Lattice ispMACH iM4A3-32 CPLD (D-Link DWL-900AP+)
+* Linksys WRT54G v1.1: Broadcom BCM4702
 
-* Marvell PXA312 (Intel XScale/ARM5) (Samsung SCH-i910)
+* Linksys WRT54G v1.3: Broadcom BCM5354KFBG
 
-* Samsung S3C4510B01-QER0 (ARM7TDMI) (D-Link DWL-900AP+)
+* Linksys WRT54G v2 rXH: Broadcom BCM4712
 
-* Qualcomm MSM6500 (ARM926EJ-S) (BlackBerry 7250)
+* Netgear RP614 v1: Samsung S3C4510B01-QER0 (ARM7TDMI)
 
-* Samsung S3C2410 (ARM920T) (HP iPAQ h1930)
+* Samsung SCH-i910: Marvell PXA312 (Intel XScale/ARM5)
+
+* Texas Instruments Stellaris Ethernet+CAN Evaluation Kit: TI LM3S8962 (ARM Cortex-M3)
+
+* Western Digital Caviar Green WD20EARX-00PASB0 (PCB REV A 2060-771698-004): Marvell 88i9146-TFJ (ARM Cortex-M3), 2x Marvell Feroceon
+
+* Western Digital Caviar Green WD20EARX-00PASB0 (PCB REV P1 2060-771853-000): Marvell 88i9346-TFJ
+
+* Western Digital Caviar Blue WD5000AAKX: 2x Marvell 88i9045-TFJ2
+
+* ZTE Open: Qualcomm MSM7225A (Snapdragon S1/ARM Cortex-A5)
 
 
 UART
 ----
 
-* Broadcom BCM4712 (Linksys WRT54G v2 rXH w/ DD-WRT)
+* ASUS RT-N10+ w/ DD-WRT: Ralink RT3050F
 
-* Broadcom BCM5354KFBG (Linksys WRT54G2 v1.3 w/ DD-WRT)
+* Emic 2 Text-to-Speech Module: Freescale MCF51QE128
 
-* Freescale MCF51QE128 (Emic 2 Text-to-Speech Module)
+* Linksys WRT54G2 v1.3 w/ DD-WRT: Broadcom BCM5354KFBG
 
-* Ralink RT3050F (ASUS RT-N10+ w/ DD-WRT)
+* Linksys WRT54G v2 rXH w/ DD-WRT: Broadcom BCM4712
 
 
 [1]: http://www.jtagulator.com
