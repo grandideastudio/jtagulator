@@ -46,6 +46,8 @@ JTAG
 UART
 ----
 
+* Actiontec PK5000: Infineon PSB7200ZDW
+
 * ASUS RT-N10+ w/ DD-WRT: Ralink RT3050F
 
 * Emic 2 Text-to-Speech Module: Freescale MCF51QE128
