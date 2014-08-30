@@ -21,6 +21,7 @@ JTAGulator is distributed under a [Creative Commons Attribution 3.0 United State
 license. This means that you can share and adapt the work, but you must attribute the 
 work to the original author. 
 
+
 [1]: http://www.jtagulator.com
 [2]: http://www.grandideastudio.com
 [3]: http://creativecommons.org/licenses/by/3.0/us/

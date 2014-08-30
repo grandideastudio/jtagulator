@@ -1,8 +1,7 @@
-Known Good Targets
--------------------
+JTAGulator Known Good Targets
+=============================
 
-We do our best to keep track of devices that have successfully been used with the  
-[JTAGulator][1]. If you have additions, please [let us know][2]!
+Although an insurmountable task, we do our best to keep track of devices that have successfully been used with the [JTAGulator][1]. If you have any additions, please [let us know][2]!
 
 
 JTAG
