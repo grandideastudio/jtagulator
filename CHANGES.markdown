@@ -4,11 +4,18 @@ JTAGulator Change Log
 Visit the JTAGulator [github repository][0] for full commit comments.
 
 
+1.2.2
+-----
+Release date: **September 20, 2014**
+
+* Modified `Set_Target_IO_Voltage` to print a confirmation of the newly set voltage (thanks to Crypt) and to print a warning that the user should NOT connect VADJ to the target (VADJ is used for level-shifting JTAGulator's I/O to match the target's I/O, NOT to externally power the target).
+
+
 1.2.1
 -----
 Release date: **September 8, 2014**
 
-* Added prompt to enable/disable local echo during UART passthrough. Local echo is turned off by default, since the target device normally controls whether or not to echo characters.
+* Added prompt to enable/disable local echo during UART passthrough (thanks to dummys). Local echo is turned off by default, since the target device normally controls whether or not to echo characters.
 
 * Minor code cleanup
 
