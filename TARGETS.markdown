@@ -23,9 +23,9 @@ JTAG
 
 * Linksys WRT54G v1.1: Broadcom BCM4702
 
-* Linksys WRT54G v1.3: Broadcom BCM5354KFBG
-
 * Linksys WRT54G v2 rXH: Broadcom BCM4712
+
+* Linksys WRT54G2 v1.3: Broadcom BCM5354KFBG
 
 * Netgear RP614 v1: Samsung S3C4510B01-QER0 (ARM7TDMI)
 
@@ -51,9 +51,11 @@ UART
 
 * Emic 2 Text-to-Speech Module: Freescale MCF51QE128
 
-* Linksys WRT54G2 v1.3 w/ DD-WRT: Broadcom BCM5354KFBG
+* Huawei EchoLife HG520c: Trendchip TC3162P2
 
 * Linksys WRT54G v2 rXH w/ DD-WRT: Broadcom BCM4712
+
+* Linksys WRT54G2 v1.3 w/ DD-WRT: Broadcom BCM5354KFBG
 
 
 [1]: http://www.jtagulator.com
