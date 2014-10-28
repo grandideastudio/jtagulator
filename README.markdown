@@ -17,9 +17,12 @@ Created by Joe Grand of [Grand Idea Studio][2].
 
 License
 -------
-JTAGulator is distributed under a [Creative Commons Attribution 3.0 United States][3] 
-license. This means that you can share and adapt the work, but you must attribute the 
-work to the original author. 
+The JTAGulator design is distributed under a [Creative Commons Attribution 3.0 
+United States][3] license. This means that you can share and adapt the work, but 
+you must attribute the work to the original author. 
+
+The JTAGulator name and logo are trademarks of [Grand Idea Studio][2]. No permission 
+is granted to use the marks without our express consent. 
 
 
 [1]: http://www.jtagulator.com
