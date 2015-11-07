@@ -7,6 +7,8 @@ Although an insurmountable task, we do our best to keep track of devices that ha
 JTAG
 ----
 
+* Avaya 9600 Series IP Deskphones: Broadcom BCM1103
+
 * BlackBerry 7250: Qualcomm MSM6500 (ARM926EJ-S)
 
 * BlackBerry 7290: Analog Devices AD6521 Baseband, Analog Devices AD6529 (ARM7TDMI)
@@ -45,6 +47,8 @@ JTAG
 UART
 ----
 
+* Actiontec MI424-WR Rev. E: Cavium OCTEON CN5020
+
 * Actiontec PK5000: Infineon PSB7200ZDW
 
 * ASUS RT-N10+ w/ DD-WRT: Ralink RT3050F
@@ -56,6 +60,8 @@ UART
 * Linksys WRT54G v2 rXH w/ DD-WRT: Broadcom BCM4712
 
 * Linksys WRT54G2 v1.3 w/ DD-WRT: Broadcom BCM5354KFBG
+
+* Netgear DG834: Texas Instruments AR7 TNETD7300GDU
 
 
 [1]: http://www.jtagulator.com
