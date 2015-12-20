@@ -29,6 +29,8 @@ Protocols/Discovery
 
 * JTAG: Instruction Register (IR) length detection
 
+* JTAG: EJTAG support
+
 * JTAG: RTCK pin detection (adaptive clocking)
 
 * UART: Automatic baud rate detection for UART Scan (measure minimum pulse width of received signal)
