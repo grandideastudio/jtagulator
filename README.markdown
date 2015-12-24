@@ -5,9 +5,13 @@ A tool to assist in identifying on-chip debugging (OCD) and/or
 programming connections from test points, vias, or component pads on a target
 piece of hardware.
 
-Refer to the project page for more details:
+Refer to the project page for complete details:
 
 [http://www.jtagulator.com][1]
+
+Direct link to video demonstrating the firmware update process:
+
+[https://www.youtube.com/watch?v=xlXwy-weG1M][2]
 
 
 Author
