@@ -13,8 +13,6 @@ Bug Fixes
 General
 -------
 
-* Select starting channel for scan (to allow multiple ports/devices to be hooked up to the JTAGulator at the same time without being forced to search them all)
-
 * Logic analyzer: Compatibility w/ [sigrok][3]
 
 * Compatibility w/ [OpenOCD][1] and [UrJTAG][2]: This would enable the JTAGulator to directly manipulate target devices once the interface is found (instead of having to disconnect the JTAGulator and connect other JTAG hardware to do the job like we have to do now). 
@@ -24,8 +22,6 @@ Protocols/Discovery
 -------------------
 
 * JTAG: Add Send Instruction/Opcode command (for known pinout)
-
-* JTAG: Accept known pins (if discovered by IDCODE Scan) for use during BYPASS Scan in order to reduce search time
 
 * JTAG: Instruction Register (IR) length detection
 

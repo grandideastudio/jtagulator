@@ -4,6 +4,31 @@ JTAGulator Change Log
 Visit the JTAGulator [github repository][0] for full commit comments.
 
 
+1.3
+---
+Release date: **December 25, 2015**
+
+* JTAG: Added support during `BYPASS_Scan` to accept known pins, if any. This can greatly reduce search time, especially if `IDCODE_Scan` was done first to identify all pins except for TDI.
+
+* JTAG: Better verification of `BYPASS_Scan` results (limit to 32 maximum devices in the chain, call `BYPASS_Test` to ensure that the detected pin configuration actually works).
+
+* JTAG: Modified `IDCODE_Known` to work without needing to know the number of devices in the JTAG chain.
+
+* JTAG: Modified `BYPASS_Known` to automatically detect the number of devices in the JTAG chain (instead of asking the user).
+
+* JTAG: Changed TDI to idle HIGH during `Get_Device_IDs` to conform to the IEEE 1149.1 specification.
+
+* General: User can now specify a range of channels to scan instead of always starting at CH0 (`Get_Channels`). This allows multiple ports/targets to be hooked up to the JTAGulator without being forced to scan them all at the same time.
+
+* General: JTAGulator will now remember the most recently detected pinout during a scan (until reset or a completed scan with no results). This allows the user to more easily enter the pin values in subsequent commands.
+
+* General: Display a message if no target device(s) found during a scan.
+
+* General: Added backspace support to user input (thanks to piggybanks).
+
+* General: Minor code cleanup and text updates.
+
+
 1.2.2
 -----
 Release date: **September 20, 2014**
@@ -30,7 +55,7 @@ Release date: **August 7, 2014**
 
 * Added extended IDCODE decoding based on IEEE 1149.1 specification for easier/quicker identification of manufacturer, part number, and version (thanks to Bob Heinemann)
 
-* Modified `UART_Scan` to display previously entered string (if any) as default and to accept hex values (when `\x` is used as the string prefix, ignore MSBs if they are NULL). 
+* Modified `UART_Scan` to display previously entered string, if any, as default and to accept hex values (when `\x` is used as the string prefix, ignore MSBs if they are NULL). 
 
 * Changed command input to require that commands are terminated with a single CR or LF, instead of executing immediately after the character was entered.
 
