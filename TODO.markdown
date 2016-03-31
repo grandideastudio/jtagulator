@@ -9,9 +9,6 @@ General
 
 * Compatibility w/ [OpenOCD][0]: This would enable the JTAGulator to directly manipulate target devices once the interface is found (instead of having to disconnect the JTAGulator and connect other JTAG hardware to do the job like we have to do now). 
 
-* Logic analyzer: Compatibility w/ [sigrok][1]
-
-
 Protocols/Discovery
 -------------------
 
