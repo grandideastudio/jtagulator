@@ -21,6 +21,8 @@ JTAG
 
 * DEFCON 18 Badge: Freescale MC56F8006
 
+* DEFCON 24 Badge: Intel Quark D2000
+
 * HP iPAQ h1930: Samsung S3C2410 (ARM920T)
 
 * Linksys WRT54G v1.1: Broadcom BCM4702
@@ -30,6 +32,8 @@ JTAG
 * Linksys WRT54G2 v1.3: Broadcom BCM5354KFBG
 
 * Netgear RP614 v1: Samsung S3C4510B01-QER0 (ARM7TDMI)
+
+* Samsung 850 EVO SATA III SSD: Samsung Mercury MHX S4LP052X01 (ARM)
 
 * Samsung SCH-i910: Marvell PXA312 (Intel XScale/ARM5)
 
@@ -54,6 +58,8 @@ UART
 * Actiontec PK5000: Infineon PSB7200ZDW
 
 * ASUS RT-N10+ w/ DD-WRT: Ralink RT3050F
+
+* DEFCON 24 Badge: Intel Quark D2000
 
 * Emic 2 Text-to-Speech Module: Freescale MCF51QE128
 
