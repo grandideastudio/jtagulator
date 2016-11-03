@@ -4,13 +4,42 @@ JTAGulator Change Log
 Visit the JTAGulator [github repository][0] for full commit comments.
 
 
+1.4
+---
+Release date: **November 3, 2016**
+
+* JTAG: Added command to transfer an instruction and data to/from a target (`X`). This is useful for testing and preliminary fuzzing. Requires a known JTAG pinout and assumes a single device in the chain.
+
+* JTAG: Added Instruction/Data Register (IR/DR) discovery command (`Y`). Inspired by UrJTAG's `discovery` command, this is useful for identifying available (and possibly undocumented) instructions of a target. Requires a known JTAG pinout and assumes a single device in the chain.
+
+* JTAG: Added `Detect_IR_Length` and `Detect_DR_Length` methods to automatically detect the length of the Instruction Register (IR) and Data Register (DR, given a specified IR), respectively.
+
+* UART: Added UART scanning command (`T`) to detect the target TXD pin only using a number of configurable parameters (baud rate range, timeout duration, number of loops per permutation, pause between permutations) (thanks to alexmaloteaux).
+
+* UART: Allow user to disable TXD or RXD pin during `UART_Passthrough`.
+
+* GPIO: Added command to continuously read/monitor all channels (`C`) (thanks to HexView).
+
+* GPIO: Modified `Write_IO_Pins` to remember the previously entered value.
+
+* General: Wait until the user presses a key on power-up/reset before sending the JTAGulator header and command prompt.
+
+* General: Implemented submenu system to break up the list of commands by interface (thanks to HexView).
+
+* General: Added warning to start-up text that use of this tool may affect target system behavior.
+
+* Minor code cleanup and optimizations.
+
+* Release for [Black Hat Europe 2016 Tools Arsenal][4].
+
+
 1.3
 ---
 Release date: **December 25, 2015**
 
 * JTAG: Added support during `BYPASS_Scan` to accept known pins, if any. This can greatly reduce search time, especially if `IDCODE_Scan` was done first to identify all pins except for TDI.
 
-* JTAG: Better verification of `BYPASS_Scan` results (limit to 32 maximum devices in the chain, call `BYPASS_Test` to ensure that the detected pin configuration actually works).
+* JTAG: Better verification of `BYPASS_Scan` results (limit to 32 maximum devices in the chain, calls `BYPASS_Test` again to ensure that the detected pin configuration actually works).
 
 * JTAG: Modified `IDCODE_Known` to work without needing to know the number of devices in the JTAG chain.
 
@@ -42,7 +71,7 @@ Release date: **September 8, 2014**
 
 * Added prompt to enable/disable local echo during UART passthrough (thanks to dummys). Local echo is turned off by default, since the target device normally controls whether or not to echo characters.
 
-* Minor code cleanup
+* Minor code cleanup.
 
 
 1.2
@@ -53,7 +82,7 @@ Release date: **August 7, 2014**
 
 * Fixed/modified JTAG routines to more closely conform to the IEEE 1149.1 specification (thanks to Bryan Angelo @ Qualcomm).
 
-* Added extended IDCODE decoding based on IEEE 1149.1 specification for easier/quicker identification of manufacturer, part number, and version (thanks to Bob Heinemann)
+* Added extended IDCODE decoding based on IEEE 1149.1 specification for easier/quicker identification of manufacturer, part number, and version (thanks to Bob Heinemann).
 
 * Modified `UART_Scan` to display previously entered string, if any, as default and to accept hex values (when `\x` is used as the string prefix, ignore MSBs if they are NULL). 
 
@@ -61,13 +90,13 @@ Release date: **August 7, 2014**
 
 * Added local echo into `Parallax Serial Terminal.spin` (thanks to HexView). This will make using JTAGulator easier across different terminal programs, many of which don't provide local echo by default.
 
-* Added progress indicators (display a character on the screen and blink LED) to show that JTAGulation is active/working (`Display_Progress`)
+* Added progress indicators (display a character on the screen and blink LED) to show that JTAGulation is active/working (`Display_Progress`).
 
 * Added command to display firmware version information (`J`).
 
 * Added JTAGulator logo and welcome message to start-up text.
 
-* Minor code cleanup, optimizations, fixes to UI/input sanitization
+* Minor code cleanup, optimizations, fixes to UI/input sanitization.
 
 * Release for [Black Hat USA 2014 Tools Arsenal][3].
 
@@ -110,6 +139,7 @@ Release date: **April 24, 2013**
 * Initial release for [DESIGN West 2013][1].
 
 
+[4]: https://www.blackhat.com/eu-16/arsenal.html
 [3]: https://www.blackhat.com/us-14/arsenal.html
 [2]: https://www.blackhat.com/us-13/
 [1]: http://www.ubmdesign.com/sanjose/
