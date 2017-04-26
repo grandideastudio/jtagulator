@@ -1,0 +1,13 @@
+sudo: required
+dist: trusty
+language: generic
+addons:
+  apt:
+    packages:
+      - qt5-default
+      - libqt5serialport5
+      - libftdi1
+script:
+  - wget https://github.com/parallaxinc/PropellerIDE/releases/download/0.38.5/propelleride-0.38.5-amd64.deb
+  - sudo dpkg -i propelleride-0.38.5-amd64.deb
+  - /usr/bin/openspin -L /usr/bin/../share/propelleride/library JTAGulator.spin
