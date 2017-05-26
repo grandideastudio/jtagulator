@@ -7,15 +7,15 @@ This is a rough list of features and/or additions we'd like to eventually build 
 Bug Fixes
 ---------
 
-* Inconsistent IDCODE Scan and/or BYPASS Scan results on certain targets. Confirmed on HTC One X, Pogoplug, BeagleBone Black, and Arcadyan VGV7519. May be multiple issues or all due to a single root cause. See [Issue #3][0] (work in progress)
+* Inconsistent IDCODE Scan and/or BYPASS Scan results on certain targets. Confirmed on HTC One X, Pogoplug, BeagleBone Black, and Arcadyan VGV7519. May be multiple issues or all due to a single root cause. [Issue #3](https://github.com/grandideastudio/jtagulator/issues/3) (work in progress)
 
 
 General
 -------
 
-* Logic analyzer: Compatibility w/ [sigrok][3] (work in progress)
+* Logic analyzer: Compatibility w/ [sigrok](http://sigrok.org) (work in progress)
 
-* Compatibility w/ [OpenOCD][1] and [UrJTAG][2]: This would enable the JTAGulator to directly manipulate target devices once the interface is found (instead of having to disconnect the JTAGulator and connect other JTAG hardware to do the job like we have to do now). 
+* Compatibility w/ [OpenOCD](http://openocd.org) and [UrJTAG](http://urjtag.org): This would enable the JTAGulator to directly manipulate target devices once the interface is found (instead of having to disconnect the JTAGulator and connect other JTAG hardware to do the job like we have to do now). 
 
 
 Protocols/Discovery
@@ -25,11 +25,13 @@ Protocols/Discovery
 
 * JTAG: RTCK pin detection (adaptive clocking)
 
+* JTAG: ARM Serial Wire Debug
+
+* JTAG: Compact JTAG aka cJTAG (IEEE 1149.7) [Issue #13](https://github.com/grandideastudio/jtagulator/issues/13)
+
 * UART: Automatic baud rate detection for UART Scan (measure minimum pulse width of received signal)
 
 * UART: Support inverted TX/RX (idle high or idle low) during UART Scan/Pass Through
-
-* ARM Serial Wire Debug
 
 * TI Spy-Bi-Wire/MSP430
 
@@ -45,7 +47,7 @@ Protocols/Discovery
 
 * Flash Memory: External discovery via JTAG Boundary Scan
 
-* Flash Memory: NAND (eMMC), Parallel NOR (CFI), Serial NOR (SPI), compatibility w/ [flashrom][4] 
+* Flash Memory: NAND (eMMC), Parallel NOR (CFI), Serial NOR (SPI), compatibility w/ [flashrom](http://flashrom.org) 
 
 
 Hardware
@@ -58,10 +60,3 @@ Documentation
 -------------
 
 * FAQ/Troubleshooting Guide
-
-
-[0]: https://github.com/grandideastudio/jtagulator/issues/3
-[1]: http://openocd.sourceforge.net
-[2]: http://urjtag.org
-[3]: http://sigrok.org
-[4]: http://flashrom.org
