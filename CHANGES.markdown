@@ -1,7 +1,22 @@
 JTAGulator Change Log
 =====================
 
-Visit the JTAGulator [github repository][0] for full commit comments.
+Visit the JTAGulator [github repository](https://github.com/grandideastudio/jtagulator/commits/master) for full commit comments.
+
+
+1.5
+---
+Release date: **In Progress**
+
+* UART: Allow user to ignore non-printable characters (except CR and LF) during `UART_Scan` and `UART_Scan_TXD`. 
+
+* UART: Allow user to skip a channel during `UART_Scan_TXD` without needing to abort entirely.
+
+* UART: Modified the time per channel calculations in `UART_Scan_TXD`.
+
+* General: Allow whole numbers to be accepted by `Set_Target_IO_Voltage`.
+
+* General: Added .travis.yml script for use with Travis CI, which provides continuous integration/build of the JTAGulator code base using PropellerIDE and openspin (thanks to stephengroat).
 
 
 1.4
@@ -30,7 +45,7 @@ Release date: **November 3, 2016**
 
 * Minor code cleanup and optimizations.
 
-* Release for [Black Hat Europe 2016 Tools Arsenal][4].
+* Release for [Black Hat Europe 2016 Tools Arsenal](https://www.blackhat.com/eu-16/arsenal.html).
 
 
 1.3
@@ -98,7 +113,7 @@ Release date: **August 7, 2014**
 
 * Minor code cleanup, optimizations, fixes to UI/input sanitization.
 
-* Release for [Black Hat USA 2014 Tools Arsenal][3].
+* Release for [Black Hat USA 2014 Tools Arsenal](https://www.blackhat.com/us-14/arsenal.html).
 
 
 1.1.1
@@ -120,7 +135,7 @@ Release date: **August 1, 2013**
 
 * Re-organized code by subsystem (e.g., UART, JTAG, General).
 
-* Release for [Black Hat USA 2013][2].
+* Release for [Black Hat USA 2013](https://www.blackhat.com/us-13/).
 
 
 1.0.1
@@ -136,11 +151,4 @@ Release date: **June 11, 2013**
 ---
 Release date: **April 24, 2013**
 
-* Initial release for [DESIGN West 2013][1].
-
-
-[4]: https://www.blackhat.com/eu-16/arsenal.html
-[3]: https://www.blackhat.com/us-14/arsenal.html
-[2]: https://www.blackhat.com/us-13/
-[1]: http://www.ubmdesign.com/sanjose/
-[0]: https://github.com/grandideastudio/jtagulator/commits/master
+* Initial release for [DESIGN West 2013](http://www.ubmdesign.com/sanjose/).
