@@ -8,6 +8,10 @@ Visit the JTAGulator [github repository](https://github.com/grandideastudio/jtag
 ---
 Release date: **In Progress**
 
+* JTAG: Fixed `BYPASS_Scan` permutation calculation error when pins are known.
+
+* JTAG: Fixed `Set_JTAG_Partial` error checking to make sure known pins are within range.
+
 * UART: Allow user to ignore non-printable characters (except CR and LF) during `UART_Scan` and `UART_Scan_TXD`. 
 
 * UART: Allow user to skip a channel during `UART_Scan_TXD` without needing to abort entirely.
@@ -43,7 +47,7 @@ Release date: **November 3, 2016**
 
 * General: Added warning to start-up text that use of this tool may affect target system behavior.
 
-* Minor code cleanup and optimizations.
+* General: Minor code cleanup and optimizations.
 
 * Release for [Black Hat Europe 2016 Tools Arsenal](https://www.blackhat.com/eu-16/arsenal.html).
 
