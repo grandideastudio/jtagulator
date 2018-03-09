@@ -6,11 +6,13 @@ Visit the JTAGulator [github repository](https://github.com/grandideastudio/jtag
 
 1.5
 ---
-Release date: **In Progress**
+Release date: **March 12, 2018**
 
 * JTAG: Fixed `BYPASS_Scan` permutation calculation error when pins are known.
 
 * JTAG: Fixed `Set_JTAG_Partial` error checking to make sure known pins are within range.
+
+* UART: Optimized `UART_Passthrough` to reduce dropped characters when receiving contiguous blocks of data.
 
 * UART: Allow user to ignore non-printable characters (except CR and LF) during `UART_Scan` and `UART_Scan_TXD`. 
 
