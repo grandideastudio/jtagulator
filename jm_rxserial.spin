@@ -11,6 +11,10 @@
 ''
 '' =================================================================================================
 
+'' Modified by Lawson from https://forums.parallax.com/discussion/114492/prop-baudrates
+'' Modified by Joe Grand 3/9/18, changed receiver delay to waitpeq (wait for rising edge) instead of waitcnt for final bit in byte
+
+  
 con
   buff_mask = $1ff              'must be all ones
   buff_size = buff_mask+1
@@ -26,7 +30,7 @@ var
   long  rxTail                                                  ' tail pointer (0..511)
   long  rxPntr                                                  ' address of rxBuf[0]    
 
-  byte  rxBuf[buff_size]                                               ' receive buffer 
+  byte  rxBuf[buff_size]                                        ' receive buffer 
 
 
 pub init(rxd, baud) : okay
@@ -41,7 +45,7 @@ pub init(rxd, baud) : okay
   rxTail    := 0
   rxPntr    := @rxBuf
        
-  bytefill(@rxBuf, 0, buff_size)                                       ' clear buffer
+  bytefill(@rxBuf, 0, buff_size)                     ' clear buffer
   okay := cog := cognew(@rxserial, @rxPin) + 1     
 
 
@@ -56,7 +60,7 @@ pub cleanup
 pub rx | c
 
 '' Pulls c from receive buffer if available
-'' -- will wait if buffer is embpty
+'' -- will wait if buffer is empty
 
   repeat while rxTail == rxHead
   c := rxBuf[rxTail]
@@ -71,7 +75,7 @@ pub flush
 
   rxHead := 0
   rxTail := 0
-  bytefill(@rxBuf, 0, buff_size)                                       ' clear buffer  
+  bytefill(@rxBuf, 0, buff_size)                     ' clear buffer  
   
 
 dat
@@ -107,7 +111,7 @@ putbuf                  rdlong  tmp1, rxheadpntr                ' tmp1 := rxhead
                         wrbyte  rxwork, tmp1                    ' rxbuf[rxhead] := rxwork
                         sub     tmp1, rxbufpntr                 ' tmp1 := rxhead 
                         add     tmp1, #1                        ' inc tmp1
-                        and     tmp1, #buff_mask                      ' keep 0..511
+                        and     tmp1, #buff_mask                ' keep 0..511
                         wrlong  tmp1, rxheadpntr                ' rxhead := tmp1
 
                         jmp     #rxbyte
@@ -118,18 +122,18 @@ putbuf                  rdlong  tmp1, rxheadpntr                ' tmp1 := rxhead
 ' -----------------
 '
 receive                 mov     rxwork, #0                      ' clear work var
-                        mov     rxcount, #8                     ' rx eight bits
+                        mov     rxcount, #8                     ' rx eight data bits
                         mov     rxtimer, rxbit1x5               ' set timer to 1.5 bits
                         
 waitstart               waitpne rxmask, rxmask                  ' wait for falling edge
                         add     rxtimer, cnt                    ' sync with system counter
 
 rxbit                   waitcnt rxtimer, rxbit1x0               ' hold for middle of bit
-                        test    rxmask, ina             wc      ' rx --> c
+                        test    rxmask, ina             wc      ' receive bit, rx --> c
                         shr     rxwork, #1                      ' prep for new bit
                         muxc    rxwork, #%1000_0000             ' c --> rxwork.7
                         djnz    rxcount, #rxbit                 ' update bit count
-                        'waitcnt rxtimer, #0                     ' let last bit finish  (needed at lower bit rates)                      
+                        waitpeq rxmask, rxmask                  ' let last bit finish (wait for rising edge)
                         
 receive_ret             ret  
 
