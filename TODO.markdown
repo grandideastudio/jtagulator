@@ -29,10 +29,6 @@ Protocols/Discovery
 
 * JTAG: Compact JTAG aka cJTAG (IEEE 1149.7) [Issue #13](https://github.com/grandideastudio/jtagulator/issues/13)
 
-* UART: Automatic baud rate detection for UART Scan (measure minimum pulse width of received signal)
-
-* UART: Support inverted TX/RX (idle high or idle low) during UART Scan/Pass Through
-
 * TI Spy-Bi-Wire/MSP430
 
 * Atmel AVR ISP
