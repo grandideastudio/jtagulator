@@ -7,35 +7,42 @@
 ''               -- see below for terms of use
 ''   E-mail..... jon@jonmcphalen.com
 ''   Started.... 
-''   Updated.... 16 JUL 2009
+''   Updated.... 06 JUL 2009
 ''
 '' =================================================================================================
-     
+
+con
+  buff_mask = $1ff              'must be all ones
+  buff_size = buff_mask+1
+
 
 var
 
   long  cog
 
-  word  rxHead                                                  ' head pointer (0..255)
-  word  rxTail                                                  ' tail pointer (0..255)
-  byte  rxBuf[256]                                              ' receive buffer 
+  long  rxPin                                                   ' receive pin
+  long  rxBitTix                                                ' counter ticks per bit
+  long  rxHead                                                  ' head pointer (0..511)
+  long  rxTail                                                  ' tail pointer (0..511)
+  long  rxPntr                                                  ' address of rxBuf[0]    
+
+  byte  rxBuf[buff_size]                                               ' receive buffer 
 
 
 pub init(rxd, baud) : okay
 
 '' Creates true mode receive UART on pin rxd at baud rate
 
-  cleanup                                                       ' stop cog if running
-  flush                                                         ' clear buffer
+  cleanup
 
-  rxmask     := 1 << rxd                                        ' set tx cog vars  
-  rxbit1x0   := clkfreq / baud    
-  rxbit1x5   := rxbit1x0 * 3 / 2   
-  rxheadpntr := @rxHead
-  rxtailpntr := @rxTail
-  rxbufpntr  := @rxBuf
-
-  okay := cog := cognew(@rxserial, 0) + 1     
+  rxPin     := rxd
+  rxBitTix  := clkfreq / baud
+  rxHead    := 0
+  rxTail    := 0
+  rxPntr    := @rxBuf
+       
+  bytefill(@rxBuf, 0, buff_size)                                       ' clear buffer
+  okay := cog := cognew(@rxserial, @rxPin) + 1     
 
 
 pub cleanup
@@ -49,70 +56,67 @@ pub cleanup
 pub rx | c
 
 '' Pulls c from receive buffer if available
-'' -- will wait if buffer is empty
+'' -- will wait if buffer is embpty
 
   repeat while rxTail == rxHead
   c := rxBuf[rxTail]
-  rxTail := (rxTail + 1) & $FF
+  rxTail := (rxTail + 1) & buff_mask
 
   return c
-
-  
-pub rxcheck | c
-
-'' Pulls c from receive buffer if available
-'' -- returns < 0 if no byte received                                     
-
-  if (rxTail == rxHead)
-    c := -1
-  else  
-    c := rxBuf[rxTail]
-    rxTail := (rxTail + 1) & $FF
-
-  return c
-
-  
-pub wait(b) | check
-
-'' Waits for specific byte in RX input stream
-
-  repeat
-    check := rx                                                 ' get byte from stream
-  until (check == b)
-
-
-pub waitstr(pntr) | count, cpntr, check
-
-'' Waits for specific string in input stream
-'' -- pntr is a pointer to the string to wait for
-
-  count := strsize(pntr)
-  cpntr := pntr
-
-  repeat while count
-    check := rx                                                 ' get byte from stream
-    if (check == byte[cpntr])                                   ' compare to string
-      --count                                                   ' if match, update count
-      ++cpntr                                                   '  and character pointer      
-    else
-      count := strsize(pntr)                                    ' else reset count
-      cpntr := pntr                                             '  and character pointer 
 
 
 pub flush
 
-'' Flushes RX buffer
+'' Flushes rx buffer
 
-  longfill(@rxHead, 0, 65)                                      ' clear pointers (1) and buffer (64) 
-  rxTail := rxHead                                              ' reset buffer pointers
+  rxHead := 0
+  rxTail := 0
+  bytefill(@rxBuf, 0, buff_size)                                       ' clear buffer  
   
 
 dat
 
                         org     0
 
-rxserial                andn    dira, rxmask                    ' make rx pin an input
+rxserial                mov     tmp1, par                       ' start of structure
+                        rdlong  tmp2, tmp1                      ' read rx pin
+                        mov     rxmask, #1                      ' create rx pin mask
+                        shl     rxmask, tmp2
+                        andn    dira, rxmask                    ' make rx pin an input
+                        
+                        add     tmp1, #4
+                        rdlong  rxbit1x0, tmp1                  ' get bit timing
 
+                        mov     rxbit1x5, rxbit1x0              ' set timing for 1.5 bits
+                        shr     rxbit1x5, #1
+                        add     rxbit1x5, rxbit1x0
+                        
+                        add     tmp1, #4
+                        mov     rxheadpntr, tmp1                ' save pointer addresses
+                        
+                        add     tmp1, #4
+                        mov     rxtailpntr, tmp1
+                        
+                        add     tmp1, #4
+                        rdlong  rxbufpntr, tmp1                 ' get buffer address
+
+rxbyte                  call    #receive
+
+putbuf                  rdlong  tmp1, rxheadpntr                ' tmp1 := rxhead
+                        add     tmp1, rxbufpntr                 ' tmp1 := rxbuf[rxhead]
+                        wrbyte  rxwork, tmp1                    ' rxbuf[rxhead] := rxwork
+                        sub     tmp1, rxbufpntr                 ' tmp1 := rxhead 
+                        add     tmp1, #1                        ' inc tmp1
+                        and     tmp1, #buff_mask                      ' keep 0..511
+                        wrlong  tmp1, rxheadpntr                ' rxhead := tmp1
+
+                        jmp     #rxbyte
+
+
+' -----------------
+' True Mode RX UART
+' -----------------
+'
 receive                 mov     rxwork, #0                      ' clear work var
                         mov     rxcount, #8                     ' rx eight bits
                         mov     rxtimer, rxbit1x5               ' set timer to 1.5 bits
@@ -125,33 +129,25 @@ rxbit                   waitcnt rxtimer, rxbit1x0               ' hold for middl
                         shr     rxwork, #1                      ' prep for new bit
                         muxc    rxwork, #%1000_0000             ' c --> rxwork.7
                         djnz    rxcount, #rxbit                 ' update bit count
-                        waitcnt rxtimer, #0                     ' let last bit finish  
-
-putbuf                  rdword  tmp1, rxheadpntr                ' tmp1 := rxhead
-                        add     tmp1, rxbufpntr                 ' tmp1 := rxbuf[rxhead]
-                        wrbyte  rxwork, tmp1                    ' rxbuf[rxhead] := rxwork
-                        sub     tmp1, rxbufpntr                 ' tmp1 := rxhead 
-                        add     tmp1, #1                        ' inc tmp1
-                        and     tmp1, #$FF                      ' keep 0..63
-                        wrword  tmp1, rxheadpntr                ' rxhead := tmp1
-
-                        jmp     #receive 
+                        'waitcnt rxtimer, #0                     ' let last bit finish  (needed at lower bit rates)                      
+                        
+receive_ret             ret  
 
 ' -------------------------------------------------------------------------------------------------
 
-rxmask                  long    0-0                             ' mask for rx pin
-rxbit1x0                long    0-0                             ' ticks per bit
-rxbit1x5                long    0-0                             ' ticks per 1.5 bits
-rxheadpntr              long    0-0                             ' pointer to head position
-rxtailpntr              long    0-0                             ' pointer to tail position
-rxbufpntr               long    0-0                             ' pointer to rxbuf[0]
+tmp1                    res     1
+tmp2                    res     1
+
+rxmask                  res     1                               ' mask for rx pin
+rxbit1x0                res     1                               ' ticks per bit
+rxbit1x5                res     1                               ' ticks per 1.5 bits
+rxheadpntr              res     1                               ' pointer to head position
+rxtailpntr              res     1                               ' pointer to tail position
+rxbufpntr               res     1                               ' pointer to rxbuf[0]
 
 rxwork                  res     1                               ' rx byte input
 rxcount                 res     1                               ' bits to receive
-rxtimer                 res     1                               ' timer for bit sampling
-
-tmp1                    res     1
-tmp2                    res     1 
+rxtimer                 res     1                               ' timer for bit sampling 
                                  
                         fit     492
                         
