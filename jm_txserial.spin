@@ -12,6 +12,8 @@
 ''
 '' =================================================================================================
 
+'' Modified by Joe Grand 3/9/18, changed from 2 stop bits to 1 stop bit
+
 
 var
 
@@ -131,7 +133,7 @@ updatetail              add     tmp2, #1                        ' inc txTail
 
 transmit                or      txwork, STOP_BITS               ' set stop bit(s)
                         shl     txwork, #1                      ' add start bit
-                        mov     txcount, #11                    ' start + 8 data + 2 stop
+                        mov     txcount, #10                    ' start + 8 data + 1 stop 
                         mov     txtimer, bitticks               ' load bit timing
                         add     txtimer, cnt                    ' sync with system counter
 
@@ -146,11 +148,11 @@ txbit                   shr     txwork, #1              wc      ' move bit0 to C
 
 STOP_BITS               long    $FFFF_FF00  
 
-txmask                  long    0-0                              ' mask for tx pin
-bitticks                long    0-0                                ' ticks per bit
-headpntr                long    0-0                               ' pointer to head position
-tailpntr                long    0-0                              ' pointer to tail position
-bufpntr                 long    0-0                              ' pointer to txBuf[0]
+txmask                  long    0-0                             ' mask for tx pin
+bitticks                long    0-0                             ' ticks per bit
+headpntr                long    0-0                             ' pointer to head position
+tailpntr                long    0-0                             ' pointer to tail position
+bufpntr                 long    0-0                             ' pointer to txBuf[0]
 
 txwork                  res     1                               ' byte to transmit
 txcount                 res     1                               ' bits to transmit
