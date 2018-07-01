@@ -4,6 +4,21 @@ JTAGulator Change Log
 Visit the JTAGulator [github repository](https://github.com/grandideastudio/jtagulator/commits/master) for full commit comments.
 
 
+1.6
+---
+Release date: **In progress**
+
+* JTAG: Overhaul of low-level JTAG routines to provide better readability and compliance with the IEEE 1149.1 specification (thanks to anonymous piece of paper).  
+
+* JTAG: Added user-configurable option to pull channels low between permutations during `IDCODE_Scan` and `BYPASS_Scan`. This may help with detection on certain targets that need their state/system reset. 
+  
+* JTAG: Added command to set the JTAG clock speed (`C`). Adjustable from 1 to 23 kHz with the default set to maximum (thanks to BenGardiner).
+
+* General: Minor code cleanup and optimizations.
+
+* Release for [Black Hat USA 2018 Tools Arsenal](https://www.blackhat.com/us-18/arsenal.html).
+
+
 1.5
 ---
 Release date: **March 12, 2018**
