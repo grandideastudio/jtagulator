@@ -10,7 +10,9 @@ Release date: **In progress**
 
 * JTAG: Overhauled low-level JTAG routines (`PropJTAG`) to provide better readability and compliance with the IEEE 1149.1 specification (thanks to anonymous piece of paper).  
 
-* JTAG: Added option to pull channels low between permutations during `IDCODE_Scan` and `BYPASS_Scan`. This may help with detection on certain targets that need their state/system reset. 
+* JTAG: Modified `IDCODE_Scan` to display any Device IDs detected for the current pin configuration (thanks to 0ff). After the scan completes, extended decoding of the Device ID(s) can be achieved with the `Get Device ID` (`D`) command.
+
+* JTAG: Added option to bring channels low between permutations during `IDCODE_Scan` and `BYPASS_Scan`. The length of the low pulse and the delay before continuing after the signal returns high are both adjustable. This may help with detection on certain targets that need their state/system reset. 
   
 * JTAG: Added command to set the JTAG clock speed (`C`). Adjustable from 1 to 22 kHz with the default set to maximum (thanks to BenGardiner).
 
