@@ -13,8 +13,6 @@ Bug Fixes
 General
 -------
 
-* Logic analyzer: Compatibility w/ [sigrok](http://sigrok.org) (work in progress)
-
 * Compatibility w/ [OpenOCD](http://openocd.org) and [UrJTAG](http://urjtag.org): This would enable the JTAGulator to directly manipulate target devices once the interface is found (instead of having to disconnect the JTAGulator and connect other JTAG hardware to do the job like we have to do now). 
 
 
