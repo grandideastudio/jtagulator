@@ -70,6 +70,9 @@
 '' write operation to complete.  Alternatively, you could wait for 5ms
 '' since currently produced EEPROMs will finish within that time.
 
+'' Modified by Joe Grand for JTAGulator, commented out unused methods to save space
+
+
 CON
    ACK      = 0                        ' I2C Acknowledge
    NAK      = 1                        ' I2C No Acknowledge
@@ -157,7 +160,7 @@ PUB ReadPage(SCL, devSel, addrReg, dataPtr, count) : ackbit
    Stop(SCL)
    return ackbit
 
-PUB ReadByte(SCL, devSel, addrReg) : data
+{PUB ReadByte(SCL, devSel, addrReg) : data
 '' Read in a single byte of i2c data.  Device select code is devSel.  Device
 '' starting address is addrReg.  The device select code is modified using the
 '' upper 3 bits of the 19 bit addrReg.  This returns true if an error occurred.
@@ -178,7 +181,7 @@ PUB ReadLong(SCL, devSel, addrReg) : data
 '' Note that you can't distinguish between a return value of -1 and true error.
    if ReadPage(SCL, devSel, addrReg, @data, 4)
       return -1
-
+}
 PUB WritePage(SCL, devSel, addrReg, dataPtr, count) : ackbit
 '' Write out a block of i2c data.  Device select code is devSel.  Device starting
 '' address is addrReg.  Data address is at dataPtr.  Number of bytes is count.
@@ -198,7 +201,7 @@ PUB WritePage(SCL, devSel, addrReg, dataPtr, count) : ackbit
    Stop(SCL)
    return ackbit
 
-PUB WriteByte(SCL, devSel, addrReg, data)
+{PUB WriteByte(SCL, devSel, addrReg, data)
 '' Write out a single byte of i2c data.  Device select code is devSel.  Device
 '' starting address is addrReg.  The device select code is modified using the
 '' upper 3 bits of the 19 bit addrReg.  This returns true if an error occurred.
@@ -223,7 +226,7 @@ PUB WriteLong(SCL, devSel, addrReg, data)
    if WritePage(SCL, devSel, addrReg, @data, 4)
       return true
    return false
-
+}
 PUB WriteWait(SCL, devSel, addrReg) : ackbit
 '' Wait for a previous write to complete.  Device select code is devSel.  Device
 '' starting address is addrReg.  The device will not respond if it is busy.
