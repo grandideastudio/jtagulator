@@ -6,7 +6,7 @@ Visit the JTAGulator [github repository](https://github.com/grandideastudio/jtag
 
 1.6
 ---
-Release date: **In progress**
+Release date: **August 9, 2018**
 
 * JTAG: Overhauled low-level JTAG routines (`PropJTAG`) to provide better readability and compliance with the IEEE 1149.1 specification (thanks to anonymous piece of paper).  
 
