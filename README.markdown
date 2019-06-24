@@ -9,10 +9,43 @@ Refer to the project page for complete details:
 
 [http://www.jtagulator.com][1]
 
-Direct link to video demonstrating the firmware update process:
+
+Firmware Update
+==========
+Download and install PropellerIDE:
+https://developer.parallax.com/propelleride/
+
+
+Clone this repo:
+```
+git clone https://github.com/grandideastudio/jtagulator
+```
+
+Run PropellerIDE (with sudo/root, as it needs access to the device:
+```
+sudo propelleride
+```
+In PropellerIDE, File->Open->JTAGulator.spin from your local version of this repo.
+
+
+Project->Build
+
+
+Project->Write
+
+
+If you get errors:
+```
+Mon Jun 24 13:15:34 2019 [ERROR] Failed to open device: "ttyUSB0" 
+Mon Jun 24 13:15:34 2019 [ERROR] Failed to open device: "ttyUSB0" 
+Mon Jun 24 13:15:34 2019 [DEBUG] [ttyUSB0] ERROR: Device not open 
+```
+Make sure you are running PropellerIDE with sudo and/or that the JTAGulator is connected.
+
+
+Direct link to video demonstrating an alternate (old)firmware update process:
 
 [http://www.youtube.com/watch?v=xlXwy-weG1M][2]
-
 
 Author
 -------
