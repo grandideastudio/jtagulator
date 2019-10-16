@@ -25,7 +25,7 @@ Protocols/Discovery
 
 * JTAG: RTCK pin detection (adaptive clocking)
 
-* JTAG: ARM Serial Wire Debug (in progress per [Pull Request #30](https://github.com/grandideastudio/jtagulator/pull/30)
+* JTAG: ARM Serial Wire Debug (in progress) [Pull Request #30](https://github.com/grandideastudio/jtagulator/pull/30)
 
 * JTAG: Compact JTAG aka cJTAG (IEEE 1149.7) [Issue #13](https://github.com/grandideastudio/jtagulator/issues/13)
 
