@@ -44,14 +44,16 @@ CON
 
 CON
   ' UI
-  MAX_INPUT_LEN = 12   ' Maximum length of command
+  MAX_LEN_CMD = 12   ' Maximum length of command string buffer
   
   ' JTAG/IEEE 1149.1
   MAX_TCK_SPEED = 22   ' Maximum allowable JTAG clock speed (kHz)
    
   ' UART/Asynchronous Serial
-  MAX_LEN_UART  = 16   ' Maximum number of bytes to receive from target
-
+  MAX_LEN_UART_USER     = 34   ' Maximum length of user input string buffer (accounts for hexadecimal input of 16 bytes, \x00112233445566778899AABBCCDDEEFF)
+  MAX_LEN_UART_TX       = 16   ' Maximum number of bytes to transmit to target (based on user input string)
+  MAX_LEN_UART_RX       = 16   ' Maximum number of bytes to receive from target
+    
   ' Menu
   MENU_MAIN     = 0    ' Main/Top
   MENU_JTAG     = 1    ' JTAG
@@ -60,7 +62,7 @@ CON
    
   
 VAR                   ' Globally accessible variables
-  byte vCmd[MAX_INPUT_LEN + 1]  ' Buffer for command input string
+  byte vCmd[MAX_LEN_CMD + 1]  ' Buffer for command input string + \0
   long vTargetIO      ' Target I/O voltage (for example, 18 = 1.8V)
   
   long jTDI           ' JTAG pins (must stay in this order)
@@ -80,7 +82,8 @@ VAR                   ' Globally accessible variables
   long uTXD           ' UART pins (as seen from the target) (must stay in this order)
   long uRXD
   long uBaud
-  byte uSTR[MAX_INPUT_LEN + 1]    ' User text buffer for UART_Scan
+  byte uSTR[MAX_LEN_UART_TX + 1]    ' User input string buffer for UART_Scan + \0
+  byte uHex           ' Is user input string ASCII (0) or hex (number of bytes)
   long uPrintable      
   long uBaudMin       ' Parameters for UART_Scan_TXD
   long uBaudMax
@@ -124,7 +127,7 @@ PUB main | cmd
     u.TXSDisable                   ' Disable level shifter outputs (high-impedance)
     u.LEDGreen                     ' Set status indicator to show that we're ready
     Display_Command_Prompt         ' Display command prompt
-    pst.StrInMax(@vCmd,  MAX_INPUT_LEN) ' Wait here to receive a carriage return terminated string or one of MAX_INPUT_LEN bytes (the result is null terminated) 
+    pst.StrInMax(@vCmd,  MAX_LEN_CMD) ' Wait here to receive a carriage return terminated string or one of MAX_LEN_CMD bytes (the result is null terminated) 
     u.LEDRed                            ' Set status indicator to show that we're processing a command
 
     if (strsize(@vCmd) == 1)       ' Only single character commands are supported...
@@ -463,7 +466,7 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
     pst.Str(String("y/N]: "))
   else
     pst.Str(String("Y/n]: "))  
-  pst.StrInMax(@vCmd,  MAX_INPUT_LEN) ' Wait here to receive a carriage return terminated string or one of MAX_INPUT_LEN bytes (the result is null terminated) 
+  pst.StrInMax(@vCmd,  MAX_LEN_CMD) ' Wait here to receive a carriage return terminated string or one of MAX_LEN_CMD bytes (the result is null terminated) 
   if (strsize(@vCmd) =< 1)            ' We're only looking for a single character (or NULL, which will have a string size of 0)
     case vCmd[0]                        ' Check the first character of the input string
       0:                                ' The user only entered a CR, so keep the same value and pass through.
@@ -673,7 +676,7 @@ PRI OPCODE_Discovery | num, ctr, irLen, drLen, opcode_max, opcodeH, opcodeL, opc
     pst.Str(String("y/N]: "))
   else
     pst.Str(String("Y/n]: "))  
-  pst.StrInMax(@vCmd,  MAX_INPUT_LEN) ' Wait here to receive a carriage return terminated string or one of MAX_INPUT_LEN bytes (the result is null terminated) 
+  pst.StrInMax(@vCmd,  MAX_LEN_CMD) ' Wait here to receive a carriage return terminated string or one of MAX_LEN_CMD bytes (the result is null terminated) 
   if (strsize(@vCmd) =< 1)            ' We're only looking for a single character (or NULL, which will have a string size of 0)
     case vCmd[0]                        ' Check the first character of the input string
       0:                                ' The user only entered a CR, so keep the same value and pass through.
@@ -781,7 +784,7 @@ PRI OPCODE_Known | num, irLen, drLen, xir, xdr, data, i   ' Transfer instruction
   pst.Str(String("]: ")) 
   ' Receive hexadecimal value from the user and perform input sanitization
   ' This has do be done directly in the object since we may need to handle user input up to 32 bits
-  pst.StrInMax(@vCmd,  MAX_INPUT_LEN)
+  pst.StrInMax(@vCmd,  MAX_LEN_CMD)
   if (vCmd[0]==0)   ' If carriage return was pressed...          
     xir := jIR & Bits_To_Value(irLen)    ' Keep current setting, but adjust for a possible change in IR length
   else
@@ -816,7 +819,7 @@ PRI OPCODE_Known | num, irLen, drLen, xir, xdr, data, i   ' Transfer instruction
   pst.Str(String("]: ")) 
   ' Receive hexadecimal value from the user and perform input sanitization
   ' This has do be done directly in the object since we may need to handle user input up to 32 bits
-  pst.StrInMax(@vCmd,  MAX_INPUT_LEN)
+  pst.StrInMax(@vCmd,  MAX_LEN_CMD)
   if (vCmd[0]==0)   ' If carriage return was pressed...          
     xdr := jDR & Bits_To_Value(drLen)    ' Keep current setting, but adjust for a possible change in DR length
   else
@@ -1113,10 +1116,11 @@ PRI Display_Device_ID(value, num, details)
 CON {{ UART METHODS }}
 
 PRI UART_Init
-  bytefill (@uSTR, 0, MAX_INPUT_LEN + 1)  ' Clear input string buffer
+  bytefill (@uSTR, 0, MAX_LEN_UART_TX + 1)  ' Clear user input string buffer
 
   ' Set default parameters
   uPrintable := 1
+  uHex := 0
   
   ' UART_Scan_TXD
   uBaudMin := BaudRate[0]
@@ -1129,37 +1133,67 @@ PRI UART_Init
   uLocalEcho := 0
   
 
-PRI UART_Scan | value, baud_idx, i, j, ctr, num, display, xval, xstr[MAX_INPUT_LEN >> 2 + 1], data[MAX_LEN_UART >> 2], xtxd, xrxd, xbaud    ' Identify UART pinout
+PRI UART_Scan | value, baud_idx, i, j, ctr, num, display, xstr[MAX_LEN_UART_USER + 1], data[MAX_LEN_UART_RX >> 2], xtxd, xrxd, xbaud    ' Identify UART pinout
   pst.Str(@UARTPinoutMessage)
 
  ' Get user string to send during UART discovery
   pst.Str(String(CR, LF, "Enter text string to output (prefix with \x for hex) ["))
-  if (uSTR[0] == 0)
+  if (uSTR[0] == 0) and (uHex == 0)
     pst.Str(String("CR"))  ' Default to a CR if string hasn't been set yet  
-  else
-    pst.Str(@uSTR)         ' If a previous string exists, display it
+  else                     
+    if (uHex == 0)         ' If a previous string exists, display it 
+      pst.Str(@uSTR)         ' In ASCII...
+    else                     ' Or in hex...
+      pst.Str(String("\x"))
+      i := 0
+      repeat uHex
+        pst.Hex(byte[@uSTR][i++], 2)
   pst.Str(String("]: "))
 
-  pst.StrInMax(@xstr, MAX_INPUT_LEN) ' Get input from user
+  pst.StrInMax(@xstr, MAX_LEN_UART_USER) ' Get input from user
   i := strsize(@xstr)
-  if (i <> 0)                        ' If input was anything other than a CR
+  
+  if (i <> 0)              ' If input was anything other than a CR
     ' Make sure each character in the string is printable ASCII
     repeat j from 0 to (i-1)
       if (byte[@xstr][j] < $20) or (byte[@xstr][j] > $7E)
         pst.Str(@ErrOutOfRange)  ' If the string contains invalid (non-printable) characters, abort
         return
-             
-    bytemove(@uSTR, @xstr, i)             ' Move the new string into the uSTR global
-    bytefill(@uSTR+i, 0, MAX_INPUT_LEN-i) ' Fill the remainder of the string with NULL, in case it's shorter than the last 
 
-  ' Check string for the \x escape sequence. If it exists, the desired string is a series of hex bytes
-  if (byte[@uSTR][0] == "\" and byte[@uSTR][1] == "x")
-    if (byte[@uSTR][10] <> 0) or (pst.StrToBase(@uSTR+2, 16) == 0)  ' If the string is too long or it's a NULL byte
-      pst.Str(@ErrOutOfRange)  ' If the hex string is too long, abort
-      return    
-    xval := pst.StrToBase(@uSTR+2, 16)
-  else
-    xval := 0
+    ' Check string for the \x escape sequence. If it exists, then the string is a series of hex bytes
+    if (byte[@xstr][0] == "\" and byte[@xstr][1] == "x")
+      if (byte[@xstr][2] == 0)  ' If the next character is a NULL byte, abort
+        pst.Str(@ErrOutOfRange) 
+        return    
+
+      ' Make sure each character in the string is hexadecimal ("0"-"9","A"-"F","a"-"f") after the \x escape sequence
+      repeat j from 0 to (i-3)
+        value := byte[@xstr+2][j]
+        value := -15 + --value & %11011111 + 39*(value > 56)   ' Borrowed from the Parallax Serial Terminal (PST) StrToBase method     
+        if (value < 0) or (value => 16)
+          pst.Str(@ErrOutOfRange)
+          return
+
+      ' Make sure string is a series of complete bytes (no nibbles), should contain an even number of characters
+      if (i // 2 <> 0)
+         pst.Str(@ErrOutOfRange)
+         return
+        
+      ' Populate the uSTR global with up to MAX_LEN_UART_TX bytes
+      ' uHex will contain the number of bytes in the string (used later as a counter to transmit the data)
+      uHex := 0
+      repeat j from 0 to (i - 3) step 2  ' look at two characters at a time in order to form one hex byte 
+        byte[@uSTR][uHex] := hex2dec(@xstr + 2 + j, 2)
+        uHex++
+      
+    else  ' Otherwise, we are dealing with an ASCII string
+      if (i > MAX_LEN_UART_TX)  ' If input is larger than MAX_LEN_UART_TX bytes, abort
+        pst.Str(@ErrOutOfRange)   
+        return
+
+      uHex := 0
+      bytemove(@uSTR, @xstr, i)               ' Move the new string into the uSTR global 
+      bytefill(@uSTR+i, 0, MAX_LEN_UART_TX-i) ' Fill the remainder of the string with NULL, in case it's shorter than the last 
                
   if (Get_Channels(2) == -1)   ' Get the channel range to use
     return 
@@ -1170,7 +1204,7 @@ PRI UART_Scan | value, baud_idx, i, j, ctr, num, display, xval, xstr[MAX_INPUT_L
     pst.Str(String("y/N]: "))
   else
     pst.Str(String("Y/n]: "))  
-  pst.StrInMax(@vCmd,  MAX_INPUT_LEN) ' Wait here to receive a carriage return terminated string or one of MAX_INPUT_LEN bytes (the result is null terminated) 
+  pst.StrInMax(@vCmd,  MAX_LEN_CMD) ' Wait here to receive a carriage return terminated string or one of MAX_LEN_CMD bytes (the result is null terminated) 
   if (strsize(@vCmd) =< 1)            ' We're only looking for a single character (or NULL, which will have a string size of 0)
     case vCmd[0]                        ' Check the first character of the input string
         0:                                ' The user only entered a CR, so keep the same value and pass through.
@@ -1207,30 +1241,20 @@ PRI UART_Scan | value, baud_idx, i, j, ctr, num, display, xval, xstr[MAX_INPUT_L
           pst.Str(@ErrUARTAborted)
           return
         uBaud := BaudRate[baud_idx]        ' Store current baud rate into uBaud variable
+          
         UART.Start(|<uTXD, |<uRXD, uBaud)  ' Configure UART
         UART.RxFlush                       ' Flush receive buffer
 
-        if (xval == 0)                     ' If the user string is ASCII
+        if (uHex == 0)                     ' If the user string is ASCII
           UART.str(@uSTR)                    ' Send string to target
           UART.tx(CR)                        ' Send carriage return to target
-        else                               ' Otherwise, send hex characters one at a time
-          if (xval & $ff000000)              ' Ignore MSBs if they are NULL
-            UART.tx(xval >> 24)
-            UART.tx(xval >> 16)
-            UART.tx(xval >> 8)
-            UART.tx(xval & $ff)
-          elseif (xval & $ff0000)
-            UART.tx(xval >> 16)
-            UART.tx(xval >> 8)
-            UART.tx(xval & $ff)
-          elseif (xval & $ff00)            
-            UART.tx(xval >> 8)
-            UART.tx(xval & $ff)
-          else
-            UART.tx(xval & $ff)                    
+        else                               ' Otherwise, send uHex number of hex bytes
+          i := 0
+          repeat uHex
+            UART.tx(byte[@uSTR][i++])
 
         i := 0
-        repeat while (i < MAX_LEN_UART)    ' Check for a response from the target and grab up to MAX_LEN_UART bytes
+        repeat while (i < MAX_LEN_UART_RX)    ' Check for a response from the target and grab up to MAX_LEN_UART_RX bytes
           value := UART.RxTime(20)           ' Wait up to 20ms to receive a byte from the target
           if (value < 0)                     ' If there's no data...
             quit                               ' Exit the loop
@@ -1276,7 +1300,7 @@ PRI UART_Scan | value, baud_idx, i, j, ctr, num, display, xval, xstr[MAX_INPUT_L
   pst.Str(String(CR, LF, "UART scan complete."))  
 
 
-PRI UART_Scan_TXD | value, baud_idx, i, t, num, display, data[MAX_LEN_UART >> 2], xtxd, xbaud, loopquit, loopnum, numbaud, skip    ' Identify UART pinout (TXD only, user configurable)
+PRI UART_Scan_TXD | value, baud_idx, i, t, num, display, data[MAX_LEN_UART_RX >> 2], xtxd, xbaud, loopquit, loopnum, numbaud, skip    ' Identify UART pinout (TXD only, user configurable)
   pst.Str(@UARTPinoutMessage)
 
   if (Get_Channels(1) == -1)   ' Get the channel range to use
@@ -1376,7 +1400,7 @@ PRI UART_Scan_TXD | value, baud_idx, i, t, num, display, data[MAX_LEN_UART >> 2]
       pst.Str(String("y/N]: "))
     else
       pst.Str(String("Y/n]: "))  
-    pst.StrInMax(@vCmd,  MAX_INPUT_LEN) ' Wait here to receive a carriage return terminated string or one of MAX_INPUT_LEN bytes (the result is null terminated) 
+    pst.StrInMax(@vCmd,  MAX_LEN_CMD) ' Wait here to receive a carriage return terminated string or one of MAX_LEN_CMD bytes (the result is null terminated) 
     if (strsize(@vCmd) =< 1)            ' We're only looking for a single character (or NULL, which will have a string size of 0)
       case vCmd[0]                        ' Check the first character of the input string
           0:                                ' The user only entered a CR, so keep the same value and pass through.
@@ -1396,7 +1420,7 @@ PRI UART_Scan_TXD | value, baud_idx, i, t, num, display, data[MAX_LEN_UART >> 2]
     pst.Str(String("y/N]: "))
   else
     pst.Str(String("Y/n]: "))  
-  pst.StrInMax(@vCmd,  MAX_INPUT_LEN) ' Wait here to receive a carriage return terminated string or one of MAX_INPUT_LEN bytes (the result is null terminated) 
+  pst.StrInMax(@vCmd,  MAX_LEN_CMD) ' Wait here to receive a carriage return terminated string or one of MAX_LEN_CMD bytes (the result is null terminated) 
   if (strsize(@vCmd) =< 1)            ' We're only looking for a single character (or NULL, which will have a string size of 0)
     case vCmd[0]                        ' Check the first character of the input string
         0:                                ' The user only entered a CR, so keep the same value and pass through.
@@ -1442,7 +1466,7 @@ PRI UART_Scan_TXD | value, baud_idx, i, t, num, display, data[MAX_LEN_UART >> 2]
          
           i := 0
           t := cnt
-          repeat while (i < MAX_LEN_UART) and ((cnt - t) / (clkfreq / 1000) =< uWaitPerBaud)    ' Check for a response from the target and grab up to MAX_LEN_UART bytes
+          repeat while (i < MAX_LEN_UART_RX) and ((cnt - t) / (clkfreq / 1000) =< uWaitPerBaud)    ' Check for a response from the target and grab up to MAX_LEN_UART_RX bytes
             value := UART.RxCheck                ' Check if a byte is received from the target
             if (value => 0)              
               byte[@data][i++] := value            ' Store the byte in our array and try for more!
@@ -1524,7 +1548,7 @@ PRI UART_Passthrough | ch, cog    ' UART/terminal passthrough
     pst.Str(String("y/N]: "))
   else
     pst.Str(String("Y/n]: "))  
-  pst.StrInMax(@vCmd,  MAX_INPUT_LEN) ' Wait here to receive a carriage return terminated string or one of MAX_INPUT_LEN bytes (the result is null terminated) 
+  pst.StrInMax(@vCmd,  MAX_LEN_CMD) ' Wait here to receive a carriage return terminated string or one of MAX_LEN_CMD bytes (the result is null terminated) 
   if (strsize(@vCmd) =< 1)            ' We're only looking for a single character (or NULL, which will have a string size of 0)
     case vCmd[0]                        ' Check the first character of the input string
         0:                                ' The user only entered a CR, so keep the same value and pass through.
@@ -1691,7 +1715,7 @@ PRI Write_IO_Pins : err | value, i, data     ' Write all channels (output)
 
   ' Receive hexadecimal value from the user and perform input sanitization
   ' This has do be done directly in the object since we may need to handle user input up to 32 bits
-  pst.StrInMax(@vCmd,  MAX_INPUT_LEN)
+  pst.StrInMax(@vCmd,  MAX_LEN_CMD)
   if (vCmd[0]==0)   ' If carriage return was pressed...          
      value := gWriteValue
   else
@@ -1793,7 +1817,7 @@ PRI Get_Settings : err | value     ' Get user-configurable settings used in IDCO
     pst.Str(String("y/N]: "))
   else
     pst.Str(String("Y/n]: "))  
-  pst.StrInMax(@vCmd,  MAX_INPUT_LEN) ' Wait here to receive a carriage return terminated string or one of MAX_INPUT_LEN bytes (the result is null terminated) 
+  pst.StrInMax(@vCmd,  MAX_LEN_CMD) ' Wait here to receive a carriage return terminated string or one of MAX_LEN_CMD bytes (the result is null terminated) 
   if (strsize(@vCmd) =< 1)            ' We're only looking for a single character (or NULL, which will have a string size of 0)
     case vCmd[0]                        ' Check the first character of the input string
       0:                                ' The user only entered a CR, so keep the same value and pass through.
@@ -1868,7 +1892,7 @@ PRI Get_Channels(min_chan) : err | xstart, xend
 
 
 PRI Get_Pin : value | i       ' Get a number (or single character) from the user (including number 0, which prevents us from using standard Parallax Serial Terminal routines)
-  pst.StrInMax(@vCmd,  MAX_INPUT_LEN)
+  pst.StrInMax(@vCmd,  MAX_LEN_CMD)
   if (vCmd[0] == 0)
     value := -1         ' Empty string, which means a carriage return was pressed
   elseif (vCmd[0] == "X" or vCmd[0] == "x")    ' If X was entered...
@@ -1889,7 +1913,7 @@ PRI Get_Pin : value | i       ' Get a number (or single character) from the user
 
           
 PRI Get_Decimal_Pin : value | i       ' Get a decimal number from the user (including number 0, which prevents us from using standard Parallax Serial Terminal routines)
-  pst.StrInMax(@vCmd,  MAX_INPUT_LEN)
+  pst.StrInMax(@vCmd,  MAX_LEN_CMD)
   if (vCmd[0] == 0)
     value := -1         ' Empty string, which means a carriage return was pressed
   else
@@ -1981,6 +2005,67 @@ PRI Display_Permutations(n, r) | value, i
 
   pst.Dec(value)
 
+
+PRI hex2dec(p_str, n) | c, value
+{{ jm_strings.spin (Miscellaneous string methods) by Jon "JonnyMac" McPhalen }}
+
+'' Returns value from {indicated} hex string
+'' -- p_str is pointer to binary string
+'' -- n is maximum number of digits to process
+
+  if (n < 1)                                                     ' if bogus, bail out
+    return 0
+
+  repeat
+    c := upper(byte[p_str])
+    case c
+      " ":                                                       ' skip leading space(s)
+        p_str++
+
+      "$":                                                       ' found indicator
+        p_str++                                                  '  move to value
+        quit
+
+      "0".."9", "A".."F":                                        ' found value
+        quit
+
+      other:                                                     ' abort on bad character
+        return 0
+
+  value := 0
+
+  n <#= 8                                                        ' limit field width
+
+  repeat while (n)
+    c := upper(byte[p_str++])
+    case c
+      "0".."9":                                                  ' digit?
+        value := (value << 4) | (c - "0")                        '  update value
+        --n                                                      '  dec digits count
+
+      "A".."F":                                                  ' hex digit?
+        value := (value << 4) | (c - "A" + 10)
+        --n
+
+      "_":
+        { skip }
+
+      other:
+        quit
+
+  return value
+
+  
+pub upper(c)
+
+'' Convert c to uppercase
+'' -- does not modify non-alphas
+
+  if ((c => "a") and (c =< "z"))
+    c -= 32
+
+  return c
+  
                            
 DAT
 InitHeader    byte CR, LF, LF
@@ -1997,7 +2082,7 @@ InitHeader    byte CR, LF, LF
               byte "           Welcome to JTAGulator. Press 'H' for available commands.", CR, LF
               byte "         Warning: Use of this tool may affect target system behavior!", 0
 
-VersionInfo   byte CR, LF, "JTAGulator FW 1.6", CR, LF
+VersionInfo   byte CR, LF, "JTAGulator FW 1.7 (in progress)", CR, LF
               byte "Designed by Joe Grand, Grand Idea Studio, Inc.", CR, LF
               byte "Main: jtagulator.com", CR, LF
               byte "Source: github.com/grandideastudio/jtagulator", CR, LF
