@@ -71,8 +71,6 @@ VAR                   ' Globally accessible variables
   long jTMS
   long jTRST
   long jTCKSpeed      ' Selectable JTAG clock speed
-  long jIR            ' Most recent instruction (IR) and data (DR) for OPCODE_Known
-  long jDR
   long jPinsLow       ' Parameters for IDCODE_Scan, BYPASS_Scan
   long jPinsLowDelay
   long jPinsHighDelay
@@ -212,12 +210,6 @@ PRI Do_JTAG_Menu(cmd)
         pst.Str(@ErrTargetIOVoltage)
       else
         OPCODE_Discovery
-
-    "X", "x":                 ' Transfer instruction/data (Pinout already known, requires single device in the chain)
-      if (vTargetIO == -1)
-        pst.Str(@ErrTargetIOVoltage)
-      else
-        OPCODE_Known
 
     "C", "c":                ' Set JTAG clock speed
       Set_JTAG_Clock
@@ -752,103 +744,6 @@ PRI OPCODE_Discovery | num, ctr, irLen, drLen, opcode_max, opcodeH, opcodeL, opc
 
   jtag.Restore_Idle   ' Reset JTAG TAP to Run-Test-Idle state
   pst.Str(String(CR, LF, "IR/DR discovery complete."))
-    
-
-PRI OPCODE_Known | num, irLen, drLen, xir, xdr, data, i   ' Transfer instruction/data (Pinout already known, requires single device in the chain)
-  if (Set_JTAG(1) == -1)  ' Ask user for the known JTAG pinout
-    return                  ' Abort if error
-  
-  u.TXSEnable                                 ' Enable level shifter outputs
-  u.Set_Pins_High(0, g#MAX_CHAN)              ' In case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#
-  jtag.Config(jTDI, jTDO, jTCK, jTMS, jTCKSpeed)         ' Configure JTAG
-
-  num := jtag.Detect_Devices                  ' Get number of devices in the chain
-  if (num == 0)
-    pst.Str(@ErrNoDeviceFound)
-    return
-  elseif (num > 1)
-    pst.Str(String(CR, LF, "Too many devices in the chain!"))
-    return 
-  pst.Str(String(CR, LF))
-  
-  irLen := jtag.Detect_IR_Length              ' Get instruction register length
-  pst.Str(String("Instruction Register (IR) length: "))
-  if (irLen == 0)
-    pst.Str(String("N/A"))
-    pst.Str(@ErrOutOfRange)
-    return
-  else
-    pst.Dec(irLen)
-                  
-  pst.Str(String(CR, LF, "Enter instruction/opcode to send (in hex) ["))   ' Receive instruction/opcode from the user
-  pst.Hex(jIR, Round_Up(irLen) >> 2)
-  pst.Str(String("]: ")) 
-  ' Receive hexadecimal value from the user and perform input sanitization
-  ' This has do be done directly in the object since we may need to handle user input up to 32 bits
-  pst.StrInMax(@vCmd,  MAX_LEN_CMD)
-  if (vCmd[0]==0)   ' If carriage return was pressed...          
-    xir := jIR & Bits_To_Value(irLen)    ' Keep current setting, but adjust for a possible change in IR length
-  else
-    if strsize(@vCmd) > (Round_Up(irLen) >> 2)  ' If value is larger than the actual IR length
-      pst.Str(@ErrOutOfRange)
-      return
-
-    if (str.is_hex(@vCmd) == false)  ' Make sure each character in the string is hexadecimal ("0"-"9","A"-"F","a"-"f")
-      pst.Str(@ErrOutOfRange)
-      return
-      
-    xir := pst.StrToBase(@vCmd, 16)   ' Convert valid string into actual value
-    
-  jIR := xir   ' Update global with new value
-
-  drLen := jtag.Detect_DR_Length(xir)         ' Get data register length
-  pst.Str(String(CR, LF, "Data Register (DR) length: "))
-  if (drLen == 0)
-    pst.Str(String("N/A"))
-    pst.Str(@ErrOutOfRange)
-    return
-  else
-    pst.Dec(drLen)
-
-  if (drLen > 32)
-    pst.Str(String(CR, LF, "Data input limited to 32 bits!"))
-    drLen := 32
-    
-  pst.Str(String(CR, LF, "Enter data to send (in hex) ["))               ' Receive data from the user
-  pst.Hex(jDR, Round_Up(drLen) >> 2)
-  pst.Str(String("]: ")) 
-  ' Receive hexadecimal value from the user and perform input sanitization
-  ' This has do be done directly in the object since we may need to handle user input up to 32 bits
-  pst.StrInMax(@vCmd,  MAX_LEN_CMD)
-  if (vCmd[0]==0)   ' If carriage return was pressed...          
-    xdr := jDR & Bits_To_Value(drLen)    ' Keep current setting, but adjust for a possible change in DR length
-  else
-    if strsize(@vCmd) > (Round_Up(drLen) >> 2)  ' If value is larger than the actual DR length
-      pst.Str(@ErrOutOfRange)
-      return
-      
-    if (str.is_hex(@vCmd) == false)  ' Make sure each character in the string is hexadecimal ("0"-"9","A"-"F","a"-"f")
-      pst.Str(@ErrOutOfRange)
-      return
-      
-    xdr := pst.StrToBase(@vCmd, 16)   ' Convert valid string into actual value
-    
-  jDR := xdr   ' Update global with new value
-
-  jtag.Send_Instruction(xir, irLen)       ' Send instruction/opcode
-  data := jtag.Send_Data(xdr, drLen)      ' Shift data into DR and receive result from prior instruction via TDO
-  data ><= drLen                          ' Bitwise reverse since LSB came in first (we want MSB to be first)
-              
-  ' Display received value
-  pst.Str(String(CR, LF, "Data received: "))
-   
-  ' ...as binary characters (0/1)
-  Display_Binary(data, drLen)
- 
-  ' ...as hexadecimal
-  pst.Str(String("(0x"))
-  pst.Hex(data, Round_Up(drLen) >> 2) 
-  pst.Str(String(")"))
 
   
 PRI Set_JTAG(getTDI) : err | xtdi, xtdo, xtck, xtms, buf, c     ' Set JTAG configuration to known values
@@ -2037,7 +1932,6 @@ MenuJTAG      byte CR, LF, "JTAG Commands:", CR, LF
               byte "D   Get Device ID(s)", CR, LF
               byte "T   Test BYPASS (TDI to TDO)", CR, LF
               byte "Y   Instruction/Data Register (IR/DR) discovery", CR, LF
-              byte "X   Transfer instruction/data", CR, LF
               byte "C   Set JTAG clock speed", 0
 
 MenuUART      byte CR, LF, "UART Commands:", CR, LF
