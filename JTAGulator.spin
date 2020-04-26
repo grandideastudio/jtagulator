@@ -105,8 +105,9 @@ OBJ
   g             : "JTAGulatorCon"     ' JTAGulator global constants
   u             : "JTAGulatorUtil"    ' JTAGulator general purpose utilities
   pst           : "PropSerial"        ' Serial communication for user interface (modified version of built-in Parallax Serial Terminal)
+  str           : "jm_strings"        ' String manipulation methods (JonnyMac)
   rr            : "RealRandom"        ' Random number generation (Chip Gracey, http://obex.parallax.com/object/498) 
-  jtag          : "PropJTAG"          ' JTAG/IEEE 1149.1 low-level functions
+  jtag          : "PropJTAG"          ' JTAG/IEEE 1149.1 low-level methods
   uart          : "JDCogSerial"       ' UART/Asynchronous Serial communication engine (Carl Jacobs, http://obex.parallax.com/object/298)
   pt_in         : "jm_rxserial"       ' UART/Asynchronous Serial receive driver for passthrough (JonnyMac, https://forums.parallax.com/discussion/114492/prop-baudrates)
   pt_out        : "jm_txserial"       ' UART/Asynchronous Serial transmit driver for passthrough (JonnyMac, https://forums.parallax.com/discussion/114492/prop-baudrates)
@@ -791,14 +792,13 @@ PRI OPCODE_Known | num, irLen, drLen, xir, xdr, data, i   ' Transfer instruction
     if strsize(@vCmd) > (Round_Up(irLen) >> 2)  ' If value is larger than the actual IR length
       pst.Str(@ErrOutOfRange)
       return
-    ' Make sure each character in the string is hexadecimal ("0"-"9","A"-"F","a"-"f")
-    repeat i from 0 to strsize(@vCmd)-1
-      data := vCmd[i]
-      data := -15 + --data & %11011111 + 39*(data > 56)   ' Borrowed from the Parallax Serial Terminal (PST) StrToBase method     
-      if (data < 0) or (data => 16)
-        pst.Str(@ErrOutOfRange)
-        return
+
+    if (str.is_hex(@vCmd) == false)  ' Make sure each character in the string is hexadecimal ("0"-"9","A"-"F","a"-"f")
+      pst.Str(@ErrOutOfRange)
+      return
+      
     xir := pst.StrToBase(@vCmd, 16)   ' Convert valid string into actual value
+    
   jIR := xir   ' Update global with new value
 
   drLen := jtag.Detect_DR_Length(xir)         ' Get data register length
@@ -826,14 +826,13 @@ PRI OPCODE_Known | num, irLen, drLen, xir, xdr, data, i   ' Transfer instruction
     if strsize(@vCmd) > (Round_Up(drLen) >> 2)  ' If value is larger than the actual DR length
       pst.Str(@ErrOutOfRange)
       return
-    ' Make sure each character in the string is hexadecimal ("0"-"9","A"-"F","a"-"f")
-    repeat i from 0 to strsize(@vCmd)-1
-      data := vCmd[i]
-      data := -15 + --data & %11011111 + 39*(data > 56)   ' Borrowed from the Parallax Serial Terminal (PST) StrToBase method     
-      if (data < 0) or (data => 16)
-        pst.Str(@ErrOutOfRange)
-        return
+      
+    if (str.is_hex(@vCmd) == false)  ' Make sure each character in the string is hexadecimal ("0"-"9","A"-"F","a"-"f")
+      pst.Str(@ErrOutOfRange)
+      return
+      
     xdr := pst.StrToBase(@vCmd, 16)   ' Convert valid string into actual value
+    
   jDR := xdr   ' Update global with new value
 
   jtag.Send_Instruction(xir, irLen)       ' Send instruction/opcode
@@ -1155,7 +1154,7 @@ PRI UART_Scan | value, baud_idx, i, j, ctr, num, display, xstr[MAX_LEN_UART_USER
   
   if (i <> 0)              ' If input was anything other than a CR
     ' Make sure each character in the string is printable ASCII
-    repeat j from 0 to (i-1)
+    repeat j from 0 to (i - 1)
       if (byte[@xstr][j] < $20) or (byte[@xstr][j] > $7E)
         pst.Str(@ErrOutOfRange)  ' If the string contains invalid (non-printable) characters, abort
         return
@@ -1166,24 +1165,21 @@ PRI UART_Scan | value, baud_idx, i, j, ctr, num, display, xstr[MAX_LEN_UART_USER
         pst.Str(@ErrOutOfRange) 
         return    
 
-      ' Make sure each character in the string is hexadecimal ("0"-"9","A"-"F","a"-"f") after the \x escape sequence
-      repeat j from 0 to (i-3)
-        value := byte[@xstr+2][j]
-        value := -15 + --value & %11011111 + 39*(value > 56)   ' Borrowed from the Parallax Serial Terminal (PST) StrToBase method     
-        if (value < 0) or (value => 16)
-          pst.Str(@ErrOutOfRange)
-          return
-
       ' Make sure string is a series of complete bytes (no nibbles), should contain an even number of characters
       if (i // 2 <> 0)
          pst.Str(@ErrOutOfRange)
          return
+                 
+      ' Make sure each character in the string is hexadecimal ("0"-"9","A"-"F","a"-"f") after the \x escape sequence
+      if (str.is_hex(@xstr + 2) == false)
+        pst.Str(@ErrOutOfRange)
+        return
         
       ' Populate the uSTR global with up to MAX_LEN_UART_TX bytes
       ' uHex will contain the number of bytes in the string (used later as a counter to transmit the data)
       uHex := 0
       repeat j from 0 to (i - 3) step 2  ' look at two characters at a time in order to form one hex byte 
-        byte[@uSTR][uHex] := hex2dec(@xstr + 2 + j, 2)
+        byte[@uSTR][uHex] := str.hex2dec(@xstr + 2 + j, 2)
         uHex++
       
     else  ' Otherwise, we are dealing with an ASCII string
@@ -1241,10 +1237,10 @@ PRI UART_Scan | value, baud_idx, i, j, ctr, num, display, xstr[MAX_LEN_UART_USER
           pst.Str(@ErrUARTAborted)
           return
         uBaud := BaudRate[baud_idx]        ' Store current baud rate into uBaud variable
-          
+                
         UART.Start(|<uTXD, |<uRXD, uBaud)  ' Configure UART
         UART.RxFlush                       ' Flush receive buffer
-
+          
         if (uHex == 0)                     ' If the user string is ASCII
           UART.str(@uSTR)                    ' Send string to target
           UART.tx(CR)                        ' Send carriage return to target
@@ -1722,14 +1718,13 @@ PRI Write_IO_Pins : err | value, i, data     ' Write all channels (output)
     if strsize(@vCmd) > (g#MAX_CHAN >> 2)  ' If value is larger than the our number of channels
       pst.Str(@ErrOutOfRange)
       return -1
-    ' Make sure each character in the string is hexadecimal ("0"-"9","A"-"F","a"-"f")
-    repeat i from 0 to strsize(@vCmd)-1
-      data := vCmd[i]
-      data := -15 + --data & %11011111 + 39*(data > 56)   ' Borrowed from the Parallax Serial Terminal (PST) StrToBase method     
-      if (data < 0) or (data => 16)
-        pst.Str(@ErrOutOfRange)
-        return -1
+      
+    if (str.is_hex(@vCmd) == false)  ' Make sure each character in the string is hexadecimal ("0"-"9","A"-"F","a"-"f")
+      pst.Str(@ErrOutOfRange)
+      return -1
+      
     value := pst.StrToBase(@vCmd, 16)   ' Convert valid string into actual value
+    
   gWriteValue := value   ' Update global with new value
  
   u.TXSEnable                       ' Enable level shifter outputs
@@ -2004,67 +1999,6 @@ PRI Display_Permutations(n, r) | value, i
       value *= i    
 
   pst.Dec(value)
-
-
-PRI hex2dec(p_str, n) | c, value
-{{ jm_strings.spin (Miscellaneous string methods) by Jon "JonnyMac" McPhalen }}
-
-'' Returns value from {indicated} hex string
-'' -- p_str is pointer to binary string
-'' -- n is maximum number of digits to process
-
-  if (n < 1)                                                     ' if bogus, bail out
-    return 0
-
-  repeat
-    c := upper(byte[p_str])
-    case c
-      " ":                                                       ' skip leading space(s)
-        p_str++
-
-      "$":                                                       ' found indicator
-        p_str++                                                  '  move to value
-        quit
-
-      "0".."9", "A".."F":                                        ' found value
-        quit
-
-      other:                                                     ' abort on bad character
-        return 0
-
-  value := 0
-
-  n <#= 8                                                        ' limit field width
-
-  repeat while (n)
-    c := upper(byte[p_str++])
-    case c
-      "0".."9":                                                  ' digit?
-        value := (value << 4) | (c - "0")                        '  update value
-        --n                                                      '  dec digits count
-
-      "A".."F":                                                  ' hex digit?
-        value := (value << 4) | (c - "A" + 10)
-        --n
-
-      "_":
-        { skip }
-
-      other:
-        quit
-
-  return value
-
-  
-pub upper(c)
-
-'' Convert c to uppercase
-'' -- does not modify non-alphas
-
-  if ((c => "a") and (c =< "z"))
-    c -= 32
-
-  return c
   
                            
 DAT
