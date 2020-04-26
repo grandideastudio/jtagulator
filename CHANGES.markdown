@@ -4,6 +4,19 @@ JTAGulator Change Log
 Visit the JTAGulator [github repository](https://github.com/grandideastudio/jtagulator/commits/master) for full commit comments.
 
 
+1.7
+---
+Release date: **xx**
+
+* UART: Increased user string input size for `UART_Scan` to 16 bytes for both ASCII and hexadecimal input. [Issue #34](https://github.com/grandideastudio/jtagulator/issues/34)
+
+* UART: If previously entered user string was in hexadecimal, it will now be displayed properly during `UART_Scan`.
+
+* JTAG: Removed `X` command, which could transfer an instruction and data to/from a target. While useful for testing and preliminary fuzzing, it was unreliable and limited in capability compared to software tools like UrJTAG.
+
+* General: All .spin source files converted from UTF-16 to 7-bit ASCII for ease-of-use and compatibility with external/third-party tools (thanks to adamgreen). 
+
+
 1.6
 ---
 Release date: **August 9, 2018**

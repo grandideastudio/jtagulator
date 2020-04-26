@@ -1,7 +1,7 @@
 JTAGulator To Do
 ================
 
-This is a rough list of features and/or additions we'd like to eventually build into the JTAGulator. If you're interested in contributing to the project, please do so!
+This is a rough, non-binding list of features and/or additions we'd like to eventually build into the JTAGulator. If you're interested in contributing to the project, please do so!
 
 
 Bug Fixes
@@ -38,14 +38,6 @@ Protocols/Discovery
 * Freescale BDM
 
 * Microchip ICSP
-
-* LPC (Low Pin Count) Bus
-
-* Ethernet PHY
-
-* Flash Memory: External discovery via JTAG Boundary Scan
-
-* Flash Memory: NAND (eMMC), Parallel NOR (CFI), Serial NOR (SPI), compatibility w/ [flashrom](http://flashrom.org) 
 
 
 Hardware
