@@ -31,11 +31,14 @@
 CON
     ' Number of times to pulse SWCLK with SWDIO pulled high for line reset.
     LINE_RESET_CLK_PULSES = 50
+    
     ' ARM document mentions a lower rate of 1kHz.
     ' https://developer.arm.com/docs/dui0499/latest/arm-dstream-target-interface-connections/signal-descriptions/serial-wire-debug
     SWD_SLOW_CLOCK_RATE = 1000
-    ' The fastest I have been able to run my SWD code without hanging in WAITCNT.
-    SWD_FASTEST_CLOCK_RATE = 385_000
+
+    ' The fastest I have been able to run my SWD code without hanging in WAITCNT = 385kHz
+    ' Reduce to 300kHz for production use (reliability >> speed)
+    SWD_FASTEST_CLOCK_RATE = 300_000
     
     ' SWD DP Register Addresses.
     DP_IDCODE = $0      ' Read-only
@@ -92,14 +95,16 @@ VAR
     LONG m_respData
 
 
-' Initialize the SWD host module.
-'   Starts the SWD code running on its own cog. You need to call config()
-'   to setup the pins and frequency to be used when processing future SWD
-'   calls.
-' Returns
-'   The index of the cog on which the SWD code was started or -1 if there
-'   was no free cog.
 PUB init
+{
+  Initialize the SWD host module.
+    Starts the SWD code running on its own cog. You need to call config()
+    to setup the pins and frequency to be used when processing future SWD
+    calls.
+  Returns
+    The index of the cog on which the SWD code was started or -1 if there
+    was no free cog.
+}
     ' Clear members that will be filled in later at config time.
     m_swclkPin~~
     m_swdioPin~~
@@ -110,27 +115,33 @@ PUB init
     ' Start up the SWD PASM code on its own cog.
     RESULT := m_cogId := COGNEW(@SwdRoutine, @m_swclkPin)
 
-' Cleans up the SWD module.
-'   Call this once the SWD module is no longer needed so that the cog
-'   running the SWD code can be freed for other uses.
+
 PUB uninit
+{
+  Cleans up the SWD module.
+    Call this once the SWD module is no longer needed so that the cog
+    running the SWD code can be freed for other uses.
+}
     IF m_cogId <> -1
         COGSTOP(m_cogId)
         m_cogId~~
     m_swclkPin~~
     m_swdioPin~~
 
-' Configure the SWD module to use specified pins and frequency.
-'   Call this function after .init to tell the SWD cog which pins
-'   (SWCLK & SWDIO) and frequency it should use for future method
-'   calls. It can be called multiple times, allowing the user to
-'   change which pins and/or frequency are used for SWD communication.
-' Parameters
-'   swclkPin indicates which of the Propeller pins is connected to SWCLK.
-'   swdioPin indicates which of the Propeller pins is connected to SWDIO.
-'   frequency indicates how fast the SWCLK should pulse, in Hertz. It can
-'       be set between SWD_SLOW_CLOCK_RATE and SWD_FASTEST_CLOCK_RATE.
+
 PUB config(swclkPin, swdioPin, frequency)
+{
+  Configure the SWD module to use specified pins and frequency.
+    Call this function after init() to tell the SWD cog which pins
+    (SWCLK & SWDIO) and frequency it should use for future method
+    calls. It can be called multiple times, allowing the user to
+    change which pins and/or frequency are used for SWD communication.
+  Parameters
+    swclkPin indicates which of the Propeller pins is connected to SWCLK.
+    swdioPin indicates which of the Propeller pins is connected to SWDIO.
+    frequency indicates how fast the SWCLK should pulse, in Hz. It can
+      be set between SWD_SLOW_CLOCK_RATE and SWD_FASTEST_CLOCK_RATE.
+}
     ' Store away pins to be used for SWD operations.
     m_swclkPin := swclkPin
     m_swdioPin := swdioPin
@@ -146,80 +157,98 @@ PUB config(swclkPin, swdioPin, frequency)
     REPEAT UNTIL m_respIndex == m_cmdIndex
         ' Waiting for SWD cog to complete command.
 
-' Reset SerialWire-Jtag debug access port into SWD mode and read out its IDCODE.
-'   Reading the IDCODE is one of the few things that a SWD target will allow after
-'   a mode switch so this function does both at once.
-' Parameters
-'   pValue is a pointer to a 32-bit value to be filled in with the IDCODE.
-' Returns
-'   The 3-bit RESP_* ack value sent back from the target or RESP_PARITY if the
-'   data portion failed parity checking.
-'   NOTE: If the response isn't RESP_OK then the IDCODE isn't read into pValue. 
+
 PUB resetSwJtagAndReadIdCode(pValue)
+{        
+  Reset SerialWire-Jtag debug access port into SWD mode and read out its IDCODE.
+    Reading the IDCODE is one of the few things that a SWD target will allow after
+    a mode switch so this function does both at once.
+  Parameters
+    pValue is a pointer to a 32-bit value to be filled in with the IDCODE.
+  Returns
+    The 3-bit RESP_* ack value sent back from the target or RESP_PARITY if the
+    data portion failed parity checking.
+    NOTE: If the response isn't RESP_OK then the IDCODE isn't read into pValue.
+} 
     sendLineReset
     sendJtagToSwdSequence
     sendLineReset
     idleBus(2)
     RETURN readDP(DP_IDCODE, pValue)
 
-' Reset the target and read out its IDCODE.
-'   Reading the IDCODE is one of the few things that a SWD target will allow after
-'   a line reset so this function does both at once. It is more common to use the
-'   resetSwJtagAndReadIrCode() method instead of this one since most ARM Cortex-M
-'   processors support JTAG on the same pins used for SWD.
-' Parameters
-'   pValue is a pointer to a 32-bit value to be filled in with the IDCODE.
-' Returns
-'   The 3-bit RESP_* ack value sent back from the target or RESP_PARITY if the
-'   data portion failed parity checking.
-'   NOTE: If the response isn't RESP_OK then the IDCODE isn't read into pValue. 
+
 PUB resetAndReadIdCode(pValue)
+{
+  Reset the target and read out its IDCODE.
+    Reading the IDCODE is one of the few things that a SWD target will allow after
+    a line reset so this function does both at once. It is more common to use the
+    resetSwJtagAndReadIrCode() method instead of this one since most ARM Cortex-M
+    processors support JTAG on the same pins used for SWD.
+  Parameters
+    pValue is a pointer to a 32-bit value to be filled in with the IDCODE.
+  Returns
+    The 3-bit RESP_* ack value sent back from the target or RESP_PARITY if the
+    data portion failed parity checking.
+    NOTE: If the response isn't RESP_OK then the IDCODE isn't read into pValue.
+}
     sendLineReset
     idleBus(2)
     RETURN readDP(DP_IDCODE, pValue)
 
-' Sends line reset to SWD target.
-'   This is done by pulsing SWCLK 50 times with SWDIO held high. This is a lower
-'   level method and higher level methods like resetAndReadIrCode() or 
-'   resetSwJtagAndReadIrCode() should be considered instead.
+
 PUB sendLineReset | id
+{
+  Sends line reset to SWD target.
+    This is done by pulsing SWCLK 50 times with SWDIO held high. This is a lower
+    level method and higher level methods like resetAndReadIrCode() or 
+    resetSwJtagAndReadIrCode() should be considered instead.
+}
     m_cmdOp := OP_RESET
     m_cmdIndex++
     REPEAT UNTIL m_respIndex == m_cmdIndex
         ' Waiting for SWD cog to complete command.
 
-' Sends special sequence over TMS/SDWDIO which will switch from JTAG mode to
-' SWD mode if the attached device is using the SWJ-DebugPort which supports
-' both methods of communication. This is a lower level method and a higher 
-' level method like resetSwJtagAndReadIrCode() should be considered instead.
+
 PUB sendJtagToSwdSequence | data
+{
+  Sends special sequence over TMS/SDWDIO which will switch from JTAG mode to
+  SWD mode if the attached device is using the SWJ-DebugPort which supports
+  both methods of communication. This is a lower level method and a higher 
+  level method like resetSwJtagAndReadIrCode() should be considered instead.
+}
     m_cmdOp := OP_JTAG2SWD
     m_cmdIndex++
     REPEAT UNTIL m_respIndex == m_cmdIndex
         ' Waiting for SWD cog to complete command.
 
-' Commands the SWD bus to idle for the specified number of clock cycles.
-'   Idling is SWCLK pulses with SWDIO held low.
-' Parameters
-'   count is the number of SWCLK pulses to idle the SWD bus. The maximum allowed
-'         value is 32. Can be called multiple times to workaround this maximum.
+
 PUB idleBus(count)
+{
+  Commands the SWD bus to idle for the specified number of clock cycles.
+    Idling is SWCLK pulses with SWDIO held low.
+  Parameters
+    count is the number of SWCLK pulses to idle the SWD bus. The maximum allowed
+    value is 32. Can be called multiple times to workaround this maximum.
+}
     m_cmdOp := OP_IDLE
     m_cmdOperand := count <# 32
     m_cmdIndex++
     REPEAT UNTIL m_respIndex == m_cmdIndex
         ' Waiting for SWD cog to complete command.
 
-' Reads the specified Debug Port register.
-' Parameters
-'   address is the 4-bit address of the register to be read.
-'   pValue is a pointer to a 32-bit value to be filled in with the register contents.
-' Returns
-'   The 3-bit RESP_* ack value sent back from the target or RESP_PARITY if the
-'   data portion failed parity checking.
-'   NOTE: If the response isn't RESP_OK then the register contents aren't read 
-'         into pValue. 
+ 
 PUB readDP(address, pValue) : response | data
+{
+  Reads the specified Debug Port register.
+  Parameters
+    address is the 4-bit address of the register to be read.
+    pValue is a pointer to a 32-bit value to be filled in with the register contents.
+  Returns
+    The 3-bit RESP_* ack value sent back from the target or RESP_PARITY if the
+    data portion failed parity checking.
+    NOTE: If the response isn't RESP_OK then the register contents aren't read 
+          into pValue.
+}
     m_cmdOp := OP_READ
     m_cmdOperand := buildPacketRequest(DP, READ, address)
     m_cmdIndex++
@@ -238,6 +267,7 @@ PRI buildPacketRequest(APnDP, RnW, address) : packet
     ' Parity is over 4-bits, starting at second bit (ignores start and stop bits).
     packet |= calcParity(packet, 1, 4) << 5
     
+    
 PRI calcParity(value, skipBits, _bitCount) : parity
     value >>= skipBits
     parity~
@@ -250,7 +280,7 @@ DAT
                 ORG 0
                 
                 ' This is the SWD PASM code which does the bulk of the SWD
-                ' communication on its own cog.
+                ' communication in its own cog.
 SwdRoutine
                 MOV TempAddr, PAR
                 ' Store away addresses of command and response fields.
@@ -415,15 +445,16 @@ SwdRoutine
                 ' Jump back to wait for next command.
                 JMP #:NextCmd
 
-
-' Routine to clock data out/in over SWDIO.
-' Call with:
-'   BitCount = number of bits to shift in/out (maximum of 32).
-'   DataOut = bits to be shifted out least significant bit first.
-' Returns:
-'   DataIn = bits shifted in, least significant bit is first bit received.
-'   DataInParity = the parity of DataIn bits are accumulated in MSB of this
-'                  variable. It must be manually cleared by caller.
+{
+  Routine to clock data out/in over SWDIO.
+  Call with:
+    BitCount = number of bits to shift in/out (maximum of 32).
+    DataOut = bits to be shifted out least significant bit first.
+  Returns:
+    DataIn = bits shifted in, least significant bit is first bit received.
+    DataInParity = the parity of DataIn bits are accumulated in MSB of this
+                   variable. It must be manually cleared by caller.
+}
 ClockInOut      MOV LoopCount, BitCount
                 MOV TempVal, INA
                 MOV DataIn, #0
