@@ -93,7 +93,7 @@ VAR                   ' Globally accessible variables
 
   long gWriteValue    ' Parameter for Write_IO_Pins
  
-  long swdClk         ' SWD Pins (must stay in this order)
+  long swdClk         ' SWD pins (must stay in this order)
   long swdIo
   long swdPinsKnown   ' Are above pins valid?
   long swdFrequency
@@ -113,7 +113,7 @@ OBJ
   uart          : "JDCogSerial"       ' UART/Asynchronous Serial communication engine (Carl Jacobs, http://obex.parallax.com/object/298)
   pt_in         : "jm_rxserial"       ' UART/Asynchronous Serial receive driver for passthrough (JonnyMac, https://forums.parallax.com/discussion/114492/prop-baudrates)
   pt_out        : "jm_txserial"       ' UART/Asynchronous Serial transmit driver for passthrough (JonnyMac, https://forums.parallax.com/discussion/114492/prop-baudrates)
-  swd           : "SWDHost"           ' SWD Host module  
+  swd           : "SWDHost"           ' ARM SWD (Serial Wire Debug) low-level functions (Adam Green, https://github.com/adamgreen)  
     
   
 PUB main | cmd
@@ -151,7 +151,7 @@ PUB main | cmd
         MENU_GPIO:                    ' General Purpose I/O
           Do_GPIO_Menu(cmd)
           
-        MENU_SWD:                     ' Single Wire Debug
+        MENU_SWD:                     ' Serial Wire Debug
           Do_SWD_Menu(cmd)
 
         other:
@@ -293,7 +293,7 @@ PRI Do_SWD_Menu(cmd)
         SWD_IDCODE_Scan
 
     "C", "c":
-      Set_SWD_Frequency
+      Set_SWD_Frequency       ' Set SWD clock speed
 
     other:
       Do_Shared_Menu(cmd)
@@ -350,7 +350,7 @@ PRI Display_Command_Prompt
     MENU_GPIO:             ' General Purpose I/O
       pst.Str(String("GPIO"))
       
-    MENU_SWD:              ' Single Wire Debug
+    MENU_SWD:              ' Serial Wire Debug
       pst.Str(String("SWD"))
 
     other:
@@ -482,7 +482,7 @@ PRI IDCODE_Scan | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}], i, 
     pst.Str(@ErrNoDeviceFound)  
   JTAG_Scan_Cleanup(num, 0, xtdo, xtck, xtms)  ' TDI isn't used during an IDCODE Scan
   
-  pst.Str(String(CR, LF, "IDCODE scan complete."))
+  pst.Str(@MsgIDCODEComplete)
 
          
 PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtck, xtms, tdiStart, tdiEnd, tdoStart, tdoEnd, tckStart, tckEnd, tmsStart, tmsEnd    ' Identify JTAG pinout (BYPASS Scan)
@@ -1798,7 +1798,7 @@ PRI SWD_IDCODE_Scan | response, idcode, ctr, num, xclk, xio     ' Identify SWD p
     u.Set_Pins_Low(chStart, chEnd)  ' Set current channel range to output LOW
     u.Pause(jPinsLowDelay)          ' Delay to stay asserted
          
-  swd.init
+  swd.init      ' Initialize SWD host module
   num := 0      ' Counter of possibly good pinouts
   ctr := 0      ' Counter of total loop iterataions.
   repeat swdClk from chStart to chEnd   ' For every possible pin permutation
@@ -1812,7 +1812,7 @@ PRI SWD_IDCODE_Scan | response, idcode, ctr, num, xclk, xio     ' Identify SWD p
         pst.Str(@ErrIDCODEAborted)
         return
 
-      u.Set_Pins_High(chStart, chEnd)       ' Set current channel range to output HIGH (in case there are active low signals that may affect operation, like TRST# or SRST#)  
+      u.Set_Pins_High(chStart, chEnd)       ' Set current channel range to output HIGH (in case there are active low signals that may affect operation, like SRST#)  
       if (jPinsLow == 1)
         u.Pause(jPinsHighDelay)               ' Delay after deassertion before proceeding 
 
@@ -1836,7 +1836,7 @@ PRI SWD_IDCODE_Scan | response, idcode, ctr, num, xclk, xio     ' Identify SWD p
       ' Progress indicator
       ++ctr
       if (jPinsLow == 0)
-        Display_Progress(ctr, 100)
+        Display_Progress(ctr, 30)
       else
         Display_Progress(ctr, 1) 
         u.Set_Pins_Low(chStart, chEnd)  ' Set current channel range to output LOW
@@ -1846,7 +1846,7 @@ PRI SWD_IDCODE_Scan | response, idcode, ctr, num, xclk, xio     ' Identify SWD p
     pst.Str(@ErrNoDeviceFound)  
   SWD_Scan_Cleanup(num, xclk, xio)
   
-  pst.Str(String(CR, LF, "IDCODE scan complete."))
+  pst.Str(@MsgIDCODEComplete)
 
 
 PRI SWD_Scan_Cleanup(num, clk, io)
@@ -1869,20 +1869,22 @@ PRI Display_SWD_Pins
 
 
 PRI Set_SWD_Frequency | value
-  pst.Str(String(CR, LF, "Current SWD clock frequency (Hz): "))
+  pst.Str(String(CR, LF, "Current SWD clock speed (Hz): "))
   pst.Dec(swdFrequency)
   
-  pst.Str(String(CR, LF, "Enter new SWD clock frequency: "))
-  value := Get_Decimal_Pin
-  
-  if (value < 1 OR value > swd#SWD_FASTEST_CLOCK_RATE)
+  pst.Str(String(CR, LF, "Enter new SWD clock speed ("))
+  pst.Dec(swd#SWD_SLOW_CLOCK_RATE)
+  pst.Str(String(" - "))
+  pst.Dec(swd#SWD_FASTEST_CLOCK_RATE)
+  pst.Str(String("): "))
+  value := Get_Decimal_Pin  ' Receive decimal value (including 0) 
+    
+  if (value < swd#SWD_SLOW_CLOCK_RATE) or (value > swd#SWD_FASTEST_CLOCK_RATE)
     pst.Str(@ErrOutOfRange)
   else
     swdFrequency := value
-    pst.Str(String(CR, LF, "New SWD clock frequency set: "))
-    pst.Dec(swdFrequency)
-
-
+    pst.Str(String(CR, LF, "New SWD clock speed set: "))
+    pst.Dec(swdFrequency)  ' Print a confirmation of newly set clock speed
 
   
 CON {{ OTHER METHODS }}
@@ -2115,13 +2117,14 @@ PRI Display_Binary(data, len) | mod, count
 
 
 PRI Display_Permutations(n, r) | value, i
-{{  http://www.mathsisfun.com/combinatorics/combinations-permutations-calculator.html
+{
+    http://www.mathsisfun.com/combinatorics/combinations-permutations-calculator.html
 
     Order important, no repetition
     Total pins (n)
     Number of pins needed (r)
     Number of permutations: n! / (n-r)!
-}}
+}
   pst.Str(String(CR, LF, "Possible permutations: "))
 
   ' Thanks to Rednaxela of #tymkrs for the optimized calculation
@@ -2185,7 +2188,7 @@ MenuGPIO      byte CR, LF, "GPIO Commands:", CR, LF
                           
 MenuSWD       byte CR, LF, "SWD Commands:", CR, LF
               byte "I   Identify SWD pinout (IDCODE Scan)", CR, LF
-              byte "C   Set SWD clock frequency", 0
+              byte "C   Set SWD clock speed", 0
 
 MenuShared    byte CR, LF, LF, "General Commands:", CR, LF
               byte "V   Set target I/O voltage (1.2V to 3.3V)", CR, LF
@@ -2197,6 +2200,7 @@ CharProgress  byte "-", 0   ' Character used for progress indicator
 ' Any messages repeated more than once are placed here to save space
 MsgPressSpacebarToBegin     byte CR, LF, "Press spacebar to begin (any other key to abort)...", 0 
 MsgJTAGulating              byte CR, LF, "JTAGulating! Press any key to abort...", CR, LF, 0
+MsgIDCODEComplete           byte CR, LF, "IDCODE scan complete.", 0
 
 UARTPinoutMessage           byte CR, LF, "UART pin naming is from the target's perspective.", 0
 
