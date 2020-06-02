@@ -1922,7 +1922,7 @@ MenuMain      byte CR, LF, "Target Interfaces:", CR, LF
               byte "U   UART/Asynchronous Serial", CR, LF
               byte "G   GPIO", CR, LF, LF
               byte "General Commands:", CR, LF
-              byte "V   Set target I/O voltage (1.2V to 3.3V)", CR, LF
+              byte "V   Set target I/O voltage", CR, LF
               byte "I   Display version information", CR, LF
               byte "H   Display available commands", 0
               
@@ -1945,7 +1945,7 @@ MenuGPIO      byte CR, LF, "GPIO Commands:", CR, LF
               byte "W   Write all channels (output)", 0
                           
 MenuShared    byte CR, LF, LF, "General Commands:", CR, LF
-              byte "V   Set target I/O voltage (1.4V to 3.3V)", CR, LF
+              byte "V   Set target I/O voltage", CR, LF
               byte "H   Display available commands", CR, LF
               byte "M   Return to main menu", 0
 
