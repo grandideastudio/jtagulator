@@ -1678,7 +1678,7 @@ PRI Set_Target_IO_Voltage | value
   pst.Str(String(CR, LF, "Current target I/O voltage: "))
   Display_Target_IO_Voltage
 
-  pst.Str(String(CR, LF, "Enter new target I/O voltage (1.2 - 3.3, 0 for off): "))
+  pst.Str(String(CR, LF, "Enter new target I/O voltage (1.4 - 3.3, 0 for off): "))
   value := Get_Decimal_Pin  ' Receive decimal value (including 0)
 
   ' Allow whole numbers (for example, if the user entered "2", assume they meant "2.0")
@@ -1691,11 +1691,11 @@ PRI Set_Target_IO_Voltage | value
     vTargetIO := -1
     DACOutput(0)               ' DAC output off 
     pst.Str(String(CR, LF, "Target I/O voltage off."))
-  elseif (value < 12) or (value > 33)
+  elseif (value < 14) or (value > 33)
     pst.Str(@ErrOutOfRange)
   else
     vTargetIO := value
-    DACOutput(VoltageTable[vTargetIO - 12])    ' Look up value that corresponds to the actual desired voltage and set DAC output
+    DACOutput(VoltageTable[vTargetIO - 14])    ' Look up value that corresponds to the actual desired voltage and set DAC output
     pst.Str(String(CR, LF, "New target I/O voltage set: "))
     Display_Target_IO_Voltage                  ' Print a confirmation of newly set voltage
     pst.Str(String(CR, LF, "Ensure VADJ is NOT connected to target!"))
@@ -1852,7 +1852,7 @@ PRI Display_Target_IO_Voltage
   if (vTargetIO == -1)
     pst.Str(String("Undefined"))
   else
-    pst.Dec(vTargetIO / 10)      ' Display vTargetIO as an x.y value
+    pst.Dec(vTargetIO / 10)         ' Display vTargetIO as an x.y value
     pst.Char(".")
     pst.Dec(vTargetIO // 10)
 
@@ -1945,7 +1945,7 @@ MenuGPIO      byte CR, LF, "GPIO Commands:", CR, LF
               byte "W   Write all channels (output)", 0
                           
 MenuShared    byte CR, LF, LF, "General Commands:", CR, LF
-              byte "V   Set target I/O voltage (1.2V to 3.3V)", CR, LF
+              byte "V   Set target I/O voltage (1.4V to 3.3V)", CR, LF
               byte "H   Display available commands", CR, LF
               byte "M   Return to main menu", 0
 
@@ -1966,10 +1966,11 @@ ErrBYPASSAborted            byte CR, LF, "BYPASS scan aborted!", 0
 ErrDiscoveryAborted         byte CR, LF, "IR/DR discovery aborted!", 0
 ErrUARTAborted              byte CR, LF, "UART scan aborted!", 0
                                                                
-' Look-up table to correlate actual I/O voltage (1.2V to 3.3V) to DAC value
+' Look-up table to correlate actual I/O voltage to DAC value
 ' Full DAC range is 0 to 3.3V @ 256 steps = 12.89mV/step
-'                  1.2  1.3  1.4  1.5  1.6  1.7  1.8  1.9  2.0  2.1  2.2  2.3  2.4  2.5  2.6  2.7  2.8  2.9  3.0  3.1  3.2  3.3           
-VoltageTable  byte  93, 101, 109, 116, 124, 132, 140, 147, 155, 163, 171, 179, 186, 194, 202, 210, 217, 225, 233, 241, 248, 255
+' TXS0108E level translator is limited from 1.4V to 3.3V per data sheet table 6.3
+'                   1.4  1.5  1.6  1.7  1.8  1.9  2.0  2.1  2.2  2.3  2.4  2.5  2.6  2.7  2.8  2.9  3.0  3.1  3.2  3.3           
+VoltageTable  byte  109, 116, 124, 132, 140, 147, 155, 163, 171, 179, 186, 194, 202, 210, 217, 225, 233, 241, 248, 255
 
 ' Look-up table of accepted values for use with UART identification
 BaudRate      long  300, 600, 1200, 1800, 2400, 3600, 4800, 7200, 9600, 14400, 19200, 28800, 31250 {MIDI}, 38400, 57600, 76800, 115200, 153600, 230400, 250000 {DMX}, 307200
