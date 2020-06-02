@@ -14,9 +14,13 @@ Release date: **xx**
 
 * JTAG: Removed `X` command, which could transfer an instruction and data to/from a target. While useful for testing and preliminary fuzzing, it was unreliable and limited in capability compared to software tools like UrJTAG.
 
+* JTAG: Reduced maximum allowable clock speed to 20 kHz. 
+
 * General: Increased minimum allowable target voltage (VADJ) to 1.4V per TXS0108E data sheet table 6.3 (updated from 1.2V in Revision G, April 2020). 
 
 * General: All .spin source files converted from UTF-16 to 7-bit ASCII for ease-of-use and compatibility with external/third-party tools (thanks to adamgreen). 
+
+* General: Minor code optimizations.
 
 
 1.6
