@@ -47,7 +47,7 @@ CON
   MAX_LEN_CMD = 12   ' Maximum length of command string buffer
   
   ' JTAG/IEEE 1149.1
-  MAX_TCK_SPEED = 22   ' Maximum allowable JTAG clock speed (kHz)
+  MAX_TCK_SPEED = 20   ' Maximum allowable JTAG clock speed (kHz)
    
   ' UART/Asynchronous Serial
   MAX_LEN_UART_USER     = 34   ' Maximum length of user input string buffer (accounts for hexadecimal input of 16 bytes, \x00112233445566778899AABBCCDDEEFF)

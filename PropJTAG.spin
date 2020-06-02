@@ -475,7 +475,6 @@ PRI TCK_Pulse
   
 
 DAT
-' Look-up table to correlate actual JTAG (TCK) clock speed (1kHz to 22kHz) to waitcnt delay value
-'                    1      2      3      4     5     6     7     8     9     10    11    12    13    14    15    16    17    18   19   20   21   22
-DelayTable    long   38677, 18667, 12005, 8634, 6667, 5316, 4365, 3650, 3092, 2656, 2284, 1980, 1731, 1513, 1323, 1148, 1003, 869, 754, 652, 556, 460
-
+' Look-up table to correlate actual JTAG (TCK) clock speed (kHz) to waitcnt delay value
+'                    1      2      3      4     5     6     7     8     9     10    11    12    13    14    15    16    17    18   19   20
+DelayTable    long   38677, 18667, 12005, 8634, 6667, 5316, 4365, 3650, 3092, 2656, 2284, 1980, 1731, 1513, 1323, 1148, 1003, 869, 754, 652
