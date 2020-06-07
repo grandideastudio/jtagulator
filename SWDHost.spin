@@ -173,7 +173,7 @@ PUB resetSwJtagAndReadIdCode(pValue)
     sendLineReset
     sendJtagToSwdSequence
     sendLineReset
-    idleBus(2)
+    idleBus(8)
     RETURN readDP(DP_IDCODE, pValue)
 
 
@@ -344,14 +344,14 @@ SwdRoutine
                 IF_E JMP #:ReadRegister
                 ' Get here if the command was OP_RESET.
                 
-:ResetCmd       ' Clock out 50 SWCLK pulses with SWDIO held high.
+:ResetCmd       ' Clock out 51 SWCLK pulses with SWDIO held high.
                 '  Do 32 bits first...
                 ABSNEG DataOut, #1
                 MOV BitCount, #32
                 CALL #ClockInOut
-                '  Do the remaining 18-bits.
+                '  Do the remaining 19-bits.
                 ABSNEG DataOut, #1
-                MOV BitCount, #18
+                MOV BitCount, #19
                 CALL #ClockInOut
                 JMP #:CmdDone
 
