@@ -25,7 +25,7 @@
 
 CON
     ' Maximum number of longs to capture in m_buffer.
-    MAX_CAPTURE_LONGS = 4
+    MAX_CAPTURE_LONGS = 5
     MAX_CAPTURE_BITS = MAX_CAPTURE_LONGS * 32
     
     
