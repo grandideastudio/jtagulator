@@ -115,9 +115,9 @@ PUB Main | status, value, bitCount
         host.config(0, 1, host#SWD_SLOW_CLOCK_RATE)
         host.sendLineReset
         bitCount := capture.getCapturedBits(@m_buffer)
-        tst.checkLong(@bitCountMsg, bitCount, 50)
+        tst.checkLong(@bitCountMsg, bitCount, 51)
         tst.checkLong(@buffer0Msg, m_buffer[0], $FFFFFFFF) ' First 32 clocks of SWDIO high.
-        tst.checkLong(@buffer1Msg, m_buffer[1], %111111111111111111) ' Last 18 clocks.
+        tst.checkLong(@buffer1Msg, m_buffer[1], %111_1111_1111_1111_1111) ' Last 19 clocks.
         tst.checkLong(@buffer2Msg, m_buffer[2], 0)
         tst.checkLong(@buffer3Msg, m_buffer[3], 0)
         capture.stop
@@ -127,7 +127,7 @@ PUB Main | status, value, bitCount
         target.start(0, 1)
         host.config(0, 1, host#SWD_SLOW_CLOCK_RATE)
         host.sendLineReset
-        tst.checkLong(@clockCountsMsg, target.clockCounts, 50)
+        tst.checkLong(@clockCountsMsg, target.clockCounts, 51)
         tst.checkLong(@lineResetMsg, target.inLineResetState, TRUE)
         target.stop
     tst.end
@@ -136,20 +136,20 @@ PUB Main | status, value, bitCount
         target.start(15, 14)
         host.config(15, 14, host#SWD_SLOW_CLOCK_RATE)
         host.sendLineReset
-        tst.checkLong(@clockCountsMsg, target.clockCounts, 50)
+        tst.checkLong(@clockCountsMsg, target.clockCounts, 51)
         tst.checkLong(@lineResetMsg, target.inLineResetState, TRUE)
         target.stop
     tst.end
 
     tst.start(STRING("inLineResetState clears on first low SWDIO detected"))
-        target.start(0, 1)
         host.config(0, 1, host#SWD_SLOW_CLOCK_RATE)
+        target.start(0, 1)
         host.sendLineReset
-        tst.checkLong(@clockCountsMsg, target.clockCounts, 50)
+        tst.checkLong(@clockCountsMsg, target.clockCounts, 51)
         tst.checkLong(@lineResetMsg, target.inLineResetState, TRUE)
         ' Should leave reset as soon as SWDIO is set low (idled) for a clock pulse.
         host.idleBus(1)
-        tst.checkLong(@clockCountsMsg, target.clockCounts, 51)
+        tst.checkLong(@clockCountsMsg, target.clockCounts, 52)
         tst.checkLong(@lineResetMsg, target.inLineResetState, FALSE)
         target.stop
     tst.end
@@ -313,20 +313,23 @@ PUB Main | status, value, bitCount
         tst.checkLong(@statusMsg, status, host#RESP_OK)
         tst.checkLong(@valueMsg, value, $12345678)
         bitCount := capture.getCapturedBits(@m_buffer)
-        ' 50-bit reset + 16-bit switch + 50-bit reset + 2-bit idle + 8-bit packet request +
+        ' 51-bit reset + 16-bit switch + 51-bit reset + 8-bit idle + 8-bit packet request +
         ' 1-bit turn-around + 3-bit ack + 32-bit data + 1-bit parity + 1-bit turn-around.
-        tst.checkLong(@bitCountMsg, bitCount, 50+16+50+2+8+1+3+32+1+1)
+        tst.checkLong(@bitCountMsg, bitCount, 51+16+51+8+8+1+3+32+1+1)
         ' First 32-bits of reset.                 reset
         tst.checkLong(@buffer0Msg, m_buffer[0], $FFFFFFFF) 
-        ' Last 18-bits of reset, first 14-bits of switch command.
+        ' Last 19-bits of reset, first 13-bits of switch command.
         '                                           switch              reset
-        tst.checkLong(@buffer1Msg, m_buffer[1], %10_0111_1001_1110_111111111111111111) 
-        ' Last 2-bits of switch command and first 30-bits of second reset.
-        '                                                 reset                 switch
-        tst.checkLong(@buffer2Msg, m_buffer[2], %111111111111111111111111111111_11)
-        ' Last 20-bits of reset command, 2-bits of idle, packet, t, first 2-bits of ack.
-        '                                       ack t  packet  i         reset
-        tst.checkLong(@buffer2Msg, m_buffer[3], %01_1_10100101_00_11111111111111111111) 
+        tst.checkLong(@buffer1Msg, m_buffer[1], %0_0111_1001_1110_1111111111111111111) 
+        ' Last 3-bits of switch command and first 29-bits of second reset.
+        '                                                    reset             switch
+        tst.checkLong(@buffer2Msg, m_buffer[2], %11111111111111111111111111111_111)
+        ' Last 22-bits of reset command, 8-bits of idle, start=1, nDP=0
+        '                                        ds   idle         reset
+        tst.checkLong(@buffer3Msg, m_buffer[3], %01_00000000_1111111111111111111111) 
+        ' Packet bits: Read=1, 2 address bits=%00, parity=1, stop=0, park=1, turn=1, ack=%001, 22-bits of IDCODE.
+        '                                        $3  $4    $5  $6   $7   $8  ack t pspaar               
+        tst.checkLong(@buffer4Msg, m_buffer[4], %11_0100_0101_0110_0111_1000_001_1_101001) 
         capture.stop
         target.stop
     tst.end
@@ -340,18 +343,20 @@ PUB Main | status, value, bitCount
         tst.checkLong(@statusMsg, status, host#RESP_OK)
         tst.checkLong(@valueMsg, value, $12345678)
         bitCount := capture.getCapturedBits(@m_buffer)
-        ' 50-bit reset + 2-bit idle + 8-bit packet request + 1-bit turn-around + 
+        ' 51-bit reset + 8-bit idle + 8-bit packet request + 1-bit turn-around + 
         ' 3-bit ack + 32-bit data + 1-bit parity + 1-bit turn-around.
-        tst.checkLong(@bitCountMsg, bitCount, 50+2+8+1+3+32+1+1)
+        tst.checkLong(@bitCountMsg, bitCount, 51+8+8+1+3+32+1+1)
         ' First 32-bits of reset.                 reset
         tst.checkLong(@buffer0Msg, m_buffer[0], $FFFFFFFF) 
-        ' Last 18-bits of reset, 2-bits of idle, packet, t, ack
-        '                                        ack t  packet  i      reset
-        tst.checkLong(@buffer1Msg, m_buffer[1], %001_1_10100101_00_111111111111111111) 
-        ' 32-bit of data.                          data
-        tst.checkLong(@buffer2Msg, m_buffer[2], $12345678) 
-        '                                        t p
-        tst.checkLong(@buffer3Msg, m_buffer[3], %0_1) 
+        ' Last 19-bits of reset, 8-bits of idle, start=1, nDP=0, read=1, address=%00,
+        '                                        packet   idle          reset
+        tst.checkLong(@buffer1Msg, m_buffer[1], %00101_00000000_1111111111111111111) 
+        ' parity=1, stop=0, park=1, turn=1, ack=%001, and 25-bits of IDCODE.
+        '                                        $2  $3   $4   $5   $6   $7   $8  ack t  packet
+        tst.checkLong(@buffer2Msg, m_buffer[2], %0_0011_0100_0101_0110_0111_1000_001_1_101) 
+        ' Last 7-bits of IDCODE, parity, and turn-around.
+        '                                        t p  $1  $2
+        tst.checkLong(@buffer3Msg, m_buffer[3], %0_1_0001_001) 
         capture.stop
         target.stop
     tst.end
@@ -388,4 +393,5 @@ DAT
     buffer1Msg BYTE "m_buffer[1]", 0
     buffer2Msg BYTE "m_buffer[2]", 0
     buffer3Msg BYTE "m_buffer[3]", 0
+    buffer4Msg BYTE "m_buffer[4]", 0
     

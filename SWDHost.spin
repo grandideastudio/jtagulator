@@ -30,7 +30,10 @@
 
 CON
     ' Number of times to pulse SWCLK with SWDIO pulled high for line reset.
-    LINE_RESET_CLK_PULSES = 50
+    LINE_RESET_CLK_PULSES = 51
+    
+    ' Number of times to pulse SWCLK with SWDIO pulled low after line reset.
+    IDLE_PULSES = 8
     
     ' ARM document mentions a lower rate of 1kHz.
     ' https://developer.arm.com/docs/dui0499/latest/arm-dstream-target-interface-connections/signal-descriptions/serial-wire-debug
@@ -173,7 +176,7 @@ PUB resetSwJtagAndReadIdCode(pValue)
     sendLineReset
     sendJtagToSwdSequence
     sendLineReset
-    idleBus(8)
+    idleBus(IDLE_PULSES)
     RETURN readDP(DP_IDCODE, pValue)
 
 
@@ -192,7 +195,7 @@ PUB resetAndReadIdCode(pValue)
     NOTE: If the response isn't RESP_OK then the IDCODE isn't read into pValue.
 }
     sendLineReset
-    idleBus(2)
+    idleBus(IDLE_PULSES)
     RETURN readDP(DP_IDCODE, pValue)
 
 
@@ -351,7 +354,7 @@ SwdRoutine
                 CALL #ClockInOut
                 '  Do the remaining 19-bits.
                 ABSNEG DataOut, #1
-                MOV BitCount, #19
+                MOV BitCount, #(LINE_RESET_CLK_PULSES-32)
                 CALL #ClockInOut
                 JMP #:CmdDone
 
