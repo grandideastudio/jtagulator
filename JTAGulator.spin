@@ -288,6 +288,12 @@ PRI Do_SWD_Menu(cmd)
       else
         SWD_IDCODE_Scan
 
+    "D", "d":                 ' Get SWD Device ID (Pinout already known)
+      if (vTargetIO == -1)
+        pst.Str(@ErrTargetIOVoltage)
+      else
+        SWD_IDCODE_Known
+        
     "C", "c":
       Set_SWD_Frequency       ' Set SWD clock speed
 
@@ -661,7 +667,7 @@ PRI IDCODE_Known | value, id[32 {jtag#MAX_DEVICES_LEN}], i, xtdi   ' Get JTAG De
     pst.Str(@ErrNoDeviceFound)
          
   jTDI := xtdi   ' Set TDI back to its current value, if it exists (it was set to a temporary pin value to avoid contention)
-  pst.Str(String(CR, LF, "IDCODE listing complete."))
+  pst.Str(@MsgIDCODEDisplayComplete)
 
 
 PRI BYPASS_Known | num, dataIn, dataOut   ' Test BYPASS (TDI to TDO) (Pinout already known)
@@ -1686,10 +1692,10 @@ PRI Display_IO_Pins(value) | count
 CON {{ SWD METHODS }}
 
 PRI SWD_Init
-  ' Don't know any SWD pins yet.
+  ' Don't know any SWD pins yet.                        
   swdPinsKnown := 0
-  swdClk := -1
-  swdIo := -1
+  swdClk := 0
+  swdIo := 0
   swdFrequency := swd#SWD_DEFAULT_CLOCK_RATE
 
 
@@ -1744,7 +1750,7 @@ PRI SWD_IDCODE_Scan | response, idcode, ctr, num, xclk, xio     ' Identify SWD p
         num++
         xclk := swdClk
         xio := swdIo
-        Display_Device_ID(idcode, 0, 0)
+        Display_Device_ID(idcode, 1, 0)     ' SWD doesn't support device chaining, so there will only be a single device per pin permutation
         pst.Str(String(CR, LF))
           
       ' Progress indicator
@@ -1763,10 +1769,37 @@ PRI SWD_IDCODE_Scan | response, idcode, ctr, num, xclk, xio     ' Identify SWD p
   pst.Str(@MsgIDCODEComplete)
 
 
+PRI SWD_IDCODE_Known | response, idcode   ' Get SWD Device ID (Pinout already known)
+  if (Set_SWD == -1)  ' Ask user for the known SWD pinout
+    return              ' Abort if error
+   
+  u.TXSEnable                                      ' Enable level shifter outputs
+  u.Set_Pins_High(0, g#MAX_CHAN)                   ' In case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#
+
+  swd.init      ' Initialize SWD host module
+  
+  ' SWD doesn't support device chaining, so there will only be a single device per pin permutation
+  ' Use this pin mapping with the SWD module to attempt line resetting the device
+  ' and reading out the IDCODE register.
+  swd.config(swdClk, swdIo, swdFrequency)
+  response := swd.resetSwJtagAndReadIdCode(@idcode)
+      
+  ' The IDCODE was most likely read out successfully with this pin mapping if
+  ' the response code is OK (%001) and the least significant bit of the returned
+  ' IDCODE is 1 (unless all bits of IDCODE are 1 which isn't valid).
+  if (response == swd#RESP_OK) and (idcode <> -1) and (idcode & 1)
+    Display_Device_ID(idcode, 1, 1)   ' Display Device ID (with details)
+  else
+    pst.Str(@ErrNoDeviceFound)
+
+  swd.uninit    ' Cleanup SWD host module
+  pst.Str(@MsgIDCODEDisplayComplete)
+
+
 PRI SWD_Scan_Cleanup(num, clk, io)
-  swd.uninit
+  swd.uninit    ' Cleanup SWD host module
   if (num == 0)    ' If no device(s) were found during the search
-    longfill(@swdClk, -1, 2)  ' Clear SWD pinout
+    longfill(@swdClk, 0, 2)  ' Clear SWD pinout
     swdPinsKnown := 0 
   else             ' Update globals with the most recent detection results
     swdClk := clk
@@ -1776,7 +1809,7 @@ PRI SWD_Scan_Cleanup(num, clk, io)
     
 PRI Display_SWD_Pins
   pst.Str(String(CR, LF, "SWDIO: "))
-  pst.Dec(swdIO)
+  pst.Dec(swdIo)
   pst.Str(String(CR, LF, "SWCLK: "))
   pst.Dec(swdClk)
   pst.Str(String(CR, LF))
@@ -1800,7 +1833,48 @@ PRI Set_SWD_Frequency | value
     pst.Str(String(CR, LF, "New SWD clock speed set: "))
     pst.Dec(swdFrequency)  ' Print a confirmation of newly set clock speed
 
+
+PRI Set_SWD : err | xio, xclk, buf, c     ' Set SWD configuration to known values
+  pst.Str(String(CR, LF, "Enter SWDIO pin ["))
+  pst.Dec(swdIo)             ' Display current value
+  pst.Str(String("]: "))
+  xio := Get_Decimal_Pin     ' Get new value from user
+  if (xio == -1)             ' If carriage return was pressed...      
+    xio := swdIo                ' Keep current setting
+  if (xio < 0) or (xio > g#MAX_CHAN-1)  ' If entered value is out of range, abort
+    pst.Str(@ErrOutOfRange)
+    return -1
+
+  pst.Str(String(CR, LF, "Enter SWCLK pin ["))
+  pst.Dec(swdClk)               ' Display current value
+  pst.Str(String("]: "))
+  xclk := Get_Decimal_Pin     ' Get new value from user
+  if (xclk == -1)             ' If carriage return was pressed...      
+    xclk := swdClk                ' Keep current setting
+  if (xclk < 0) or (xclk > g#MAX_CHAN-1)  ' If entered value is out of range, abort
+    pst.Str(@ErrOutOfRange)
+    return -1
+
+  ' Make sure that the pin numbers are unique
+  ' Set bit in a long corresponding to each pin number
+  buf := 0
+  buf |= (1 << xio)
+  buf |= (1 << xclk)
   
+  ' Count the number of bits that are set in the long
+  c := 0
+  repeat 32
+    c += (buf & 1)
+    buf >>= 1
+
+  if (c <> 2)         ' If there are not exactly 2 bits set (SWDIO, SWCLK), then we have a collision
+    pst.Str(@ErrPinCollision)
+    return -1
+  else                ' If there are no collisions, update the globals with the new values
+    swdIo := xio
+    swdClk := xclk
+
+      
 CON {{ OTHER METHODS }}
 
 PRI System_Init
@@ -2101,6 +2175,7 @@ MenuGPIO      byte CR, LF, "GPIO Commands:", CR, LF
                           
 MenuSWD       byte CR, LF, "SWD Commands:", CR, LF
               byte "I   Identify SWD pinout (IDCODE Scan)", CR, LF
+              byte "D   Get Device ID", CR, LF
               byte "C   Set SWD clock speed", 0
 
 MenuShared    byte CR, LF, LF, "General Commands:", CR, LF
@@ -2114,6 +2189,7 @@ CharProgress  byte "-", 0   ' Character used for progress indicator
 MsgPressSpacebarToBegin     byte CR, LF, "Press spacebar to begin (any other key to abort)...", 0 
 MsgJTAGulating              byte CR, LF, "JTAGulating! Press any key to abort...", CR, LF, 0
 MsgIDCODEComplete           byte CR, LF, "IDCODE scan complete.", 0
+MsgIDCODEDisplayComplete    byte CR, LF, "IDCODE listing complete.", 0
 
 UARTPinoutMessage           byte CR, LF, "UART pin naming is from the target's perspective.", 0
 
