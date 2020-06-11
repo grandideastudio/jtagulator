@@ -1690,7 +1690,7 @@ PRI SWD_Init
   swdPinsKnown := 0
   swdClk := -1
   swdIo := -1
-  swdFrequency := swd#SWD_FASTEST_CLOCK_RATE
+  swdFrequency := swd#SWD_DEFAULT_CLOCK_RATE
 
 
 PRI SWD_IDCODE_Scan | response, idcode, ctr, num, xclk, xio     ' Identify SWD pinout (IDCODE Scan)
@@ -1775,10 +1775,10 @@ PRI SWD_Scan_Cleanup(num, clk, io)
 
     
 PRI Display_SWD_Pins
-  pst.Str(String(CR, LF, "SWCLK: "))
-  pst.Dec(swdClk)
   pst.Str(String(CR, LF, "SWDIO: "))
   pst.Dec(swdIO)
+  pst.Str(String(CR, LF, "SWCLK: "))
+  pst.Dec(swdClk)
   pst.Str(String(CR, LF))
 
 

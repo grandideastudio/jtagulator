@@ -42,6 +42,8 @@ CON
     ' The fastest I have been able to run my SWD code without hanging in WAITCNT = 385kHz
     ' Reduce to 300kHz for production use (reliability >> speed)
     SWD_FASTEST_CLOCK_RATE = 300_000
+
+    SWD_DEFAULT_CLOCK_RATE = 100_000 ' Default to a midrange value 
     
     ' SWD DP Register Addresses.
     DP_IDCODE = $0      ' Read-only
