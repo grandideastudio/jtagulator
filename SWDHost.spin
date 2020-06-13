@@ -1,7 +1,7 @@
 {
     MIT License
     
-    Copyright (C) 2019  Adam Green (https://github.com/adamgreen)
+    Copyright (C) 2020  Adam Green (https://github.com/adamgreen)
     
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -69,7 +69,7 @@ CON
     DP = 0
     
     ' Supported SWD operations.
-    #0, OP_CONFIG, OP_RESET, OP_JTAG2SWD, OP_IDLE, OP_READ
+    #0, OP_CONFIG, OP_RESET, OP_RESET_JTAG2SWD, OP_READ
 
 
 VAR
@@ -175,12 +175,8 @@ PUB resetSwJtagAndReadIdCode(pValue)
     data portion failed parity checking.
     NOTE: If the response isn't RESP_OK then the IDCODE isn't read into pValue.
 } 
-    sendLineReset
-    sendJtagToSwdSequence
-    sendLineReset
-    idleBus(IDLE_PULSES)
-    RETURN readDP(DP_IDCODE, pValue)
-
+    m_cmdOp := OP_RESET_JTAG2SWD
+    RESULT := setupReadDP(DP_IDCODE, pValue)
 
 PUB resetAndReadIdCode(pValue)
 {
@@ -196,52 +192,9 @@ PUB resetAndReadIdCode(pValue)
     data portion failed parity checking.
     NOTE: If the response isn't RESP_OK then the IDCODE isn't read into pValue.
 }
-    sendLineReset
-    idleBus(IDLE_PULSES)
-    RETURN readDP(DP_IDCODE, pValue)
-
-
-PUB sendLineReset | id
-{
-  Sends line reset to SWD target.
-    This is done by pulsing SWCLK 50 times with SWDIO held high. This is a lower
-    level method and higher level methods like resetAndReadIrCode() or 
-    resetSwJtagAndReadIrCode() should be considered instead.
-}
     m_cmdOp := OP_RESET
-    m_cmdIndex++
-    REPEAT UNTIL m_respIndex == m_cmdIndex
-        ' Waiting for SWD cog to complete command.
+    RESULT := setupReadDP(DP_IDCODE, pValue)
 
-
-PUB sendJtagToSwdSequence | data
-{
-  Sends special sequence over TMS/SDWDIO which will switch from JTAG mode to
-  SWD mode if the attached device is using the SWJ-DebugPort which supports
-  both methods of communication. This is a lower level method and a higher 
-  level method like resetSwJtagAndReadIrCode() should be considered instead.
-}
-    m_cmdOp := OP_JTAG2SWD
-    m_cmdIndex++
-    REPEAT UNTIL m_respIndex == m_cmdIndex
-        ' Waiting for SWD cog to complete command.
-
-
-PUB idleBus(count)
-{
-  Commands the SWD bus to idle for the specified number of clock cycles.
-    Idling is SWCLK pulses with SWDIO held low.
-  Parameters
-    count is the number of SWCLK pulses to idle the SWD bus. The maximum allowed
-    value is 32. Can be called multiple times to workaround this maximum.
-}
-    m_cmdOp := OP_IDLE
-    m_cmdOperand := count <# 32
-    m_cmdIndex++
-    REPEAT UNTIL m_respIndex == m_cmdIndex
-        ' Waiting for SWD cog to complete command.
-
- 
 PUB readDP(address, pValue) : response | data
 {
   Reads the specified Debug Port register.
@@ -255,6 +208,21 @@ PUB readDP(address, pValue) : response | data
           into pValue.
 }
     m_cmdOp := OP_READ
+    response := setupReadDP(address, pValue)
+
+PRI setupReadDP(address, pValue) : response | data
+{
+  Setup to perform a read DP command. 
+  Used to send a read DP command but also at the end of reset commands too to read IDCODE.
+  Parameters
+    address is the 4-bit address of the register to be read.
+    pValue is a pointer to a 32-bit value to be filled in with the register contents.
+  Returns
+    The 3-bit RESP_* ack value sent back from the target or RESP_PARITY if the
+    data portion failed parity checking.
+    NOTE: If the response isn't RESP_OK then the register contents aren't read 
+          into pValue.
+}
     m_cmdOperand := buildPacketRequest(DP, READ, address)
     m_cmdIndex++
     REPEAT UNTIL m_respIndex == m_cmdIndex
@@ -304,61 +272,27 @@ SwdRoutine
                 MOV RespDataAddr, TempAddr
                 ' Initialize command index.
                 RDLONG LastIndex, RespIndexAddr
-                ' Initialize timer variables.
-                ' UNDONE: Only need to do this here if we want to idle while waiting 
-                '         for new commands.
-                MOV Time, CNT
-                ADD Time, Delay
 
 :NextCmd        ' Setup for next command.
-                ' UNDONE: Would prefer to force SWDIO low if that will work on nRF51822 since that is idle.
-                ' MOV TempVal, INA
 :WaitCmd        ' Wait for next command.
-{
-                ' Toggle clock pin while waiting.
-                '   Falling edge.
-                WAITCNT Time, Delay
-                ANDN TempVal, SwclkPinMask
-                MOV OUTA, TempVal
-                '   Rising edge.
-                WAITCNT Time, Delay
-                OR TempVal, SwclkPinMask
-                MOV OUTA, TempVal
-}
-                ' UNDONE: Might want to move this up to after the first WAITCNT so that
-                '         batched commands don't have idle introduced unless really needed.
                 ' See if the command index has been incremented to indicate a new command.
                 RDLONG CurrIndex, CmdIndexAddr
                 CMP CurrIndex, LastIndex WZ
                 IF_E JMP #:WaitCmd
                 
-                ' UNDONE: Don't need to do this here if idling while waiting for next command.
-                ' Initialize timer variable again since we aren't idling above.
+                ' Initialize timer variables.
                 MOV Time, CNT
                 ADD Time, Delay
                 
                 ' Jump to the handler for the requested command.
                 RDLONG TempVal, CmdOpAddr
-                CMP TempVal, #OP_CONFIG WZ
-                IF_E JMP #:ConfigPinsFreq
-                CMP TempVal, #OP_JTAG2SWD WZ
-                IF_E JMP #:JTAG2SWD
-                CMP TempVal, #OP_IDLE WZ
-                IF_E JMP #:IdleBus
+                CMP TempVal, #OP_RESET_JTAG2SWD WZ
+                IF_E JMP #:ResetJTAG2SWD
+                CMP TempVal, #OP_RESET WZ
+                IF_E JMP #:ResetCmd
                 CMP TempVal, #OP_READ WZ
                 IF_E JMP #:ReadRegister
-                ' Get here if the command was OP_RESET.
-                
-:ResetCmd       ' Clock out 51 SWCLK pulses with SWDIO held high.
-                '  Do 32 bits first...
-                ABSNEG DataOut, #1
-                MOV BitCount, #32
-                CALL #ClockInOut
-                '  Do the remaining 19-bits.
-                ABSNEG DataOut, #1
-                MOV BitCount, #(LINE_RESET_CLK_PULSES-32)
-                CALL #ClockInOut
-                JMP #:CmdDone
+                ' Get here if the command was OP_CONFIG.
 
 :ConfigPinsFreq ' Configure this code to use caller specified pins and frequency.
                 MOV TempAddr, PAR
@@ -374,25 +308,29 @@ SwdRoutine
                 ' Fetch delay from main memory.
                 ADD TempAddr, #4
                 RDLONG Delay, TempAddr
-                ' Configure SWCLK and SWDIO pins as output.
+                ' Start out with SWCLK and SWDIO pins both set high.
                 MOV TempVal, SwdioPinMask
                 OR TempVal, SwclkPinMask
+                MOV OUTA, TempVal
+                ' Configure SWCLK and SWDIO pins as output.
                 MOV DIRA, TempVal
-                ' Start out with SWCLK and SWDIO pins both set low.
-                MOV OUTA, #0
                 JMP #:CmdDone
                 
-:JTAG2SWD       ' Send the $E79E JTAG to SWD bit sequence out over TMS/SWDIO.
+:ResetJTAG2SWD  ' Clock out 51 SWCLK pulses with SWDIO held high.
+                CALL #SendReset
+                ' Send the $E79E JTAG to SWD bit sequence out over TMS/SWDIO.
                 MOV DataOut, Jtag2SwdSeq
                 MOV BitCount, #16
                 CALL #ClockInOut
-                JMP #:CmdDone
-
-:IdleBus        ' Clock out specified number of SWCLK pulses with SWDIO held low.
-                RDLONG BitCount, CmdOperandAddr
+                ' NOTE: Fall-through to ResetCmd to finish JTAG2SWD reset.
+                
+:ResetCmd       ' Clock out 51 SWCLK pulses with SWDIO held high.
+                CALL #SendReset
+                ' Send 8 SWCLK pulses with SWDIO held low for idle.
                 MOV DataOut, #0
-                CALL #ClockInOut
-                JMP #:CmdDone
+                MOV BitCount, #IDLE_PULSES
+                call #ClockInOut
+                ' NOTE: Fall-through to ReadRegister to read the ID code out.
 
 :ReadRegister   ' Read a DP or AP register.
                 ' Packet request is already filled out in m_cmdOperand by Spin code.
@@ -449,6 +387,23 @@ SwdRoutine
                 WRLONG LastIndex, RespIndexAddr
                 ' Jump back to wait for next command.
                 JMP #:NextCmd
+
+
+{
+  Routine to send reset by holding SWDIO high during 51 clock cycles.
+}
+SendReset       ' Clock out 51 SWCLK pulses with SWDIO held high.
+                '  Do 32 bits first...
+                ABSNEG DataOut, #1
+                MOV BitCount, #32
+                CALL #ClockInOut
+                '  Do the remaining 19-bits.
+                ABSNEG DataOut, #1
+                MOV BitCount, #(LINE_RESET_CLK_PULSES-32)
+                CALL #ClockInOut
+                ' Return to caller.
+SendReset_ret   RET
+
 
 {
   Routine to clock data out/in over SWDIO.
