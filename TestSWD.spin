@@ -1,7 +1,7 @@
 {
     MIT License
     
-    Copyright (C) 2019  Adam Green (https://github.com/adamgreen)
+    Copyright (C) 2020  Adam Green (https://github.com/adamgreen)
     
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -46,6 +46,7 @@ PUB Main | status, value, bitCount
     target.init
     capture.init
     host.init
+    
     
     ' --------------------------------------------------------------------------------
     ' Testing of SWDTarget module's detection of line reset (50 SWCLKs of SWDIO 
@@ -106,117 +107,6 @@ PUB Main | status, value, bitCount
         target.stop
     tst.end
 
-
-    ' --------------------------------------------------------------------------------
-    ' Tests of host.sendLineReset.
-    ' --------------------------------------------------------------------------------
-    tst.start(STRING("Capture line reset"))
-        capture.start(0, 1)
-        host.config(0, 1, host#SWD_SLOW_CLOCK_RATE)
-        host.sendLineReset
-        bitCount := capture.getCapturedBits(@m_buffer)
-        tst.checkLong(@bitCountMsg, bitCount, 51)
-        tst.checkLong(@buffer0Msg, m_buffer[0], $FFFFFFFF) ' First 32 clocks of SWDIO high.
-        tst.checkLong(@buffer1Msg, m_buffer[1], %111_1111_1111_1111_1111) ' Last 19 clocks.
-        tst.checkLong(@buffer2Msg, m_buffer[2], 0)
-        tst.checkLong(@buffer3Msg, m_buffer[3], 0)
-        capture.stop
-    tst.end
-
-    tst.start(STRING("Line reset"))
-        target.start(0, 1)
-        host.config(0, 1, host#SWD_SLOW_CLOCK_RATE)
-        host.sendLineReset
-        tst.checkLong(@clockCountsMsg, target.clockCounts, 51)
-        tst.checkLong(@lineResetMsg, target.inLineResetState, TRUE)
-        target.stop
-    tst.end
-
-    tst.start(STRING("Line reset on different pins"))
-        target.start(15, 14)
-        host.config(15, 14, host#SWD_SLOW_CLOCK_RATE)
-        host.sendLineReset
-        tst.checkLong(@clockCountsMsg, target.clockCounts, 51)
-        tst.checkLong(@lineResetMsg, target.inLineResetState, TRUE)
-        target.stop
-    tst.end
-
-    tst.start(STRING("inLineResetState clears on first low SWDIO detected"))
-        host.config(0, 1, host#SWD_SLOW_CLOCK_RATE)
-        target.start(0, 1)
-        host.sendLineReset
-        tst.checkLong(@clockCountsMsg, target.clockCounts, 51)
-        tst.checkLong(@lineResetMsg, target.inLineResetState, TRUE)
-        ' Should leave reset as soon as SWDIO is set low (idled) for a clock pulse.
-        host.idleBus(1)
-        tst.checkLong(@clockCountsMsg, target.clockCounts, 52)
-        tst.checkLong(@lineResetMsg, target.inLineResetState, FALSE)
-        target.stop
-    tst.end
-
-
-    ' --------------------------------------------------------------------------------
-    ' Tests of host.sendJtagToSwdSequence.
-    ' --------------------------------------------------------------------------------
-    tst.start(STRING("Capture sendJtagToSwdSequence"))
-        capture.start(0, 1)
-        host.config(0, 1, host#SWD_SLOW_CLOCK_RATE)
-        host.sendJtagToSwdSequence
-        bitCount := capture.getCapturedBits(@m_buffer)
-        tst.checkLong(@bitCountMsg, bitCount, 16)
-        ' 16-bits of switch command.
-        tst.checkLong(@buffer0Msg, m_buffer[0], %1110_0111_1001_1110) 
-        tst.checkLong(@buffer1Msg, m_buffer[1], 0) 
-        tst.checkLong(@buffer2Msg, m_buffer[2], 0) 
-        tst.checkLong(@buffer3Msg, m_buffer[3], 0) 
-        capture.stop
-    tst.end
-
-
-    ' --------------------------------------------------------------------------------
-    ' Tests of host.idleBus
-    ' --------------------------------------------------------------------------------
-    tst.start(STRING("Capture idleBus(2)"))
-        capture.start(0, 1)
-        host.config(0, 1, host#SWD_SLOW_CLOCK_RATE)
-        host.idleBus(2)
-        bitCount := capture.getCapturedBits(@m_buffer)
-        tst.checkLong(@bitCountMsg, bitCount, 2)
-        ' 2 bits of SWDIO = 0
-        tst.checkLong(@buffer0Msg, m_buffer[0], %00) 
-        tst.checkLong(@buffer1Msg, m_buffer[1], 0) 
-        tst.checkLong(@buffer2Msg, m_buffer[2], 0) 
-        tst.checkLong(@buffer3Msg, m_buffer[3], 0) 
-        capture.stop
-    tst.end
-
-    tst.start(STRING("Capture idleBus(32)"))
-        capture.start(0, 1)
-        host.config(0, 1, host#SWD_SLOW_CLOCK_RATE)
-        host.idleBus(32)
-        bitCount := capture.getCapturedBits(@m_buffer)
-        tst.checkLong(@bitCountMsg, bitCount, 32)
-        ' 32 bits of SWDIO = 0.
-        tst.checkLong(@buffer0Msg, m_buffer[0], 0) 
-        tst.checkLong(@buffer1Msg, m_buffer[1], 0) 
-        tst.checkLong(@buffer2Msg, m_buffer[2], 0) 
-        tst.checkLong(@buffer3Msg, m_buffer[3], 0) 
-        capture.stop
-    tst.end
-
-    tst.start(STRING("Capture idleBus(33) limited to 32"))
-        capture.start(0, 1)
-        host.config(0, 1, host#SWD_SLOW_CLOCK_RATE)
-        host.idleBus(32)
-        bitCount := capture.getCapturedBits(@m_buffer)
-        tst.checkLong(@bitCountMsg, bitCount, 32)
-        ' 32 bits of SWDIO = 0.
-        tst.checkLong(@buffer0Msg, m_buffer[0], 0) 
-        tst.checkLong(@buffer1Msg, m_buffer[1], 0) 
-        tst.checkLong(@buffer2Msg, m_buffer[2], 0) 
-        tst.checkLong(@buffer3Msg, m_buffer[3], 0) 
-        capture.stop
-    tst.end
 
     ' --------------------------------------------------------------------------------
     ' Tests of host.readDP()
