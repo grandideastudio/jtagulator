@@ -29,10 +29,10 @@
 '       JTAGulating.
 
 CON
-    ' Number of times to pulse SWCLK with SWDIO pulled high for line reset.
+    ' Number of times to pulse SWCLK with SWDIO pulled high for line reset (specification requires >= 50, cannot exceed 64).
     LINE_RESET_CLK_PULSES = 51
     
-    ' Number of times to pulse SWCLK with SWDIO pulled low after line reset.
+    ' Number of times to pulse SWCLK with SWDIO pulled low after line reset (specification requires >= 2, cannot exceed 32).
     IDLE_PULSES = 8
     
     ' ARM document mentions a lower rate of 1kHz.
@@ -316,7 +316,7 @@ SwdRoutine
                 MOV DIRA, TempVal
                 JMP #:CmdDone
                 
-:ResetJTAG2SWD  ' Clock out 51 SWCLK pulses with SWDIO held high.
+:ResetJTAG2SWD  ' Clock out SWCLK pulses with SWDIO held high.
                 CALL #SendReset
                 ' Send the $E79E JTAG to SWD bit sequence out over TMS/SWDIO.
                 MOV DataOut, Jtag2SwdSeq
@@ -324,9 +324,9 @@ SwdRoutine
                 CALL #ClockInOut
                 ' NOTE: Fall-through to ResetCmd to finish JTAG2SWD reset.
                 
-:ResetCmd       ' Clock out 51 SWCLK pulses with SWDIO held high.
+:ResetCmd       ' Clock out SWCLK pulses with SWDIO held high.
                 CALL #SendReset
-                ' Send 8 SWCLK pulses with SWDIO held low for idle.
+                ' Clock out SWCLK pulses with SWDIO held low for idle.
                 MOV DataOut, #0
                 MOV BitCount, #IDLE_PULSES
                 call #ClockInOut
@@ -390,14 +390,14 @@ SwdRoutine
 
 
 {
-  Routine to send reset by holding SWDIO high during 51 clock cycles.
+  Routine to send reset by holding SWDIO high during LINE_RESET_CLK_PULSES clock cycles.
 }
-SendReset       ' Clock out 51 SWCLK pulses with SWDIO held high.
+SendReset       ' Clock out SWCLK pulses with SWDIO held high.
                 '  Do 32 bits first...
                 ABSNEG DataOut, #1
                 MOV BitCount, #32
                 CALL #ClockInOut
-                '  Do the remaining 19-bits.
+                '  Do the remaining bits.
                 ABSNEG DataOut, #1
                 MOV BitCount, #(LINE_RESET_CLK_PULSES-32)
                 CALL #ClockInOut
