@@ -8,6 +8,8 @@ Visit the JTAGulator [github repository](https://github.com/grandideastudio/jtag
 ---
 Release date: **xx**
 
+* SWD: Added support for ARM Serial Wire Debug (SWD). There are compatibility issues with many SWD-based targets and JTAGulator Rev. B and earlier hardware, which affect signal levels and detection results. See discussion in [Pull Request #30](https://github.com/grandideastudio/jtagulator/pull/30) (thanks to adamgreen). 
+
 * UART: Increased user string input size for `UART_Scan` to 16 bytes for both ASCII and hexadecimal input. [Issue #34](https://github.com/grandideastudio/jtagulator/issues/34)
 
 * UART: If previously entered user string was in hexadecimal, it will now be displayed properly during `UART_Scan`.

@@ -21,23 +21,11 @@ General
 Protocols/Discovery
 -------------------
 
-* JTAG: EJTAG support
-
 * JTAG: RTCK pin detection (adaptive clocking)
-
-* JTAG: ARM Serial Wire Debug (in progress) [Pull Request #30](https://github.com/grandideastudio/jtagulator/pull/30)
 
 * JTAG: Compact JTAG aka cJTAG (IEEE 1149.7) [Issue #13](https://github.com/grandideastudio/jtagulator/issues/13)
 
 * UART: Automatic baud rate detection for UART Scan
-
-* TI Spy-Bi-Wire/MSP430
-
-* Atmel AVR ISP
-
-* Freescale BDM
-
-* Microchip ICSP
 
 
 Hardware
@@ -49,4 +37,4 @@ Hardware
 Documentation
 -------------
 
-* FAQ/Troubleshooting Guide
+* FAQ/Troubleshooting Guide (in progress)
