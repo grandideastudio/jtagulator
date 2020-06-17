@@ -379,8 +379,14 @@ SwdRoutine
                 OR TempVal, SwdioPinMask
                 MOV DIRA, TempVal
                 MOV OUTA, SwclkPinMask
+
+                ' Fix to allow proper decoding w/ Saleae Logic SWD analyzer (per https://github.com/saleae/swd-analyzer/issues/1)
+                ' Output a HIGH bit on SWDIO and pulse additional clocks after the transaction          
+                MOV DataOut, #1
+                MOV BitCount, #IDLE_PULSES
+                call #ClockInOut
                 ' Fall through to :CmdDone
-                 
+                                 
 :CmdDone        ' Update m_respIndex to let calling cog know we are done with 
                 ' the current command.             
                 MOV LastIndex, CurrIndex
