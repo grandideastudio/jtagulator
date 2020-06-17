@@ -1700,6 +1700,8 @@ PRI SWD_Init
 
 
 PRI SWD_IDCODE_Scan | response, idcode, ctr, num, xclk, xio     ' Identify SWD pinout (IDCODE Scan)
+  pst.Str(@SWDWarningMessage)
+
   if (Get_Channels(2) == -1)   ' Get the channel range to use
     return
   Display_Permutations((chEnd - chStart + 1), 2)  ' SWCLK, SWDIO
@@ -1770,6 +1772,8 @@ PRI SWD_IDCODE_Scan | response, idcode, ctr, num, xclk, xio     ' Identify SWD p
 
 
 PRI SWD_IDCODE_Known | response, idcode   ' Get SWD Device ID (Pinout already known)
+  pst.Str(@SWDWarningMessage)
+  
   if (Set_SWD == -1)  ' Ask user for the known SWD pinout
     return              ' Abort if error
    
@@ -2193,6 +2197,9 @@ MsgIDCODEDisplayComplete    byte CR, LF, "IDCODE listing complete.", 0
 
 UARTPinoutMessage           byte CR, LF, "UART pin naming is from the target's perspective.", 0
 
+SWDWarningMessage           byte CR, LF, "Warning: JTAGulator HW Rev. B and earlier have compatibility issues w/"
+                            byte CR, LF, "many SWD-based target devices. Detection results may be affected.", CR, LF, 0
+                            
 ErrTargetIOVoltage          byte CR, LF, "Target I/O voltage must be defined!", 0
 ErrOutOfRange               byte CR, LF, "Value out of range!", 0
 ErrPinCollision             byte CR, LF, "Pin numbers must be unique!", 0
