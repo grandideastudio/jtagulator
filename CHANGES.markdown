@@ -4,6 +4,13 @@ JTAGulator Change Log
 Visit the JTAGulator [github repository](https://github.com/grandideastudio/jtagulator/commits/master) for full commit comments.
 
 
+1.8
+---
+Release date: **xx**
+
+* Nothing yet.
+
+
 1.7
 ---
 Release date: **June 17, 2020**
