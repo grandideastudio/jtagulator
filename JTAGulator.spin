@@ -799,7 +799,7 @@ PRI Set_JTAG(getTDI) : err | xtdi, xtdo, xtck, xtms, buf, c     ' Set JTAG confi
       pst.Str(@ErrOutOfRange)
       return -1
   else
-    pst.Str(String(CR, LF, "TDI not needed to retrieve Device ID."))
+    pst.Str(String(CR, LF, "TDI not needed to retrieve Device ID.", CR, LF))
     xtdi := g#PROP_SDA          ' Set TDI to a temporary pin so it doesn't interfere with enumeration
 
   pst.Str(String(CR, LF, "Enter TDO pin ["))
