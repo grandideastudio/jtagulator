@@ -46,7 +46,7 @@ CON
   MAX_RX_DELAY_MS               = 100                  'Wait time (in ms) for the each byte in long commands to be sent before aborting
 
   ' used to convert between the protocol requests based on the OLS 100MHz clock and the JTAGulator's 80MHz clock
-  SR_FACTOR_NUM                 = 4 ' 80E6/100E6 = 4/5
+  SR_FACTOR_NUM                 = 4      ' 80E6/100E6 = 4/5
   SR_FACTOR_DEN                 = 5             
  
   CMD_RESET                     = $00    ' reset
@@ -70,10 +70,10 @@ CON
   CMD_TRIG3_CONF                = $CA
   CMD_TRIG4_CONF                = $CE
 
-  DEFAULT_CLOCKS_WAIT           = 66 '1.2 MHz
+  DEFAULT_CLOCKS_WAIT           = 66     '1.2 MHz
   DEFAULT_READ_PERIODS          = MAX_SAMPLE_PERIODS 
   DEFAULT_DELAY_PERIODS         = DEFAULT_READ_PERIODS
-  DEFAULT_DISABLE_FLAGS         = %00100000 ' disable ch group 4
+  DEFAULT_DISABLE_FLAGS         = %00100000  ' disable ch group 4
 
   DISABLE_FLAGS_MASK            = %00111100
 
@@ -140,7 +140,7 @@ OBJ
   
 
 PRI Start    ' Start a new cog to run PASM routine 
-  Stop                                           ' Call the Stop function, just in case the calling object called Start two times in a row.  
+  Stop                                           ' Call the Stop function, just in case the calling object called Start two times in a row
   Cog := cognew(@samplerInit, @clocksWait)       ' Launch the cog with a pointer to the parameters
   if Cog =< 0    ' Failed to start SUMP sampler
     repeat  ' Repeat until system reset
@@ -214,7 +214,7 @@ PUB Go | coggood, i
         u.LEDYellow
         i:=0
         repeat while i < MAX_SAMPLE_PERIODS 'clear buffer before starting capture
-          sampleBuffer[i++]:=$11223344   ' set to sentinel/canary value (not needed, could be 0)
+          sampleBuffer[i++]:=$11223344        ' set to sentinel/canary value (not needed, could be 0)
 
         samplerRunning:=1                   'arm the sampler cog
         repeat until (samplerRunning == 0)  'wait for the sampler cog to finish
@@ -230,14 +230,14 @@ PUB Go | coggood, i
         larg:=vCmd[2]
         larg<<=8
         larg|=vCmd[1]
-        readPeriods:=(larg+1)*4 'the protocol doesn't indicate the +1 is needed; but sigrok's OLS API does
+        readPeriods:=(larg+1)*4   'the protocol doesn't indicate the +1 is needed; but sigrok's OLS API does
         if readPeriods > DEFAULT_READ_PERIODS  
           readPeriods:=DEFAULT_READ_PERIODS 
 
         larg:=vCmd[4]
         larg<<=8
         larg|=vCmd[3]
-        delayPeriods:=(larg+1)*4 'the protocol doesn't indicate the +1 is needed; but sigrok's OLS API does
+        delayPeriods:=(larg+1)*4  'the protocol doesn't indicate the +1 is needed; but sigrok's OLS API does
         if delayPeriods > DEFAULT_DELAY_PERIODS
           delayPeriods:=DEFAULT_DELAY_PERIODS 
 
@@ -386,7 +386,7 @@ PUB Go | coggood, i
       CMD_TRIG4_CONF:
         if (GetFourMoreParamBytes == -1)
           next
-        isTrig4Start:=(vCmd[4] & 1<<3) ' NB: ignored; all 4th stage triggers start the sampler
+        isTrig4Start:=(vCmd[4] & 1<<3)   ' NB: ignored; all 4th stage triggers start the sampler
       
 
 PRI GetFourMoreParamBytes : val
@@ -400,9 +400,8 @@ PRI GetFourMoreParamBytes : val
     val:=-1
   
                  
-PRI SendAllSamples | i 'NB: OLS sends samples in reverse
+PRI SendAllSamples | i   'NB: OLS sends samples in reverse
   i := 0
-  
   repeat while i < readPeriods
     SendSamples(sampleBuffer[delayPeriods - 1 - i])
     ++i
@@ -463,12 +462,12 @@ samplerOff              RDLONG  t1,                 samplerRunningA     WZ
 samplerArm              MOVS    samplerTramp,       #samplerArmed1
 
                         MOV     samplerTargetA,     PAR                     
-                        ADD     samplerTargetA,     #SAMPLEBUFFER_OFF      ' point to the beginning of sampleBuffer
+                        ADD     samplerTargetA,     #SAMPLEBUFFER_OFF    ' point to the beginning of sampleBuffer
                         
                         MOV     t1,                 PAR
                         ADD     t1,                 #DELAYPERIODS_OFF
                         RDLONG  samplerLimitA,      t1
-                        SHL     samplerLimitA,      #2                     ' we capture 4 channels at a time
+                        SHL     samplerLimitA,      #2                   ' we capture 4 channels at a time
                         ADD     samplerLimitA,      samplerTargetA
 
                         MOV     t1,                 PAR
@@ -552,10 +551,9 @@ samplerStart            MOVS    samplerTramp,       #samplerSampling
                         ADD     samplerStamp,       samplerWait
                         JMP     #samplerCommon
 
-'Capable of achieving 1.2MHz. Rate limiting step is WRLONG
 samplerSampling         MOV     t1,                 INA
                         WRLONG  t1,                 samplerTargetA
-                        ADD     samplerTargetA,     #4                      'TODO: inc by 3 here (and waste a byte before the buffer) to reclaim wasted 1/4 of 4096 buffer
+                        ADD     samplerTargetA,     #4                   'TODO: inc by 3 here (and waste a byte before the buffer) to reclaim wasted 1/4 of 4096 buffer
                         
                         CMP     samplerTargetA,     samplerLimitA       WZ
               IF_E      MOVS    samplerTramp,       #samplerFinish
@@ -566,7 +564,7 @@ samplerCommon           JMP     samplerTramp
 samplerFinish           MOVS    samplerTramp,       #samplerOff
 
                         MOV     t1,                 #0
-                        WRLONG  t1,                 samplerRunningA        'NB always sets Z
+                        WRLONG  t1,                 samplerRunningA      'NB always sets Z
                         JMP     #samplerCommon
 
 ' VARIABLES stored in cog RAM (uninitialized)
