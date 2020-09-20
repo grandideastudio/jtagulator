@@ -53,7 +53,7 @@ CON
   CMD_RUN                       = $01    ' start capture or arm trigger
   CMD_QUERY_ID                  = $02    ' query device identification           
   CMD_QUERY_META                = $04    ' query metadata
-  CMD_FINISH_NOW                = $05    ' abort current run also aborts the advanced trigger, & forces data capture to quickly fill the buffer & end capture
+  CMD_FINISH_NOW                = $05    ' abort capture or stop waiting for trigger (returns any data already acquired)
   CMD_QUERY_INPUT_DATA          = $06    ' query input data (snapshot of current logic analyzer channels)
   CMD_DIV                       = $80    ' set divider
   CMD_CNT                       = $81    ' set read & delay count
@@ -201,10 +201,11 @@ PUB Go | coggood, i, isSendSamples
       'the 'short' commands follow; all are 1 byte, no parameters
 
       CMD_RESET:
-        if samplerRunning
+        if samplerRunning   ' If the sampler cog is still running, capture was likely stopped by user
           samplerRunning:=0
-          Stop
-          Start
+          Stop        ' Stop sampler cog
+          Start       ' Restart sampler cog
+          u.LEDRed
 
       CMD_QUERY_ID:
         pst.StrMax(@ID, @METADATA - @ID)
@@ -218,18 +219,18 @@ PUB Go | coggood, i, isSendSamples
       CMD_RUN:
         u.LEDYellow
         i:=0
-        repeat while i < MAX_SAMPLE_PERIODS 'clear buffer before starting capture
-          sampleBuffer[i++]:=$11223344        ' set to sentinel/canary value (not needed, could be 0)
+        repeat while i < MAX_SAMPLE_PERIODS ' Clear buffer before starting capture
+          sampleBuffer[i++]:=$00000000
 
-        samplerRunning:=1                   'arm the sampler cog
-        isSendSamples:=1
-        repeat until (samplerRunning == 0)  'wait for the sampler cog to finish
-          vCmd[0]:=pst.RxCheck
+        samplerRunning:=1                   ' Arm the sampler cog
+        isSendSamples:=1                    ' Send samples after successful capture
+        repeat until (samplerRunning == 0)  ' Wait for the sampler cog to finish
+          vCmd[0]:=pst.RxCheck                ' Check if byte is sent from client during capture
           if (vCmd[0] == CMD_RESET or vCmd[0] == CMD_FINISH_NOW)
             samplerRunning:=0
-            Stop
-            Start
-          if (vCmd[0] == CMD_RESET)
+            Stop                                  ' Stop sampler cog
+            Start                                 ' Restart sampler cog
+          if (vCmd[0] == CMD_RESET)             ' If reset command received, don't send the already captured samples
             isSendSamples:=0
      
         if isSendSamples
