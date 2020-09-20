@@ -563,7 +563,7 @@ samplerStart            MOVS    samplerTramp,       #samplerSampling
                         JMP     #samplerCommon
 
 samplerSampling         MOV     t1,                 INA
-                        WRLONG  t1,                 samplerTargetA
+                        WRLONG  t1,                 samplerTargetA       'the rate-limiting step in the sampler
                         ADD     samplerTargetA,     #4                   'TODO: inc by 3 here (and waste a byte before the buffer) to reclaim wasted 1/4 of 4096 buffer
                         
                         CMP     samplerTargetA,     samplerLimitA       WZ
