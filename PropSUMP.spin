@@ -157,7 +157,7 @@ PRI Stop
     Cog:=0
     
 
-PUB Go | coggood, i
+PUB Go | coggood, i, isSendSamples
   pst.Start(RxPin, TxPin, BaudRate)  ' Configure UART
 
   clocksWait:=DEFAULT_CLOCKS_WAIT
@@ -200,7 +200,10 @@ PUB Go | coggood, i
       'the 'short' commands follow; all are 1 byte, no parameters
 
       CMD_RESET:
-        samplerRunning:=0
+        if samplerRunning
+          samplerRunning:=0
+          Stop
+          Start
 
       CMD_QUERY_ID:
         pst.StrMax(@ID, @METADATA - @ID)
@@ -218,9 +221,16 @@ PUB Go | coggood, i
           sampleBuffer[i++]:=$11223344        ' set to sentinel/canary value (not needed, could be 0)
 
         samplerRunning:=1                   'arm the sampler cog
+        isSendSamples:=1
         repeat until (samplerRunning == 0)  'wait for the sampler cog to finish
+          if (pst.RxCheck == CMD_RESET)
+            samplerRunning:=0
+            Stop
+            Start
+            isSendSamples:=0
      
-        SendAllSamples 
+        if isSendSamples
+          SendAllSamples 
         u.LEDRed
         
       'remaining commands are 'long' commands, which all take 4 parameters
