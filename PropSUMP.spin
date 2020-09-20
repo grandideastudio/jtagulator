@@ -53,6 +53,7 @@ CON
   CMD_RUN                       = $01    ' start capture or arm trigger
   CMD_QUERY_ID                  = $02    ' query device identification           
   CMD_QUERY_META                = $04    ' query metadata
+  CMD_FINISH_NOW                = $05    ' abort current run also aborts the advanced trigger, & forces data capture to quickly fill the buffer & end capture
   CMD_QUERY_INPUT_DATA          = $06    ' query input data (snapshot of current logic analyzer channels)
   CMD_DIV                       = $80    ' set divider
   CMD_CNT                       = $81    ' set read & delay count
@@ -223,10 +224,12 @@ PUB Go | coggood, i, isSendSamples
         samplerRunning:=1                   'arm the sampler cog
         isSendSamples:=1
         repeat until (samplerRunning == 0)  'wait for the sampler cog to finish
-          if (pst.RxCheck == CMD_RESET)
+          vCmd[0]:=pst.RxCheck
+          if (vCmd[0] == CMD_RESET or vCmd[0] == CMD_FINISH_NOW)
             samplerRunning:=0
             Stop
             Start
+          if (vCmd[0] == CMD_RESET)
             isSendSamples:=0
      
         if isSendSamples
