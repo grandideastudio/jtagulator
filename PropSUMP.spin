@@ -81,7 +81,7 @@ CON
 
   
 VAR
-  long Cog                      ' Used to store ID of newly started cog
+  byte Cog                      ' Used to store ID of newly started cog
 
   byte vCmd[MAX_INPUT_LEN + 1]  ' Buffer for command input string
   long larg
@@ -140,8 +140,8 @@ OBJ
   
 
 PRI Start    ' Start a new cog to run PASM routine 
-  Stop                                           ' Call the Stop function, just in case the calling object called Start two times in a row
-  Cog := cognew(@samplerInit, @clocksWait)       ' Launch the cog with a pointer to the parameters
+  Stop                                           ' Call the Stop function, just in case the calling object called Start two times in a row.  
+  Cog := cognew(@samplerInit, @clocksWait) + 1   ' Launch the cog with a pointer to the parameters
   if Cog =< 0    ' Failed to start SUMP sampler
     repeat  ' Repeat until system reset
       u.LEDYellow
@@ -154,6 +154,7 @@ PRI Stop
   ' Stop the cog we started earlier, if any
   if Cog
     cogstop(Cog~ - 1)
+    Cog:=0
     
 
 PUB Go | coggood, i
