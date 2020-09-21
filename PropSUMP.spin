@@ -53,7 +53,6 @@ CON
   CMD_RUN                       = $01    ' start capture or arm trigger
   CMD_QUERY_ID                  = $02    ' query device identification           
   CMD_QUERY_META                = $04    ' query metadata
-  CMD_FINISH_NOW                = $05    ' abort capture or stop waiting for trigger (returns any data already acquired)
   CMD_QUERY_INPUT_DATA          = $06    ' query input data (snapshot of current logic analyzer channels)
   CMD_DIV                       = $80    ' set divider
   CMD_CNT                       = $81    ' set read & delay count
@@ -226,15 +225,15 @@ PUB Go | coggood, i, isSendSamples
         isSendSamples:=1                    ' Send samples after successful capture
         repeat until (samplerRunning == 0)  ' Wait for the sampler cog to finish
           vCmd[0]:=pst.RxCheck                ' Check if byte is sent from client during capture
-          if (vCmd[0] == CMD_RESET or vCmd[0] == CMD_FINISH_NOW)
+          if (vCmd[0] == CMD_RESET)
+            isSendSamples:=0
             samplerRunning:=0
             Stop                                  ' Stop sampler cog
             Start                                 ' Restart sampler cog
-          if (vCmd[0] == CMD_RESET)             ' If reset command received, don't send the already captured samples
-            isSendSamples:=0
-     
+
         if isSendSamples
-          SendAllSamples 
+          SendAllSamples
+          
         u.LEDRed
         
       'remaining commands are 'long' commands, which all take 4 parameters
