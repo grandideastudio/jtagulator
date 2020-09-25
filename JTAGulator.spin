@@ -1531,11 +1531,11 @@ PRI UART_Passthrough | ch, cog    ' UART/terminal passthrough
 
   ' Based on Serial_Pass_Through.spin from Chapter 4 of
   ' https://www.parallax.com/sites/default/files/downloads/122-32450-XBeeTutorial-v1.0.1.pdf
+  u.TXSEnable                         ' Enable level shifter outputs
   PT_In.Init(uTXD, uBaud)             ' Start serial port, receive only from target
-  PT_Out.Init(uRXD, uBaud)            ' Start serial port, transmit only to target
+  PT_Out.Init(uRXD, uBaud)            ' Start serial port, transmit only to target 
   cog := cognew(RX_from_Target, @uStack)  ' Start cog for target -> PC communication
   u.Pause(50)                         ' Delay for cog setup
-  u.TXSEnable                         ' Enable level shifter outputs
   pst.Str(String(CR, LF, "Entering UART passthrough! Press Ctrl-X to abort...", CR, LF))
   
   pst.RxFlush
@@ -1566,7 +1566,7 @@ PRI UART_Passthrough | ch, cog    ' UART/terminal passthrough
 
   
 PUB RX_from_Target
-  PT_In.flush
+  PT_In.flush     
   repeat
     pst.Char(PT_In.rx)      ' Get data from target and send to the PC
         
@@ -1734,7 +1734,7 @@ PRI GPIO_Logic(first_time) | ackbit   ' Logic analyzer (SUMP protocol)
       pst.Str(@ErrEEPROMNotResponding)
 
     pst.Str(String(CR, LF, "Entering logic analyzer mode! Press Ctrl-X to abort..."))
-    pst.Str(String(CR, LF, "(Switch to analyzer software and use Openbench Logic Sniffer driver @ 115.2kbps)", CR, LF))
+    pst.Str(String(CR, LF, LF, "Note: Switch to analyzer software and use Openbench Logic Sniffer driver @ 115.2kbps", CR, LF))
     u.Pause(100)      ' Delay to finish sending messages
     pst.Stop          ' Stop serial communications (this will be restarted from within the sump object)
     
