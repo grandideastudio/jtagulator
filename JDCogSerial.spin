@@ -172,6 +172,15 @@ PUB str(stringptr)
   repeat strsize(stringptr)
     tx(byte[stringptr++])
 
+PUB strmax(stringptr, maxcount)
+{{Send maxcount characters of a string.
+  Parameter:
+    stringptr - pointer to a string to send.
+    maxcount - number of characters to send from string pointer.}}
+  repeat maxcount
+    tx(byte[stringptr++])
+    
+
 DAT
                     ORG     0
 '

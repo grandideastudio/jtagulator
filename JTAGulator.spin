@@ -61,10 +61,16 @@ CON
   MENU_GPIO     = 3    ' General Purpose I/O
   MENU_SWD      = 4    ' Serial Wire Debug (SWD)
    
+  ' EEPROM
+  eepromAddress   = $8000       ' Starting address within EEPROM for system/user data storage
+  MODE_NORMAL     = 0    ' JTAGulator main mode
+  MODE_SUMP       = 1    ' Logic analyzer (SUMP protocol)
+  
   
 VAR                   ' Globally accessible variables
   byte vCmd[MAX_LEN_CMD + 1]  ' Buffer for command input string + \0
   long vTargetIO      ' Target I/O voltage (for example, 18 = 1.8V)
+  long vMode          ' JTAGulator operating mode (determined on start-up)
   
   long jTDI           ' JTAG pins (must stay in this order)
   long jTDO
@@ -116,7 +122,7 @@ OBJ
   pt_in         : "jm_rxserial"       ' UART/Asynchronous Serial receive driver for passthrough (JonnyMac, https://forums.parallax.com/discussion/114492/prop-baudrates)
   pt_out        : "jm_txserial"       ' UART/Asynchronous Serial transmit driver for passthrough (JonnyMac, https://forums.parallax.com/discussion/114492/prop-baudrates)
   swd           : "SWDHost"           ' ARM SWD (Serial Wire Debug) low-level functions (Adam Green, https://github.com/adamgreen)  
-    
+  sump          : "PropSUMP"            ' SUMP protocol for logic analyzer mode     
   
 PUB main | cmd
   System_Init                   ' Initialize system/hardware
@@ -125,8 +131,28 @@ PUB main | cmd
   GPIO_Init                     ' Initialize GPIO-specific items
   SWD_Init                      ' Initialize SWD-specific items
 
-  pst.CharIn                    ' Wait until the user presses a key before getting started
-  pst.Str(@InitHeader)          ' Display header
+  ' Read values from EEPROM to determine operating mode
+  ' JTAGulator's EEPROM (64KB) is larger than required by the Propeller, so there is 32KB of additional,
+  ' unused area available for data storage. Values will not get over-written when JTAGulator firmware is
+  ' re-loaded into the EEPROM.
+  ackbit := 0
+  ackbit += readLong(eepromAddress, @vMode)
+  ackbit += readLong(eepromAddress + 4, @vTargetIO)
+  if ackbit                           ' If there's an error with the EEPROM
+    pst.Str(@ErrEEPROMNotResponding)
+
+  ' Select operating mode
+  case vMode
+    MODE_SUMP:       ' Logic analyzer (SUMP protocol)
+      pst.Stop              ' Stop serial communications (this will be restarted from within sump)
+      DACOutput(VoltageTable[vTargetIO - 12])    ' Set target I/O voltage
+      GPIO_Logic(0)         ' Start logic analyzer mode
+      idMenu := MENU_GPIO   ' Set to previously active menu upon return
+
+    other:           ' MODE_NORMAL
+      u.LEDYellow
+      pst.CharIn                    ' Wait until the user presses a key before getting started
+      pst.Str(@InitHeader)          ' Display header
 
   ' Start command receive/process cycle
   repeat
@@ -275,7 +301,13 @@ PRI Do_GPIO_Menu(cmd)
         pst.Str(@ErrTargetIOVoltage)
       else
         Write_IO_Pins
-
+        
+    "L", "l":                 ' Logic analyzer (SUMP protocol)  
+      if (vTargetIO == -1)
+        pst.Str(@ErrTargetIOVoltage)
+      else
+        GPIO_Logic(1)
+            
     other:
       Do_Shared_Menu(cmd)
 
@@ -1901,7 +1933,9 @@ PRI System_Init
 
   idMenu := MENU_MAIN           ' Set default menu
   vTargetIO := -1               ' Target voltage is undefined
-   
+
+  eeprom.Initialize(eeprom#BootPin)    ' Setup I2C
+
   pst.Start(115_200)            ' Start serial communications                                                                                    
 
     
@@ -2127,7 +2161,23 @@ PRI Display_Permutations(n, r) | value, i
 
   pst.Dec(value)
   
-                           
+
+PRI readLong(addrReg, dataPtr) : ackbit
+  ackbit := eeprom.ReadPage(eeprom#BootPin, eeprom#EEPROM, addrReg, dataPtr, 4)
+
+  
+PRI writeLong(addrReg, data) : ackbit | startTime 
+  if eeprom.WritePage(eeprom#BootPin, eeprom#EEPROM, addrReg, @data, 4)
+    return true ' an error occured during the write
+    
+  startTime := cnt ' prepare to check for a timeout
+  repeat while eeprom.WriteWait(eeprom#BootPin, eeprom#EEPROM, addrReg)
+     if cnt - startTime > clkfreq / 10
+       return true ' waited more than a 1/10 second for the write to finish
+    
+  return false ' write completed successfully
+
+               
 DAT
 InitHeader    byte CR, LF, LF
               byte "                                    UU  LLL", CR, LF                                     
@@ -2175,7 +2225,8 @@ MenuUART      byte CR, LF, "UART Commands:", CR, LF
 MenuGPIO      byte CR, LF, "GPIO Commands:", CR, LF     
               byte "R   Read all channels (input, one shot)", CR, LF
               byte "C   Read all channels (input, continuous)", CR, LF  
-              byte "W   Write all channels (output)", 0
+              byte "W   Write all channels (output)", CR, LF
+              byte "L   Logic analyzer (SUMP protocol)", 0
                           
 MenuSWD       byte CR, LF, "SWD Commands:", CR, LF
               byte "I   Identify SWD pinout (IDCODE Scan)", CR, LF
@@ -2208,6 +2259,8 @@ ErrIDCODEAborted            byte CR, LF, "IDCODE scan aborted!", 0
 ErrBYPASSAborted            byte CR, LF, "BYPASS scan aborted!", 0
 ErrDiscoveryAborted         byte CR, LF, "IR/DR discovery aborted!", 0
 ErrUARTAborted              byte CR, LF, "UART scan aborted!", 0
+ErrLogicAborted             byte CR, LF, "Logic analyzer mode aborted!", 0
+
                                                                
 ' Look-up table to correlate actual I/O voltage to DAC value
 ' Full DAC range is 0 to 3.3V @ 256 steps = 12.89mV/step
