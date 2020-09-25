@@ -179,7 +179,6 @@ PUB strmax(stringptr, maxcount)
     maxcount - number of characters to send from string pointer.}}
   repeat maxcount
     tx(byte[stringptr++])
-    
 
 DAT
                     ORG     0

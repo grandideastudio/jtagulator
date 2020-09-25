@@ -1,7 +1,7 @@
 JTAGulator To Do
 ================
 
-This is a rough, non-binding list of features and/or additions we'd like to eventually build into the JTAGulator. If you're interested in contributing to the project, please do so!
+This is a list of features and/or additions we'd like to eventually build into the JTAGulator. It is by no means exhaustive and we are happy to take suggestions and/or pull requests!
 
 
 Bug Fixes
@@ -13,8 +13,7 @@ Bug Fixes
 General
 -------
 
-* Logic analyzer: Compatibility w/ [sigrok](http://sigrok.org) (in progress)
-* Compatibility w/ [OpenOCD](http://openocd.org) and [UrJTAG](http://urjtag.org): This would enable the JTAGulator to directly manipulate target devices once the interface is found (instead of having to disconnect the JTAGulator and connect other JTAG hardware to do the job like we have to do now). 
+* Compatibility w/ [OpenOCD](http://openocd.org): This would enable the JTAGulator to directly manipulate target devices once the interface is found (instead of having to disconnect the JTAGulator and connect other JTAG hardware to do the job like we have to do now). 
 
 
 Protocols/Discovery
@@ -36,4 +35,8 @@ Hardware
 Documentation
 -------------
 
+* Update the JTAGulator Product Brief (in progress)
+
 * FAQ/Troubleshooting Guide (in progress)
+
+* New feature review video

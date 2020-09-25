@@ -44,7 +44,7 @@ CON
 
 CON
   ' UI
-  MAX_LEN_CMD = 12   ' Maximum length of command string buffer
+  MAX_LEN_CMD = 12     ' Maximum length of command string buffer
   
   ' JTAG/IEEE 1149.1
   MAX_TCK_SPEED = 20   ' Maximum allowable JTAG clock speed (kHz)
@@ -63,8 +63,8 @@ CON
    
   ' EEPROM
   eepromAddress   = $8000       ' Starting address within EEPROM for system/user data storage
-  MODE_NORMAL     = 0    ' JTAGulator main mode
-  MODE_SUMP       = 1    ' Logic analyzer (SUMP protocol)
+  MODE_NORMAL     = 0           ' JTAGulator main mode
+  MODE_SUMP       = 1           ' Logic analyzer (SUMP protocol)
   
   
 VAR                   ' Globally accessible variables
@@ -112,47 +112,49 @@ VAR                   ' Globally accessible variables
   
   
 OBJ
-  g             : "JTAGulatorCon"     ' JTAGulator global constants
-  u             : "JTAGulatorUtil"    ' JTAGulator general purpose utilities
-  pst           : "PropSerial"        ' Serial communication for user interface (modified version of built-in Parallax Serial Terminal)
-  str           : "jm_strings"        ' String manipulation methods (JonnyMac)
-  rr            : "RealRandom"        ' Random number generation (Chip Gracey, http://obex.parallax.com/object/498) 
-  jtag          : "PropJTAG"          ' JTAG/IEEE 1149.1 low-level methods
-  uart          : "JDCogSerial"       ' UART/Asynchronous Serial communication engine (Carl Jacobs, http://obex.parallax.com/object/298)
-  pt_in         : "jm_rxserial"       ' UART/Asynchronous Serial receive driver for passthrough (JonnyMac, https://forums.parallax.com/discussion/114492/prop-baudrates)
-  pt_out        : "jm_txserial"       ' UART/Asynchronous Serial transmit driver for passthrough (JonnyMac, https://forums.parallax.com/discussion/114492/prop-baudrates)
-  swd           : "SWDHost"           ' ARM SWD (Serial Wire Debug) low-level functions (Adam Green, https://github.com/adamgreen)  
-  sump          : "PropSUMP"            ' SUMP protocol for logic analyzer mode     
+  g             : "JTAGulatorCon"      ' JTAGulator global constants
+  u             : "JTAGulatorUtil"     ' JTAGulator general purpose utilities
+  pst           : "PropSerial"         ' Serial communication for user interface (modified version of built-in Parallax Serial Terminal)
+  str           : "jm_strings"         ' String manipulation methods (JonnyMac)
+  rr            : "RealRandom"         ' Random number generation (Chip Gracey, https://github.com/parallaxinc/propeller/tree/master/libraries/community/p1/All/Real%20Random) 
+  eeprom        : "Basic_I2C_Driver"   ' I2C protocol for boot EEPROM communication (Michael Green, https://github.com/parallaxinc/propeller/tree/master/libraries/community/p1/All/Basic%20I2C%20Driver)
+  jtag          : "PropJTAG"           ' JTAG/IEEE 1149.1 low-level methods
+  uart          : "JDCogSerial"        ' UART/Asynchronous Serial communication engine (Carl Jacobs, https://github.com/parallaxinc/propeller/tree/master/libraries/community/p1/All/JDCogSerial)
+  pt_in         : "jm_rxserial"        ' UART/Asynchronous Serial receive driver for passthrough (JonnyMac, https://forums.parallax.com/discussion/114492/prop-baudrates)
+  pt_out        : "jm_txserial"        ' UART/Asynchronous Serial transmit driver for passthrough (JonnyMac, https://forums.parallax.com/discussion/114492/prop-baudrates)
+  swd           : "SWDHost"            ' ARM SWD (Serial Wire Debug) low-level functions (Adam Green, https://github.com/adamgreen)
+  sump          : "PropSUMP"           ' SUMP protocol for logic analyzer mode     
+
   
-PUB main | cmd
-  System_Init                   ' Initialize system/hardware
-  JTAG_Init                     ' Initialize JTAG-specific items
-  UART_Init                     ' Initialize UART-specific items
-  GPIO_Init                     ' Initialize GPIO-specific items
-  SWD_Init                      ' Initialize SWD-specific items
+PUB main | cmd, ackbit
+  System_Init        ' Initialize system/hardware
+  JTAG_Init          ' Initialize JTAG-specific items
+  UART_Init          ' Initialize UART-specific items
+  GPIO_Init          ' Initialize GPIO-specific items
+  SWD_Init           ' Initialize SWD-specific items
 
   ' Read values from EEPROM to determine operating mode
   ' JTAGulator's EEPROM (64KB) is larger than required by the Propeller, so there is 32KB of additional,
-  ' unused area available for data storage. Values will not get over-written when JTAGulator firmware is
+  ' unused area available for data storage. Values will not get overwritten when JTAGulator firmware is
   ' re-loaded into the EEPROM.
   ackbit := 0
   ackbit += readLong(eepromAddress, @vMode)
   ackbit += readLong(eepromAddress + 4, @vTargetIO)
-  if ackbit                           ' If there's an error with the EEPROM
+  if ackbit          ' If there's an error with the EEPROM
     pst.Str(@ErrEEPROMNotResponding)
 
   ' Select operating mode
   case vMode
     MODE_SUMP:       ' Logic analyzer (SUMP protocol)
-      pst.Stop              ' Stop serial communications (this will be restarted from within sump)
+      pst.Stop              ' Stop serial communications (this will be restarted from within the sump object)
       DACOutput(VoltageTable[vTargetIO - 12])    ' Set target I/O voltage
       GPIO_Logic(0)         ' Start logic analyzer mode
       idMenu := MENU_GPIO   ' Set to previously active menu upon return
 
     other:           ' MODE_NORMAL
       u.LEDYellow
-      pst.CharIn                    ' Wait until the user presses a key before getting started
-      pst.Str(@InitHeader)          ' Display header
+      pst.CharIn                   ' Wait until the user presses a key before getting started
+      pst.Str(@InitHeader)         ' Display header
 
   ' Start command receive/process cycle
   repeat
@@ -251,7 +253,7 @@ PRI Do_JTAG_Menu(cmd)
       else
         OPCODE_Discovery
 
-    "C", "c":                ' Set JTAG clock speed
+    "C", "c":                 ' Set JTAG clock speed
       Set_JTAG_Clock
                
     other:
@@ -373,18 +375,18 @@ PRI Display_Command_Prompt
   pst.Str(String(CR, LF, LF))
   
   case idMenu
-    MENU_MAIN:             ' Main/Top, don't display any prefix/header 
+    MENU_MAIN:                ' Main/Top, don't display any prefix/header 
       
-    MENU_JTAG:             ' JTAG
+    MENU_JTAG:                ' JTAG
       pst.Str(String("JTAG"))
 
-    MENU_UART:             ' UART
+    MENU_UART:                ' UART
       pst.Str(String("UART"))
 
-    MENU_GPIO:             ' General Purpose I/O
+    MENU_GPIO:                ' General Purpose I/O
       pst.Str(String("GPIO"))
       
-    MENU_SWD:              ' Serial Wire Debug
+    MENU_SWD:                 ' Serial Wire Debug
       pst.Str(String("SWD"))
 
     other:
@@ -1719,6 +1721,35 @@ PRI Display_IO_Pins(value) | count
   pst.Str(String(" (0x"))
   pst.Hex(value, g#MAX_CHAN >> 2)
   pst.Str(String(")"))
+
+
+PRI GPIO_Logic(first_time) | ackbit   ' Logic analyzer (SUMP protocol)
+  if (first_time == 1)
+    u.LEDRed
+
+    ackbit := 0       ' Set flags so JTAGulator will start up in logic analyzer mode on next reset
+    ackbit += writeLong(eepromAddress, MODE_SUMP)
+    ackbit += writeLong(eepromAddress + 4, vTargetIO)
+    if ackbit         ' If there's an error with the EEPROM
+      pst.Str(@ErrEEPROMNotResponding)
+
+    pst.Str(String(CR, LF, "Entering logic analyzer mode! Press Ctrl-X to abort..."))
+    pst.Str(String(CR, LF, "(Switch to analyzer software and use Openbench Logic Sniffer driver @ 115.2kbps)", CR, LF))
+    u.Pause(100)      ' Delay to finish sending messages
+    pst.Stop          ' Stop serial communications (this will be restarted from within the sump object)
+    
+  sump.Go
+
+  ' Exit from logic analyzer mode
+  pst.Start(115_200)  ' Re-start serial communications                                                                                    
+
+  ackbit := 0         ' Clear flags so JTAGulator will start up normally on next reset
+  ackbit += writeLong(eepromAddress, MODE_NORMAL)
+  ackbit += writeLong(eepromAddress + 4, -1)
+  if ackbit           ' If there's an error with the EEPROM
+    pst.Str(@ErrEEPROMNotResponding)
+
+  pst.Str(String(CR, LF, "Logic analyzer mode complete."))
   
        
 CON {{ SWD METHODS }}
@@ -2250,7 +2281,8 @@ UARTPinoutMessage           byte CR, LF, "UART pin naming is from the target's p
 
 SWDWarningMessage           byte CR, LF, "Warning: JTAGulator HW Rev. B and earlier have compatibility issues w/"
                             byte CR, LF, "many SWD-based target devices. Detection results may be affected.", CR, LF, 0
-                            
+
+ErrEEPROMNotResponding      byte CR, LF, "EEPROM not responding!", 0                            
 ErrTargetIOVoltage          byte CR, LF, "Target I/O voltage must be defined!", 0
 ErrOutOfRange               byte CR, LF, "Value out of range!", 0
 ErrPinCollision             byte CR, LF, "Pin numbers must be unique!", 0
