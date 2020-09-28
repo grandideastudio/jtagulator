@@ -1994,7 +1994,7 @@ PRI Set_Target_IO_Voltage | value
     DACOutput(VoltageTable[vTargetIO - 14])    ' Look up value that corresponds to the actual desired voltage and set DAC output
     pst.Str(String(CR, LF, "New target I/O voltage set: "))
     Display_Target_IO_Voltage                  ' Print a confirmation of newly set voltage
-    pst.Str(String(CR, LF, "Ensure VADJ is NOT connected to target!"))
+    pst.Str(String(CR, LF, "Warning: Ensure VADJ is NOT connected to target!"))
 
 
 PRI Get_Settings : err | value     ' Get user-configurable settings used in IDCODE_Scan and BYPASS_Scan
@@ -2257,7 +2257,7 @@ MenuGPIO      byte CR, LF, "GPIO Commands:", CR, LF
               byte "R   Read all channels (input, one shot)", CR, LF
               byte "C   Read all channels (input, continuous)", CR, LF  
               byte "W   Write all channels (output)", CR, LF
-              byte "L   Logic analyzer (SUMP protocol)", 0
+              byte "L   Logic analyzer (OLS/SUMP)", 0
                           
 MenuSWD       byte CR, LF, "SWD Commands:", CR, LF
               byte "I   Identify SWD pinout (IDCODE Scan)", CR, LF
