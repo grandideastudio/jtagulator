@@ -225,11 +225,18 @@ PUB Go | coggood, i, isSendSamples
         isSendSamples:=1                    ' Send samples after successful capture
         repeat until (samplerRunning == 0)  ' Wait for the sampler cog to finish
           vCmd[0]:=pst.RxCheck                ' Check if byte is sent from client during capture
-          if (vCmd[0] == CMD_RESET)
-            isSendSamples:=0
-            samplerRunning:=0
-            Stop                                  ' Stop sampler cog
-            Start                                 ' Restart sampler cog
+
+          case vCmd[0]
+            CAN:          ' If Ctrl-X (CAN) character received, exit SUMP mode
+              Stop          ' Stop sampler cog
+              pst.Stop      ' Stop serial communications
+              return        ' Go back to main JTAGulator mode
+
+            CMD_RESET:    ' If user canceled before trigger or acquisition is complete
+              isSendSamples:=0
+              samplerRunning:=0
+              Stop          ' Stop sampler cog
+              Start         ' Restart sampler cog
 
         if isSendSamples
           SendAllSamples
