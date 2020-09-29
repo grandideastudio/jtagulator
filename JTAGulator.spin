@@ -64,7 +64,7 @@ CON
   ' EEPROM
   eepromAddress   = $8000       ' Starting address within EEPROM for system/user data storage
   MODE_NORMAL     = 0           ' JTAGulator main mode
-  MODE_SUMP       = 1           ' Logic analyzer (SUMP protocol)
+  MODE_SUMP       = 1           ' Logic analyzer (OLS/SUMP)
   
   
 VAR                   ' Globally accessible variables
@@ -123,7 +123,7 @@ OBJ
   pt_in         : "jm_rxserial"        ' UART/Asynchronous Serial receive driver for passthrough (JonnyMac, https://forums.parallax.com/discussion/114492/prop-baudrates)
   pt_out        : "jm_txserial"        ' UART/Asynchronous Serial transmit driver for passthrough (JonnyMac, https://forums.parallax.com/discussion/114492/prop-baudrates)
   swd           : "SWDHost"            ' ARM SWD (Serial Wire Debug) low-level functions (Adam Green, https://github.com/adamgreen)
-  sump          : "PropSUMP"           ' SUMP protocol for logic analyzer mode     
+  sump          : "PropSUMP"           ' OLS/SUMP protocol for logic analyzer mode     
 
   
 PUB main | cmd, ackbit
@@ -145,7 +145,7 @@ PUB main | cmd, ackbit
 
   ' Select operating mode
   case vMode
-    MODE_SUMP:       ' Logic analyzer (SUMP protocol)
+    MODE_SUMP:       ' Logic analyzer (OLS/SUMP)
       pst.Stop              ' Stop serial communications (this will be restarted from within the sump object)
       DACOutput(VoltageTable[vTargetIO - 12])    ' Set target I/O voltage
       GPIO_Logic(0)         ' Start logic analyzer mode
@@ -223,11 +223,17 @@ PRI Do_Main_Menu(cmd)
 
 PRI Do_JTAG_Menu(cmd)
   case cmd
+    "J", "j":                 ' Identify JTAG pinout
+      if (vTargetIO == -1)
+        pst.Str(@ErrTargetIOVoltage)
+      else
+        IDCODE_Scan(1)   ' Combined IDCODE Scan and BYPASS Scan
+        
     "I", "i":                 ' Identify JTAG pinout (IDCODE Scan)
       if (vTargetIO == -1)
         pst.Str(@ErrTargetIOVoltage)
       else
-        IDCODE_Scan
+        IDCODE_Scan(0)
          
     "B", "b":                 ' Identify JTAG pinout (BYPASS Scan)
       if (vTargetIO == -1)
@@ -304,7 +310,7 @@ PRI Do_GPIO_Menu(cmd)
       else
         Write_IO_Pins
         
-    "L", "l":                 ' Logic analyzer (SUMP protocol)  
+    "L", "l":                 ' Logic analyzer (OLS/SUMP)  
       if (vTargetIO == -1)
         pst.Str(@ErrTargetIOVoltage)
       else
@@ -402,7 +408,7 @@ PRI Display_Invalid_Command
 CON {{ JTAG METHODS }}
 
 PRI JTAG_Init
-  rr.start         ' Start RealRandom cog (used during BYPASS test)
+  rr.start         ' Start RealRandom cog (used during BYPASS Scan and Test BYPASS)
 
   ' Set default parameters
   ' IDCODE_Scan, BYPASS_Scan
@@ -420,10 +426,15 @@ PRI JTAG_Init
   jTCKSpeed := MAX_TCK_SPEED
 
 
-PRI IDCODE_Scan | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}], i, xtdo, xtck, xtms    ' Identify JTAG pinout (IDCODE Scan)
-  if (Get_Channels(3) == -1)   ' Get the channel range to use
-    return
-  Display_Permutations((chEnd - chStart + 1), 3)  ' TDO, TCK, TMS
+PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}], i, j, data_in, data_out, xtdi, xtdo, xtck, xtms    ' Identify JTAG pinout (IDCODE Scan or Combined Scan)
+  if (type == 0)    ' IDCODE Scan only
+    if (Get_Channels(3) == -1)   ' Get the channel range to use
+      return
+    Display_Permutations((chEnd - chStart + 1), 3)  ' TDO, TCK, TMS
+  else              ' Combined IDCODE Scan and BYPASS Scan
+    if (Get_Channels(4) == -1)   ' Get the channel range to use
+      return
+    Display_Permutations((chEnd - chStart + 1), 4)  ' TDI, TDO, TCK, TMS
 
   if (Get_Settings == -1)      ' Get configurable scan settings
     return
@@ -438,11 +449,11 @@ PRI IDCODE_Scan | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}], i, 
   if (jPinsLow == 1)
     u.Set_Pins_Low(chStart, chEnd)  ' Set current channel range to output LOW
     u.Pause(jPinsLowDelay)          ' Delay to stay asserted
-          
-  ' We assume the IDCODE is the default DR after reset
-  ' Pin enumeration logic based on JTAGenum (http://deadhacker.com/2010/02/03/jtag-enumeration/)
+
   jTDI := g#PROP_SDA    ' TDI isn't used when we're just shifting data from the DR. Set TDI to a temporary pin so it doesn't interfere with enumeration.
 
+  ' We assume the IDCODE is the default DR after reset
+  ' Pin enumeration logic based on JTAGenum (http://deadhacker.com/2010/02/03/jtag-enumeration/)
   num := 0      ' Counter of possible pinouts
   ctr := 0
   repeat jTDO from chStart to chEnd   ' For every possible pin permutation (except TDI and TRST)...
@@ -454,9 +465,13 @@ PRI IDCODE_Scan | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}], i, 
           next
   
         if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
-          JTAG_Scan_Cleanup(num, 0, xtdo, xtck, xtms)  ' TDI isn't used during an IDCODE Scan
           pst.RxFlush
-          pst.Str(@ErrIDCODEAborted)
+          if (type == 0)
+            JTAG_Scan_Cleanup(num, 0, xtdo, xtck, xtms)  ' TDI isn't used during an IDCODE Scan
+            pst.Str(@ErrIDCODEAborted)
+          else
+            JTAG_Scan_Cleanup(num, xtdi, xtdo, xtck, xtms)
+            pst.Str(@ErrJTAGAborted)
           return
 
         u.Set_Pins_High(chStart, chEnd)       ' Set current channel range to output HIGH (in case there are active low signals that may affect operation, like TRST# or SRST#)  
@@ -466,29 +481,60 @@ PRI IDCODE_Scan | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}], i, 
         jtag.Config(jTDI, jTDO, jTCK, jTMS, jTCKSpeed)   ' Configure JTAG
         jtag.Get_Device_IDs(1, @value)        ' Try to get the 1st Device ID in the chain (if it exists) by reading the DR      
         if (value <> -1) and (value & 1)      ' Ignore if received Device ID is 0xFFFFFFFF or if bit 0 != 1
-          Display_JTAG_Pins                   ' Display current JTAG pinout
+          if (type == 0)
+            Display_JTAG_Pins                   ' Display current JTAG pinout
           num += 1                            ' Increment counter  
           xtdo := jTDO                        ' Keep track of most recent detection results
           xtck := jTCK
           xtms := jTMS
           jPinsKnown := 1                     ' Enable known pins flag
 
-          ' Since we might not know how many devices are in the chain, try the maximum allowable number and verify the results afterwards
-          jtag.Get_Device_IDs(jtag#MAX_DEVICES_LEN, @id)   ' We assume the IDCODE is the default DR after reset                          
-          repeat i from 0 to (jtag#MAX_DEVICES_LEN-1)      ' For each device in the chain...
-            value := id[i]
-            if (value <> -1) and (value & 1)                 ' Ignore if received Device ID is 0xFFFFFFFF or if bit 0 != 1
+          if (type == 0)    ' IDCODE Scan
+            ' Since we might not know how many devices are in the chain, try the maximum allowable number and verify the results afterwards
+            jtag.Get_Device_IDs(jtag#MAX_DEVICES_LEN, @id)   ' We assume the IDCODE is the default DR after reset                          
+            repeat i from 0 to (jtag#MAX_DEVICES_LEN-1)      ' For each device in the chain...
+              value := id[i]
               Display_Device_ID(value, i + 1, 0)               ' Display Device ID of current device (without details)
+          else              ' Combined IDCODE Scan and BYPASS Scan
+            ' Now try to determine TDI by doing a BYPASS Test
+            repeat jTDI from chStart to chEnd     ' For every remaining channel...
+              if (jTDI == jTMS) or (jTDI == jTCK) or (jTDI == jTDO)
+                next
 
+              jtag.Config(jTDI, jTDO, jTCK, jTMS, jTCKSpeed)   ' Re-configure JTAG
+              data_in := rr.random                             ' Get 32-bit random number to use as the BYPASS pattern
+              data_out := jtag.Bypass_Test(value, data_in)     ' Run the BYPASS instruction
+
+              if (data_in == data_out)   ' If match, then we've found a JTAG interface on this current pinout 
+                xtdi := jTDI                 ' Keep track of most recent detection result
+                Display_JTAG_Pins            ' Display current JTAG pinout
+                j := jtag.Detect_Devices     ' Get number of devices in the chain
+                pst.Str(String(CR, LF))
+                pst.Str(@MsgDevicesDetected)
+                pst.Dec(j)
+                if (j == 0)
+                  JTAG_Scan_Cleanup(num, xtdi, xtdo, xtck, xtms)
+                  pst.Str(@ErrNoDeviceFound)
+                  return
+
+                jtag.Get_Device_IDs(j, @id)   ' We assume the IDCODE is the default DR after reset
+                repeat i from 0 to (j-1)      ' For each device in the chain...
+                  value := id[i]
+                  Display_Device_ID(value, i + 1, 0)           ' Display Device ID of current device (without details
+   
           ' Now try to determine if the TRST# pin is being used on the target
           repeat jTRST from chStart to chEnd     ' For every remaining channel...
             if (jTRST == jTMS) or (jTRST == jTCK) or (jTRST == jTDO) or (jTMS == jTDI)
               next
               
             if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
-              JTAG_Scan_Cleanup(num, 0, xtdo, xtck, xtms)  ' TDI isn't used during an IDCODE Scan
               pst.RxFlush
-              pst.Str(@ErrIDCODEAborted)
+              if (type == 0)
+                JTAG_Scan_Cleanup(num, 0, xtdo, xtck, xtms)  ' TDI isn't used during an IDCODE Scan
+                pst.Str(@ErrIDCODEAborted)
+              else
+                JTAG_Scan_Cleanup(num, xtdi, xtdo, xtck, xtms)
+                pst.Str(@ErrJTAGAborted)
               return
       
             dira[jTRST] := 1  ' Set current pin to output
@@ -515,10 +561,14 @@ PRI IDCODE_Scan | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}], i, 
           u.Pause(jPinsLowDelay)          ' Delay to stay asserted
 
   if (num == 0)
-    pst.Str(@ErrNoDeviceFound)  
-  JTAG_Scan_Cleanup(num, 0, xtdo, xtck, xtms)  ' TDI isn't used during an IDCODE Scan
-  
-  pst.Str(@MsgIDCODEComplete)
+    pst.Str(@ErrNoDeviceFound)
+
+  if (type == 0)  
+    JTAG_Scan_Cleanup(num, 0, xtdo, xtck, xtms)  ' TDI isn't used during an IDCODE Scan 
+    pst.Str(@MsgIDCODEComplete)
+  else
+    JTAG_Scan_Cleanup(num, xtdi, xtdo, xtck, xtms)
+    pst.Str(String(CR, LF, "JTAG scan complete."))
 
          
 PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtck, xtms, tdiStart, tdiEnd, tdoStart, tdoEnd, tckStart, tckEnd, tmsStart, tmsEnd    ' Identify JTAG pinout (BYPASS Scan)
@@ -657,7 +707,7 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
                      
                 outa[jTRST] := 1  ' Bring the current pin HIGH when done
             
-              pst.Str(String("Number of devices detected: "))
+              pst.Str(@MsgDevicesDetected)
               pst.Dec(value)
               pst.Str(String(CR, LF))
                   
@@ -672,6 +722,7 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
           
   if (num == 0)
     pst.Str(@ErrNoDeviceFound)
+    
   JTAG_Scan_Cleanup(num, xtdi, xtdo, xtck, xtms)
     
   pst.Str(String(CR, LF, "BYPASS scan complete."))
@@ -694,8 +745,7 @@ PRI IDCODE_Known | value, id[32 {jtag#MAX_DEVICES_LEN}], i, xtdi   ' Get JTAG De
                                                  
   repeat i from 0 to (jtag#MAX_DEVICES_LEN-1)      ' For each device in the chain...
     value := id[i]
-    if (value <> -1) and (value & 1)                 ' Ignore if received Device ID is 0xFFFFFFFF or if bit 0 != 1
-      Display_Device_ID(value, i + 1, 1)               ' Display Device ID of current device (with details)
+    Display_Device_ID(value, i + 1, 1)               ' Display Device ID of current device (with details)
     
   if (i == 0)
     pst.Str(@ErrNoDeviceFound)
@@ -713,7 +763,8 @@ PRI BYPASS_Known | num, dataIn, dataOut   ' Test BYPASS (TDI to TDO) (Pinout alr
   jtag.Config(jTDI, jTDO, jTCK, jTMS, jTCKSpeed)         ' Configure JTAG
 
   num := jtag.Detect_Devices                 ' Get number of devices in the chain
-  pst.Str(String(CR, LF, "Number of devices detected: "))
+  pst.Str(String(CR, LF))
+  pst.Str(@MsgDevicesDetected)
   pst.Dec(num)
   if (num == 0)
     pst.Str(@ErrNoDeviceFound)
@@ -1036,6 +1087,9 @@ PRI Display_JTAG_IRDR(irLen, opcode, drLen)    ' Display IR/DR information
 
   
 PRI Display_Device_ID(value, num, details)
+  if (value == -1) or (value & $00000001 <> 1)      ' Ignore if received Device ID is 0xFFFFFFFF or if bit 0 != 1
+    return
+    
   if (details == 1)
     pst.Str(String(CR, LF, LF))
     
@@ -1103,7 +1157,7 @@ PRI UART_Init
   
 
 PRI UART_Scan | value, baud_idx, i, j, ctr, num, display, xstr[MAX_LEN_UART_USER + 1], data[MAX_LEN_UART_RX >> 2], xtxd, xrxd, xbaud    ' Identify UART pinout
-  pst.Str(@UARTPinoutMessage)
+  pst.Str(@MsgUARTPinout)
 
  ' Get user string to send during UART discovery
   pst.Str(String(CR, LF, "Enter text string to output (prefix with \x for hex) ["))
@@ -1267,7 +1321,7 @@ PRI UART_Scan | value, baud_idx, i, j, ctr, num, display, xstr[MAX_LEN_UART_USER
 
 
 PRI UART_Scan_TXD | value, baud_idx, i, t, num, display, data[MAX_LEN_UART_RX >> 2], xtxd, xbaud, loopquit, loopnum, numbaud, skip    ' Identify UART pinout (TXD only, user configurable)
-  pst.Str(@UARTPinoutMessage)
+  pst.Str(@MsgUARTPinout)
 
   if (Get_Channels(1) == -1)   ' Get the channel range to use
     return 
@@ -1497,7 +1551,7 @@ PRI UART_Scan_TXD | value, baud_idx, i, t, num, display, data[MAX_LEN_UART_RX >>
   
     
 PRI UART_Passthrough | ch, cog    ' UART/terminal passthrough
-  pst.Str(@UARTPinoutMessage)
+  pst.Str(@MsgUARTPinout)
 
   pst.Str(String(CR, LF, "Enter X to disable either pin, if desired."))
   if (Set_UART == -1)     ' Ask user for the known UART configuration
@@ -1723,7 +1777,7 @@ PRI Display_IO_Pins(value) | count
   pst.Str(String(")"))
 
 
-PRI GPIO_Logic(first_time) | ackbit   ' Logic analyzer (SUMP protocol)
+PRI GPIO_Logic(first_time) | ackbit   ' Logic analyzer (OLS/SUMP)
   if (first_time == 1)
     u.LEDRed
 
@@ -1763,7 +1817,7 @@ PRI SWD_Init
 
 
 PRI SWD_IDCODE_Scan | response, idcode, ctr, num, xclk, xio     ' Identify SWD pinout (IDCODE Scan)
-  pst.Str(@SWDWarningMessage)
+  pst.Str(@MsgSWDWarning)
 
   if (Get_Channels(2) == -1)   ' Get the channel range to use
     return
@@ -1835,7 +1889,7 @@ PRI SWD_IDCODE_Scan | response, idcode, ctr, num, xclk, xio     ' Identify SWD p
 
 
 PRI SWD_IDCODE_Known | response, idcode   ' Get SWD Device ID (Pinout already known)
-  pst.Str(@SWDWarningMessage)
+  pst.Str(@MsgSWDWarning)
   
   if (Set_SWD == -1)  ' Ask user for the known SWD pinout
     return              ' Abort if error
@@ -2241,6 +2295,7 @@ MenuMain      byte CR, LF, "Target Interfaces:", CR, LF
               byte "H   Display available commands", 0
               
 MenuJTAG      byte CR, LF, "JTAG Commands:", CR, LF
+              byte "J   Identify JTAG pinout", CR, LF
               byte "I   Identify JTAG pinout (IDCODE Scan)", CR, LF
               byte "B   Identify JTAG pinout (BYPASS Scan)", CR, LF
               byte "D   Get Device ID(s)", CR, LF
@@ -2276,10 +2331,10 @@ MsgPressSpacebarToBegin     byte CR, LF, "Press spacebar to begin (any other key
 MsgJTAGulating              byte CR, LF, "JTAGulating! Press any key to abort...", CR, LF, 0
 MsgIDCODEComplete           byte CR, LF, "IDCODE scan complete.", 0
 MsgIDCODEDisplayComplete    byte CR, LF, "IDCODE listing complete.", 0
+MsgUARTPinout               byte CR, LF, "UART pin naming is from the target's perspective.", 0
+MsgDevicesDetected          byte "Number of devices detected: ", 0
 
-UARTPinoutMessage           byte CR, LF, "UART pin naming is from the target's perspective.", 0
-
-SWDWarningMessage           byte CR, LF, "Warning: JTAGulator HW Rev. B and earlier have compatibility issues w/"
+MsgSWDWarning               byte CR, LF, "Warning: JTAGulator HW Rev. B and earlier have compatibility issues w/"
                             byte CR, LF, "many SWD-based target devices. Detection results may be affected.", CR, LF, 0
 
 ErrEEPROMNotResponding      byte CR, LF, "EEPROM not responding!", 0                            
@@ -2287,6 +2342,7 @@ ErrTargetIOVoltage          byte CR, LF, "Target I/O voltage must be defined!", 
 ErrOutOfRange               byte CR, LF, "Value out of range!", 0
 ErrPinCollision             byte CR, LF, "Pin numbers must be unique!", 0
 ErrNoDeviceFound            byte CR, LF, "No target device(s) found!", 0
+ErrJTAGAborted              byte CR, LF, "JTAG scan aborted!", 0
 ErrIDCODEAborted            byte CR, LF, "IDCODE scan aborted!", 0
 ErrBYPASSAborted            byte CR, LF, "BYPASS scan aborted!", 0
 ErrDiscoveryAborted         byte CR, LF, "IR/DR discovery aborted!", 0
