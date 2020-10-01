@@ -482,7 +482,7 @@ PRI IDCODE_Scan | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}], i, 
 
           ' Now try to determine if the TRST# pin is being used on the target
           repeat jTRST from chStart to chEnd     ' For every remaining channel...
-            if (jTRST == jTMS) or (jTRST == jTCK) or (jTRST == jTDO) or (jTMS == jTDI)
+            if (jTRST == jTMS) or (jTRST == jTCK) or (jTRST == jTDO) or (jTRST == jTDI)
               next
               
             if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
@@ -636,7 +636,7 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
 
               ' Now try to determine if the TRST# pin is being used on the target
               repeat jTRST from chStart to chEnd     ' For every remaining channel...
-                if (jTRST == jTMS) or (jTRST == jTCK) or (jTRST == jTDO) or (jTMS == jTDI)
+                if (jTRST == jTMS) or (jTRST == jTCK) or (jTRST == jTDO) or (jTRST == jTDI)
                   next
 
                 if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
