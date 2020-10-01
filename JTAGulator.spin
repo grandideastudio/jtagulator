@@ -501,30 +501,41 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
               if (jTDI == jTMS) or (jTDI == jTCK) or (jTDI == jTDO)
                 next
 
+              if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
+                pst.RxFlush
+                JTAG_Scan_Cleanup(num, xtdi, xtdo, xtck, xtms)
+                pst.Str(@ErrJTAGAborted)
+                return
+
               jtag.Config(jTDI, jTDO, jTCK, jTMS, jTCKSpeed)   ' Re-configure JTAG
+              value := jtag.Detect_Devices                     ' Get number of devices in the chain (if any)
               data_in := rr.random                             ' Get 32-bit random number to use as the BYPASS pattern
               data_out := jtag.Bypass_Test(value, data_in)     ' Run the BYPASS instruction
-
+              
               if (data_in == data_out)   ' If match, then we've found a JTAG interface on this current pinout 
                 xtdi := jTDI                 ' Keep track of most recent detection result
                 Display_JTAG_Pins            ' Display current JTAG pinout
-                j := jtag.Detect_Devices     ' Get number of devices in the chain
                 pst.Str(String(CR, LF))
                 pst.Str(@MsgDevicesDetected)
-                pst.Dec(j)
-                if (j == 0)
-                  JTAG_Scan_Cleanup(num, xtdi, xtdo, xtck, xtms)
-                  pst.Str(@ErrNoDeviceFound)
-                  return
+                pst.Dec(value)
 
-                jtag.Get_Device_IDs(j, @id)   ' We assume the IDCODE is the default DR after reset
-                repeat i from 0 to (j-1)      ' For each device in the chain...
-                  value := id[i]
-                  Display_Device_ID(value, i + 1, 0)           ' Display Device ID of current device (without details
+                jtag.Get_Device_IDs(value, @id)   ' We assume the IDCODE is the default DR after reset
+                {repeat i from 0 to (value-1)      ' For each device in the chain...
+                  j := id[i]
+                  Display_Device_ID(j, i + 1, 0)       ' Display Device ID of current device (without details)
+                }
+              ' Progress indicator
+              ++ctr
+              if (jPinsLow == 0)
+                Display_Progress(ctr, 100)
+              else
+                Display_Progress(ctr, 1) 
+                u.Set_Pins_Low(chStart, chEnd)  ' Set current channel range to output LOW
+                u.Pause(jPinsLowDelay)          ' Delay to stay asserted
    
           ' Now try to determine if the TRST# pin is being used on the target
           repeat jTRST from chStart to chEnd     ' For every remaining channel...
-            if (jTRST == jTMS) or (jTRST == jTCK) or (jTRST == jTDO) or (jTMS == jTDI)
+            if (jTRST == jTMS) or (jTRST == jTCK) or (jTRST == jTDO) or (jTRST == jTDI)
               next
               
             if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
@@ -686,7 +697,7 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
 
               ' Now try to determine if the TRST# pin is being used on the target
               repeat jTRST from chStart to chEnd     ' For every remaining channel...
-                if (jTRST == jTMS) or (jTRST == jTCK) or (jTRST == jTDO) or (jTMS == jTDI)
+                if (jTRST == jTMS) or (jTRST == jTCK) or (jTRST == jTDO) or (jTRST == jTDI)
                   next
 
                 if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
