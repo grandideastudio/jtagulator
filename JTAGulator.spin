@@ -492,7 +492,7 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
           if (type == 0)    ' IDCODE Scan
             ' Since we might not know how many devices are in the chain, try the maximum allowable number and verify the results afterwards
             jtag.Get_Device_IDs(jtag#MAX_DEVICES_LEN, @id)   ' We assume the IDCODE is the default DR after reset                          
-            repeat i from 0 to (jtag#MAX_DEVICES_LEN-1)      ' For each device in the chain...]
+            repeat i from 0 to (jtag#MAX_DEVICES_LEN-1)      ' For each device in the chain...
               Display_Device_ID(id[i], i + 1, 0)               ' Display Device ID of current device (without details)
           else              ' Combined IDCODE Scan and BYPASS Scan
             ' Now try to determine TDI by doing a BYPASS Test
@@ -1095,8 +1095,7 @@ PRI Display_JTAG_IRDR(irLen, opcode, drLen)    ' Display IR/DR information
   
 PRI Display_Device_ID(value, num, details)
   if (value == -1) or (value & $00000001 <> 1)   ' Ignore if Device ID is 0xFFFFFFFF or if bit 0 != 1
-    if (details == 0)    ' Only return if we don't want to see details of the Device ID (including if it's invalid)
-      return
+    return
     
   if (details == 1)
     pst.Str(String(CR, LF, LF))
@@ -1129,19 +1128,16 @@ PRI Display_Device_ID(value, num, details)
   pst.Str(String(")"))
 
   if (details == 1)
-    if (value <> -1) and (value & 1)      ' If Device ID value is valid
-      ' Extended decoding
-      ' Not all vendors use these fields as specified
-      pst.Str(String(CR, LF, "-> Manufacturer ID: 0x"))
-      pst.Hex(Get_Bit_Field(value, 11, 1), 3)
-      pst.Str(String(CR, LF, "-> Part Number: 0x"))
-      pst.Hex(Get_Bit_Field(value, 27, 12), 4)
-      pst.Str(String(CR, LF, "-> Version: 0x"))
-      pst.Hex(Get_Bit_Field(value, 31, 28), 1)
-    else                                   
-      pst.Str(String(CR, LF, "-> Invalid ID!"))  ' Otherwise, device ID is invalid (0xFFFFFFFF or if bit 0 != 1), so let the user know
-  else
-    pst.Str(String(CR, LF))
+    ' Extended decoding
+    ' Not all vendors use these fields as specified
+    pst.Str(String(CR, LF, "-> Manufacturer ID: 0x"))
+    pst.Hex(Get_Bit_Field(value, 11, 1), 3)
+    pst.Str(String(CR, LF, "-> Part Number: 0x"))
+    pst.Hex(Get_Bit_Field(value, 27, 12), 4)
+    pst.Str(String(CR, LF, "-> Version: 0x"))
+    pst.Hex(Get_Bit_Field(value, 31, 28), 1)
+
+  pst.Str(String(CR, LF))
     
   
 CON {{ UART METHODS }}
