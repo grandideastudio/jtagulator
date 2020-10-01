@@ -426,7 +426,7 @@ PRI JTAG_Init
   jTCKSpeed := MAX_TCK_SPEED
 
 
-PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}], i, j, data_in, data_out, xtdi, xtdo, xtck, xtms    ' Identify JTAG pinout (IDCODE Scan or Combined Scan)
+PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}], i, data_in, data_out, xtdi, xtdo, xtck, xtms    ' Identify JTAG pinout (IDCODE Scan or Combined Scan)
   if (type == 0)    ' IDCODE Scan only
     if (Get_Channels(3) == -1)   ' Get the channel range to use
       return
@@ -492,9 +492,8 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
           if (type == 0)    ' IDCODE Scan
             ' Since we might not know how many devices are in the chain, try the maximum allowable number and verify the results afterwards
             jtag.Get_Device_IDs(jtag#MAX_DEVICES_LEN, @id)   ' We assume the IDCODE is the default DR after reset                          
-            repeat i from 0 to (jtag#MAX_DEVICES_LEN-1)      ' For each device in the chain...
-              value := id[i]
-              Display_Device_ID(value, i + 1, 0)               ' Display Device ID of current device (without details)
+            repeat i from 0 to (jtag#MAX_DEVICES_LEN-1)      ' For each device in the chain...]
+              Display_Device_ID(id[i], i + 1, 0)               ' Display Device ID of current device (without details)
           else              ' Combined IDCODE Scan and BYPASS Scan
             ' Now try to determine TDI by doing a BYPASS Test
             repeat jTDI from chStart to chEnd     ' For every remaining channel...
@@ -515,15 +514,9 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
               if (data_in == data_out)   ' If match, then we've found a JTAG interface on this current pinout 
                 xtdi := jTDI                 ' Keep track of most recent detection result
                 Display_JTAG_Pins            ' Display current JTAG pinout
-                pst.Str(String(CR, LF))
-                pst.Str(@MsgDevicesDetected)
-                pst.Dec(value)
-
                 jtag.Get_Device_IDs(value, @id)   ' We assume the IDCODE is the default DR after reset
-                {repeat i from 0 to (value-1)      ' For each device in the chain...
-                  j := id[i]
-                  Display_Device_ID(j, i + 1, 0)       ' Display Device ID of current device (without details)
-                }
+                quit                         ' Break out of the search for TDI and continue... 
+                
               ' Progress indicator
               ++ctr
               if (jPinsLow == 0)
@@ -557,8 +550,12 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
               pst.Str(String("TRST#: "))          ' Display the pin number
               pst.Dec(jTRST)
               pst.Str(String(CR, LF))
-                     
+
             outa[jTRST] := 1  ' Bring the current pin HIGH when done
+             
+          if (type == 1) and (value > 0)    ' Combined IDCODE Scan and BYPASS Scan
+            repeat i from 0 to (value-1)      ' For each device in the chain...
+              Display_Device_ID(id[i], i + 1, 0)       ' Display Device ID of current device (without details)
 
           pst.Str(String(CR, LF))
           
@@ -755,8 +752,7 @@ PRI IDCODE_Known | value, id[32 {jtag#MAX_DEVICES_LEN}], i, xtdi   ' Get JTAG De
   jtag.Get_Device_IDs(jtag#MAX_DEVICES_LEN, @id)   ' We assume the IDCODE is the default DR after reset
                                                  
   repeat i from 0 to (jtag#MAX_DEVICES_LEN-1)      ' For each device in the chain...
-    value := id[i]
-    Display_Device_ID(value, i + 1, 1)               ' Display Device ID of current device (with details)
+    Display_Device_ID(id[i], i + 1, 1)               ' Display Device ID of current device (with details)
     
   if (i == 0)
     pst.Str(@ErrNoDeviceFound)
@@ -1098,8 +1094,9 @@ PRI Display_JTAG_IRDR(irLen, opcode, drLen)    ' Display IR/DR information
 
   
 PRI Display_Device_ID(value, num, details)
-  if (value == -1) or (value & $00000001 <> 1)      ' Ignore if received Device ID is 0xFFFFFFFF or if bit 0 != 1
-    return
+  if (value == -1) or (value & $00000001 <> 1)   ' Ignore if Device ID is 0xFFFFFFFF or if bit 0 != 1
+    if (details == 0)    ' Only return if we don't want to see details of the Device ID (including if it's invalid)
+      return
     
   if (details == 1)
     pst.Str(String(CR, LF, LF))
