@@ -538,7 +538,7 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
           if (type == 0) or (type == 1 and xtdi <> 0)     
             ' Now try to determine if the TRST# pin is being used on the target
             repeat jTRST from chStart to chEnd     ' For every remaining channel...
-            if (jTRST == jTMS) or (jTRST == jTCK) or (jTRST == jTDO) or (jTMS == jTDI)
+              if (jTRST == jTMS) or (jTRST == jTCK) or (jTRST == jTDO) or (jTRST == jTDI)
                 next
               
               if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
@@ -550,11 +550,11 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
                   JTAG_Scan_Cleanup(num, xtdi, xtdo, xtck, xtms)
                   pst.Str(@ErrJTAGAborted)
                 return
-      
+
               dira[jTRST] := 1  ' Set current pin to output
               outa[jTRST] := 0  ' Output LOW
               u.Pause(100)      ' Give target time to react
-                 
+
               jtag.Get_Device_IDs(1, @value_new)  ' Try to get Device ID again by reading the DR (1st in the chain)
               if (value_new <> id[0])             ' If the new value doesn't match what we already have, then the current pin may be a reset line.
                 pst.Str(String("TRST#: "))          ' Display the pin number
