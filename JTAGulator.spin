@@ -505,6 +505,10 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
                 pst.Str(@ErrJTAGAborted)
                 return
 
+              u.Set_Pins_High(chStart, chEnd)       ' Set current channel range to output HIGH (in case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#)
+              if (jPinsLow == 1)
+                u.Pause(jPinsHighDelay)               ' Delay after deassertion before proceeding
+            
               jtag.Config(jTDI, jTDO, jTCK, jTMS, jTCKSpeed)   ' Re-configure JTAG
               value := jtag.Detect_Devices                     ' Get number of devices in the chain (if any)
               data_in := rr.random                             ' Get 32-bit random number to use as the BYPASS pattern
