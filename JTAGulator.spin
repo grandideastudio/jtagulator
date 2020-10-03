@@ -47,10 +47,12 @@ CON
   MAX_LEN_CMD           = 12   ' Maximum length of command string buffer
   
   ' JTAG
-  MAX_TCK_SPEED         = 20   ' Maximum allowable JTAG clock speed (kHz)
+  MIN_TCK_SPEED         = 1    ' Minimum allowable JTAG clock speed (kHz)
+  MAX_TCK_SPEED         = 20   ' Maximum allowable JTAG clock speed
 
   ' Target voltage
-  VTARGET_IO_MIN        = 14   ' Minimum target I/O voltage (VADJ) (for example, 14 = 1.4V)
+  VTARGET_IO_MIN        = 14   ' Minimum target I/O voltage (VADJ) (for example, xy = x.yV)
+  VTARGET_IO_MAX        = 33   ' Maximum target I/O voltage
   
   ' UART/Asynchronous Serial
   MAX_LEN_UART_USER     = 34   ' Maximum length of user input string buffer (accounts for hexadecimal input of 16 bytes, \x00112233445566778899AABBCCDDEEFF)
@@ -201,10 +203,22 @@ PRI Do_Mode | ackbit     ' Read EEPROM to determine/select operating mode
     pst.Str(@ErrEEPROMNotResponding)
 
   ' Set to default values if there's an error or the EEPROM hasn't been used before
-  if ackbit or vMode < MODE_NORMAL or vMode > MODE_OCD
+  if ackbit or (vMode <> MODE_NORMAL and vMode <> MODE_SUMP and vMode <> MODE_OCD)
     vMode := MODE_NORMAL
+    
+  if ackbit or (vTargetIO < VoltageTable[0]) or (vTargetIO > VoltageTable[VTARGET_IO_MAX - VTARGET_IO_MIN])
     vTargetIO := -1                     ' Target voltage is undefined
-    jTDI := jTDO := jTCK := jTMS := 0   ' JTAG pins
+
+  if ackbit or (jTDI < 0) or (jTDI > g#MAX_CHAN-1)
+    jTDI := 0
+  if ackbit or (jTDO < 0) or (jTDO > g#MAX_CHAN-1)
+    jTDO := 0
+  if ackbit or (jTCK < 0) or (jTCK > g#MAX_CHAN-1)
+    jTCK := 0
+  if ackbit or (jTMS < 0) or (jTMS > g#MAX_CHAN-1)
+    jTMS := 0
+    
+  if ackbit or (jTCKSpeed < MIN_TCK_SPEED) or (jTCKSpeed > MAX_TCK_SPEED)
     jTCKSpeed := MAX_TCK_SPEED          ' JTAG clock (TCK) speed
   
   ' Select operating mode
@@ -1082,7 +1096,7 @@ PRI Set_JTAG_Clock | value
   pst.Str(String("): "))
   value := Get_Decimal_Pin  ' Receive decimal value (including 0)
   
-  if (value < 1) or (value > MAX_TCK_SPEED)
+  if (value < MIN_TCK_SPEED) or (value > MAX_TCK_SPEED)
     pst.Str(@ErrOutOfRange)
   else
     jTCKSpeed := value
@@ -2136,7 +2150,7 @@ PRI Set_Target_IO_Voltage | value
     vTargetIO := -1
     DACOutput(0)               ' DAC output off 
     pst.Str(String(CR, LF, "Target I/O voltage off."))
-  elseif (value < 14) or (value > 33)
+  elseif (value < VTARGET_IO_MIN) or (value > VTARGET_IO_MAX)
     pst.Str(@ErrOutOfRange)
   else
     vTargetIO := value
