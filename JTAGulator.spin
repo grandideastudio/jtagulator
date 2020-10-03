@@ -139,47 +139,14 @@ OBJ
   ocd           : "PropOCD"            ' OpenOCD binary protocol     
 
   
-PUB main | cmd, ackbit
+PUB main | cmd
   System_Init        ' Initialize system/hardware
   JTAG_Init          ' Initialize JTAG-specific items
   UART_Init          ' Initialize UART-specific items
   GPIO_Init          ' Initialize GPIO-specific items
   SWD_Init           ' Initialize SWD-specific items
 
-  ' Read values from EEPROM to determine operating mode
-  ' JTAGulator's EEPROM (64KB) is larger than required by the Propeller, so there is 32KB of additional,
-  ' unused area available for data storage. Values will not get overwritten when JTAGulator firmware is
-  ' re-loaded into the EEPROM.
-  ackbit := 0
-  ackbit += readLong(eepromAddress + EEPROM_MODE_OFFSET, @vMode)
-  ackbit += readLong(eepromAddress + EEPROM_VTARGET_OFFSET, @vTargetIO)
-  ackbit += readLong(eepromAddress + EEPROM_TDI_OFFSET, @jTDI)
-  ackbit += readLong(eepromAddress + EEPROM_TDO_OFFSET, @jTDO)
-  ackbit += readLong(eepromAddress + EEPROM_TCK_OFFSET, @jTCK)
-  ackbit += readLong(eepromAddress + EEPROM_TMS_OFFSET, @jTMS)
-  ackbit += readLong(eepromAddress + EEPROM_TCK_SPEED_OFFSET, @jTCKSpeed)
-  
-  if ackbit          ' If there's an error with the EEPROM
-    pst.Str(@ErrEEPROMNotResponding)
-
-  ' Select operating mode
-  case vMode
-    MODE_SUMP:       ' Logic analyzer (OLS/SUMP)
-      pst.Stop              ' Stop serial communications (this will be restarted from within the sump object)
-      DACOutput(VoltageTable[vTargetIO - VTARGET_IO_MIN])    ' Set target I/O voltage
-      GPIO_Logic(0)         ' Start logic analyzer mode
-      idMenu := MENU_GPIO   ' Set to previously active menu upon return
-
-    MODE_OCD:        ' OpenOCD interface
-      pst.Stop              ' Stop serial communications (this will be restarted from within the ocd object)
-      DACOutput(VoltageTable[vTargetIO - VTARGET_IO_MIN])    ' Set target I/O voltage
-      JTAG_OpenOCD(0)       ' Start OpenOCD mode
-      idMenu := MENU_JTAG   ' Set to previously active menu upon return
-
-    other:           ' MODE_NORMAL
-      u.LEDYellow
-      pst.CharIn                   ' Wait until the user presses a key before getting started
-      pst.Str(@InitHeader)         ' Display header
+  Do_Mode            ' Read EEPROM to determine/select operating mode
 
   ' Start command receive/process cycle
   repeat
@@ -215,6 +182,49 @@ PUB main | cmd, ackbit
 
     else
       Display_Invalid_Command
+
+
+PRI Do_Mode | ackbit     ' Read EEPROM to determine/select operating mode
+  ' JTAGulator's EEPROM (64KB) is larger than required by the Propeller, so there is 32KB of additional,
+  ' unused area available for data storage. Values will not get overwritten when JTAGulator firmware is
+  ' re-loaded into the EEPROM.
+  ackbit := 0
+  ackbit += readLong(eepromAddress + EEPROM_MODE_OFFSET, @vMode)
+  ackbit += readLong(eepromAddress + EEPROM_VTARGET_OFFSET, @vTargetIO)
+  ackbit += readLong(eepromAddress + EEPROM_TDI_OFFSET, @jTDI)
+  ackbit += readLong(eepromAddress + EEPROM_TDO_OFFSET, @jTDO)
+  ackbit += readLong(eepromAddress + EEPROM_TCK_OFFSET, @jTCK)
+  ackbit += readLong(eepromAddress + EEPROM_TMS_OFFSET, @jTMS)
+  ackbit += readLong(eepromAddress + EEPROM_TCK_SPEED_OFFSET, @jTCKSpeed)
+  
+  if ackbit          ' If there's an error with the EEPROM
+    pst.Str(@ErrEEPROMNotResponding)
+
+  ' Set to default values if there's an error or the EEPROM hasn't been used before
+  if ackbit or vMode < MODE_NORMAL or vMode > MODE_OCD
+    vMode := MODE_NORMAL
+    vTargetIO := -1                     ' Target voltage is undefined
+    jTDI := jTDO := jTCK := jTMS := 0   ' JTAG pins
+    jTCKSpeed := MAX_TCK_SPEED          ' JTAG clock (TCK) speed
+  
+  ' Select operating mode
+  case vMode
+    MODE_SUMP:       ' Logic analyzer (OLS/SUMP)
+      pst.Stop              ' Stop serial communications (this will be restarted from within the sump object)
+      DACOutput(VoltageTable[vTargetIO - VTARGET_IO_MIN])    ' Set target I/O voltage
+      GPIO_Logic(0)         ' Start logic analyzer mode
+      idMenu := MENU_GPIO   ' Set to previously active menu upon return
+
+    MODE_OCD:        ' OpenOCD interface
+      pst.Stop              ' Stop serial communications (this will be restarted from within the ocd object)
+      DACOutput(VoltageTable[vTargetIO - VTARGET_IO_MIN])    ' Set target I/O voltage
+      JTAG_OpenOCD(0)       ' Start OpenOCD mode
+      idMenu := MENU_JTAG   ' Set to previously active menu upon return
+
+    other:           ' JTAGulator main mode
+      u.LEDYellow
+      pst.CharIn                   ' Wait until the user presses a key before getting started
+      pst.Str(@InitHeader)         ' Display header
 
 
 CON {{ MENU METHODS }}
@@ -452,9 +462,6 @@ PRI JTAG_Init
 
   ' OPCODE_Discovery
   jIgnoreReg := 1
-
-  ' Clock (TCK) speed
-  jTCKSpeed := MAX_TCK_SPEED
 
 
 PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}], i, data_in, data_out, xtdi, xtdo, xtck, xtms    ' Identify JTAG pinout (IDCODE Scan or Combined Scan)
@@ -1181,18 +1188,6 @@ PRI JTAG_OpenOCD(first_time) | ackbit   ' OpenOCD Interface
   if (first_time == 1)
     u.LEDRed
 
-    ' Set to known values in case the EEPROM hasn't been used before
-    if (jTDI < 0)
-      jTDI := 0
-    if (jTDO < 0)
-      jTDO := 0
-    if (jTCK < 0)
-      jTCK := 0
-    if (jTMS < 0)
-      jTMS := 0
-    if (jTCKSpeed < 1) or (jTCKSpeed > MAX_TCK_SPEED)
-      jTCKSpeed := MAX_TCK_SPEED
-    
     if (Set_JTAG(1) == -1)  ' Ask user for the known JTAG pinout
       return                  ' Abort if error
 
@@ -1207,6 +1202,7 @@ PRI JTAG_OpenOCD(first_time) | ackbit   ' OpenOCD Interface
      
     if ackbit         ' If there's an error with the EEPROM
       pst.Str(@ErrEEPROMNotResponding)
+      return
           
     pst.Str(String(CR, LF, "Entering OpenOCD interface mode! Press Ctrl-X to abort..."))
     pst.Str(String(CR, LF, LF, "Note: Switch to OpenOCD and use interface/jtagulator.cfg", CR, LF))
@@ -1225,7 +1221,7 @@ PRI JTAG_OpenOCD(first_time) | ackbit   ' OpenOCD Interface
   ackbit += writeLong(eepromAddress + EEPROM_TDO_OFFSET, 0)
   ackbit += writeLong(eepromAddress + EEPROM_TCK_OFFSET, 0)
   ackbit += writeLong(eepromAddress + EEPROM_TMS_OFFSET, 0)
-  ackbit += writeLong(eepromAddress + EEPROM_TCK_SPEED_OFFSET, MAX_TCK_SPEED)  
+  ackbit += writeLong(eepromAddress + EEPROM_TCK_SPEED_OFFSET, MAX_TCK_SPEED)
   
   if ackbit           ' If there's an error with the EEPROM
     pst.Str(@ErrEEPROMNotResponding)
@@ -1884,6 +1880,7 @@ PRI GPIO_Logic(first_time) | ackbit   ' Logic analyzer (OLS/SUMP)
     
     if ackbit         ' If there's an error with the EEPROM
       pst.Str(@ErrEEPROMNotResponding)
+      return
 
     pst.Str(String(CR, LF, "Entering logic analyzer mode! Press Ctrl-X to abort..."))
     pst.Str(String(CR, LF, LF, "Note: Switch to analyzer software and use Openbench Logic Sniffer driver @ 115.2kbps", CR, LF))
@@ -1897,7 +1894,7 @@ PRI GPIO_Logic(first_time) | ackbit   ' Logic analyzer (OLS/SUMP)
 
   ackbit := 0         ' Clear flags so JTAGulator will start up normally on next reset
   ackbit += writeLong(eepromAddress + EEPROM_MODE_OFFSET, MODE_NORMAL)
-  ackbit += writeLong(eepromAddress + EEPROM_VTARGET_OFFSET, -1)  
+  ackbit += writeLong(eepromAddress + EEPROM_VTARGET_OFFSET, -1)
 
   if ackbit           ' If there's an error with the EEPROM
     pst.Str(@ErrEEPROMNotResponding)
@@ -2116,7 +2113,6 @@ PRI System_Init
   DACOutput(0)                  ' DAC output off 
 
   idMenu := MENU_MAIN           ' Set default menu
-  vTargetIO := -1               ' Target voltage is undefined
 
   eeprom.Initialize(eeprom#BootPin)    ' Setup I2C
 
