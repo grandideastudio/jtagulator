@@ -70,7 +70,7 @@ CON
   eepromAddress   = $8000       ' Starting address within EEPROM for system/user data storage
   MODE_NORMAL     = 0           ' JTAGulator main mode
   MODE_SUMP       = 1           ' Logic analyzer (OLS/SUMP)
-  MODE_OCD        = 2           ' OpenOCD
+  MODE_OCD        = 2           ' OpenOCD interface
 
   EEPROM_MODE_OFFSET            = 0
   EEPROM_VTARGET_OFFSET         = 4
@@ -294,7 +294,7 @@ PRI Do_JTAG_Menu(cmd)
       else
         OPCODE_Discovery
 
-    "O", "o":                 ' OpenOCD Interface (Pinout already known) 
+    "O", "o":                 ' OpenOCD interface (Pinout already known) 
       if (vTargetIO == -1)
         pst.Str(@ErrTargetIOVoltage)
       else
@@ -1184,7 +1184,7 @@ PRI Display_Device_ID(value, num, details)
   pst.Str(String(CR, LF))
     
 
-PRI JTAG_OpenOCD(first_time) | ackbit   ' OpenOCD Interface
+PRI JTAG_OpenOCD(first_time) | ackbit   ' OpenOCD interface
   if (first_time == 1)
     u.LEDRed
 
@@ -1204,8 +1204,8 @@ PRI JTAG_OpenOCD(first_time) | ackbit   ' OpenOCD Interface
       pst.Str(@ErrEEPROMNotResponding)
       return
           
-    pst.Str(String(CR, LF, "Entering OpenOCD interface mode! Press Ctrl-X to abort..."))
-    pst.Str(String(CR, LF, LF, "Note: Switch to OpenOCD and use interface/jtagulator.cfg", CR, LF))
+    pst.Str(String(CR, LF, "Entering OpenOCD mode! Press Ctrl-X to abort..."))
+    pst.Str(String(CR, LF, LF, "Note: Switch to OpenOCD software and use 'interface/jtagulator.cfg'", CR, LF))
     u.Pause(100)      ' Delay to finish sending messages
     pst.Stop          ' Stop serial communications (this will be restarted from within the sump object)
 
@@ -1235,7 +1235,7 @@ PRI JTAG_OpenOCD(first_time) | ackbit   ' OpenOCD Interface
   if (first_time == 0)   ' If we're returning from being disconnected, revert to default values
     Set_Defaults         
     
-  pst.Str(String(CR, LF, "OpenOCD interface mode complete."))
+  pst.Str(String(CR, LF, "OpenOCD mode complete."))
 
     
 CON {{ UART METHODS }}
