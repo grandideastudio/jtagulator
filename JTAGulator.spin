@@ -193,34 +193,17 @@ PRI Do_Mode | ackbit     ' Read EEPROM to determine/select operating mode
   ackbit := 0
   ackbit += readLong(eepromAddress + EEPROM_MODE_OFFSET, @vMode)
   ackbit += readLong(eepromAddress + EEPROM_VTARGET_OFFSET, @vTargetIO)
-  ackbit += readLong(eepromAddress + EEPROM_TDI_OFFSET, @jTDI)
-  ackbit += readLong(eepromAddress + EEPROM_TDO_OFFSET, @jTDO)
-  ackbit += readLong(eepromAddress + EEPROM_TCK_OFFSET, @jTCK)
-  ackbit += readLong(eepromAddress + EEPROM_TMS_OFFSET, @jTMS)
-  ackbit += readLong(eepromAddress + EEPROM_TCK_SPEED_OFFSET, @jTCKSpeed)
-  
+         
   if ackbit          ' If there's an error with the EEPROM
     pst.Str(@ErrEEPROMNotResponding)
-
-  ' Set to default values if there's an error or the EEPROM hasn't been used before
-  if ackbit or (vMode <> MODE_NORMAL and vMode <> MODE_SUMP and vMode <> MODE_OCD)
     vMode := MODE_NORMAL
-    
-  if ackbit or (vTargetIO < VoltageTable[0]) or (vTargetIO > VoltageTable[VTARGET_IO_MAX - VTARGET_IO_MIN])
-    vTargetIO := -1                     ' Target voltage is undefined
 
-  if ackbit or (jTDI < 0) or (jTDI > g#MAX_CHAN-1)
-    jTDI := 0
-  if ackbit or (jTDO < 0) or (jTDO > g#MAX_CHAN-1)
-    jTDO := 0
-  if ackbit or (jTCK < 0) or (jTCK > g#MAX_CHAN-1)
-    jTCK := 0
-  if ackbit or (jTMS < 0) or (jTMS > g#MAX_CHAN-1)
-    jTMS := 0
-    
-  if ackbit or (jTCKSpeed < MIN_TCK_SPEED) or (jTCKSpeed > MAX_TCK_SPEED)
-    jTCKSpeed := MAX_TCK_SPEED          ' JTAG clock (TCK) speed
-  
+  if (vMode <> MODE_NORMAL) and (vMode <> MODE_SUMP) and (vMode <> MODE_OCD)
+    vMode := MODE_NORMAL
+
+  if (vTargetIO < VTARGET_IO_MIN) or (vTargetIO > VTARGET_IO_MAX)
+    vMode := MODE_NORMAL
+   
   ' Select operating mode
   case vMode
     MODE_SUMP:       ' Logic analyzer (OLS/SUMP)
@@ -235,11 +218,14 @@ PRI Do_Mode | ackbit     ' Read EEPROM to determine/select operating mode
       JTAG_OpenOCD(0)       ' Start OpenOCD mode
       idMenu := MENU_JTAG   ' Set to previously active menu upon return
 
-    other:           ' JTAGulator main mode
+    MODE_NORMAL:     ' JTAGulator main mode
+      ' Set to default values
+      Set_Defaults
+
       u.LEDYellow
       pst.CharIn                   ' Wait until the user presses a key before getting started
       pst.Str(@InitHeader)         ' Display header
-
+    
 
 CON {{ MENU METHODS }}
 
@@ -1222,24 +1208,33 @@ PRI JTAG_OpenOCD(first_time) | ackbit   ' OpenOCD Interface
     pst.Str(String(CR, LF, LF, "Note: Switch to OpenOCD and use interface/jtagulator.cfg", CR, LF))
     u.Pause(100)      ' Delay to finish sending messages
     pst.Stop          ' Stop serial communications (this will be restarted from within the sump object)
-          
+
+  else    ' We're entering the mode from power-up, so read additional values from EEPROM
+    ackbit := 0
+    ackbit += readLong(eepromAddress + EEPROM_TDI_OFFSET, @jTDI)
+    ackbit += readLong(eepromAddress + EEPROM_TDO_OFFSET, @jTDO)
+    ackbit += readLong(eepromAddress + EEPROM_TCK_OFFSET, @jTCK)
+    ackbit += readLong(eepromAddress + EEPROM_TMS_OFFSET, @jTMS)
+    ackbit += readLong(eepromAddress + EEPROM_TCK_SPEED_OFFSET, @jTCKSpeed)
+  
+    if ackbit         ' If there's an error with the EEPROM
+      pst.Str(@ErrEEPROMNotResponding)
+      return
+         
   ocd.Go(jTDI, jTDO, jTCK, jTMS, jTCKSpeed)
 
   ' Exit from logic analyzer mode
-  pst.Start(115_200)  ' Re-start serial communications                                                                                    
+  pst.Start(115_200)     ' Re-start serial communications                                                                                    
 
-  ackbit := 0         ' Clear flags so JTAGulator will start up normally on next reset
+  ackbit := 0            ' Clear flag so JTAGulator will start up normally on next reset
   ackbit += writeLong(eepromAddress + EEPROM_MODE_OFFSET, MODE_NORMAL)
-  ackbit += writeLong(eepromAddress + EEPROM_VTARGET_OFFSET, -1)
-  ackbit += writeLong(eepromAddress + EEPROM_TDI_OFFSET, 0)
-  ackbit += writeLong(eepromAddress + EEPROM_TDO_OFFSET, 0)
-  ackbit += writeLong(eepromAddress + EEPROM_TCK_OFFSET, 0)
-  ackbit += writeLong(eepromAddress + EEPROM_TMS_OFFSET, 0)
-  ackbit += writeLong(eepromAddress + EEPROM_TCK_SPEED_OFFSET, MAX_TCK_SPEED)
-  
-  if ackbit           ' If there's an error with the EEPROM
+
+  if ackbit              ' If there's an error with the EEPROM
     pst.Str(@ErrEEPROMNotResponding)
 
+  if (first_time == 0)   ' If we're returning from being disconnected, revert to default values
+    Set_Defaults         
+    
   pst.Str(String(CR, LF, "OpenOCD interface mode complete."))
 
     
@@ -1904,14 +1899,16 @@ PRI GPIO_Logic(first_time) | ackbit   ' Logic analyzer (OLS/SUMP)
   sump.Go
 
   ' Exit from logic analyzer mode
-  pst.Start(115_200)  ' Re-start serial communications                                                                                    
+  pst.Start(115_200)     ' Re-start serial communications                                                                                    
 
-  ackbit := 0         ' Clear flags so JTAGulator will start up normally on next reset
+  ackbit := 0            ' Clear flag so JTAGulator will start up normally on next reset
   ackbit += writeLong(eepromAddress + EEPROM_MODE_OFFSET, MODE_NORMAL)
-  ackbit += writeLong(eepromAddress + EEPROM_VTARGET_OFFSET, -1)
 
-  if ackbit           ' If there's an error with the EEPROM
+  if ackbit              ' If there's an error with the EEPROM
     pst.Str(@ErrEEPROMNotResponding)
+
+  if (first_time == 0)   ' If we're returning from being disconnected, revert to default values
+    Set_Defaults
 
   pst.Str(String(CR, LF, "Logic analyzer mode complete."))
   
@@ -2132,6 +2129,13 @@ PRI System_Init
 
   pst.Start(115_200)            ' Start serial communications                                                                                    
 
+
+PRI Set_Defaults
+  vMode := MODE_NORMAL                ' Operating mode
+  vTargetIO := -1                     ' Target I/O voltage (undefined)
+  jTDI := jTDO := jTCK := jTMS := 0   ' JTAG pins
+  jTCKSpeed := MAX_TCK_SPEED          ' JTAG clock speed
+    
     
 PRI Set_Target_IO_Voltage | value
   pst.Str(String(CR, LF, "Current target I/O voltage: "))
