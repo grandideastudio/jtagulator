@@ -6,7 +6,7 @@ Visit the JTAGulator [GitHub repository](https://github.com/grandideastudio/jtag
 
 1.8
 ---
-Release date: **xx**
+Release date: **October 6, 2020**
 
 * JTAG: Added JTAG Scan (`J`), which combines IDCODE Scan and BYPASS Scan functionality into a single command. If a valid IDCODE is received during enumeration, the remaining channels will be checked for TDI. This can greatly reduce search time and will return all required JTAG pins for the detected target.
 
