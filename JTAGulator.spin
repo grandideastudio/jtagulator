@@ -219,9 +219,7 @@ PRI Do_Mode | ackbit     ' Read EEPROM to determine/select operating mode
       idMenu := MENU_JTAG   ' Set to previously active menu upon return
 
     MODE_NORMAL:     ' JTAGulator main mode
-      ' Set to default values
-      Set_Defaults
-
+      Set_Config_Defaults          ' Set configuration globals to default values
       u.LEDYellow
       pst.CharIn                   ' Wait until the user presses a key before getting started
       pst.Str(@InitHeader)         ' Display header
@@ -1218,6 +1216,7 @@ PRI JTAG_OpenOCD(first_time) | ackbit   ' OpenOCD interface
     ackbit += readLong(eepromAddress + EEPROM_TCK_SPEED_OFFSET, @jTCKSpeed)
   
     if ackbit         ' If there's an error with the EEPROM
+      Set_Config_Defaults    ' Revert to default values in case data is invalid
       pst.Str(@ErrEEPROMNotResponding)
       return
          
@@ -1233,7 +1232,7 @@ PRI JTAG_OpenOCD(first_time) | ackbit   ' OpenOCD interface
     pst.Str(@ErrEEPROMNotResponding)
 
   if (first_time == 0)   ' If we're returning from being disconnected, revert to default values
-    Set_Defaults         
+    Set_Config_Defaults         
     
   pst.Str(String(CR, LF, "OpenOCD mode complete."))
 
@@ -1908,7 +1907,7 @@ PRI GPIO_Logic(first_time) | ackbit   ' Logic analyzer (OLS/SUMP)
     pst.Str(@ErrEEPROMNotResponding)
 
   if (first_time == 0)   ' If we're returning from being disconnected, revert to default values
-    Set_Defaults
+    Set_Config_Defaults
 
   pst.Str(String(CR, LF, "Logic analyzer mode complete."))
   
@@ -2130,7 +2129,7 @@ PRI System_Init
   pst.Start(115_200)            ' Start serial communications                                                                                    
 
 
-PRI Set_Defaults
+PRI Set_Config_Defaults    ' Set configuration globals to default values
   vMode := MODE_NORMAL                ' Operating mode
   vTargetIO := -1                     ' Target I/O voltage (undefined)
   jTDI := jTDO := jTCK := jTMS := 0   ' JTAG pins
