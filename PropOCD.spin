@@ -29,13 +29,33 @@ CON
   ' Control characters
   CAN   = 24  ''CAN: Cancel (Ctrl-X)
                        
-  MAX_INPUT_LEN                 = 5      ' OpenOCD commands are five bytes
+  MAX_INPUT_LEN                 = 3      ' OpenOCD commands are three bytes maximum
 
   MAX_RX_DELAY_MS               = 100    ' Wait time (in ms) for the each byte in commands to be sent before aborting
- 
-  CMD_RESET                     = $00    ' reset
-  CMD_RUN                       = $01    ' start capture or arm trigger
-  CMD_QUERY_ID                  = $02    ' query device identification
+
+  CMD_UNKNOWN                   = $00    ' unknown command
+  CMD_PORT_MODE                 = $01    ' port type
+  CMD_FEATURE                   = $02    ' hardware-specific configuration
+  CMD_READ_ADCS                 = $03    ' read A/Ds
+  'CMD_TAP_SHIFT                 = $04    ' shift TAP (old protocol)
+  CMD_TAP_SHIFT                 = $05    ' shift TAP
+  CMD_ENTER_OOCD                = $06    ' enter OCD mode
+  CMD_UART_SPEED                = $07    ' UART speed select
+  CMD_JTAG_SPEED                = $08    ' JTAG speed select
+  CMD_RESET                     = $0F    ' reset (from buspirate_jtag_reset in OpenOCD buspirate.c)
+  
+  FEATURE_LED                   = $01    ' LED on/off
+  FEATURE_VREG                  = $02    ' voltage regulator on/off
+  FEATURE_TRST                  = $04    ' set TRST logic state
+  FEATURE_SRST                  = $08    ' set SRST logic state
+  FEATURE_PULLUP                = $10    ' pull up resistors on/off
+
+  SERIAL_NORMAL                 = 0
+  SERIAL_FAST                   = 1      ' ~1 MHz
+
+  MODE_HIZ                      = 0      ' high impedance (hi Z), input  
+  MODE_JTAG                     = 1      ' push-pull, output
+  MODE_JTAG_OD                  = 2      ' open drain, output
 
   
 VAR
@@ -66,11 +86,94 @@ PUB Go(tdi, tdo, tck, tms, tckspeed)
         pst.Stop      ' Stop serial communications
         return        ' Go back to main JTAGulator mode
 
-      CMD_QUERY_ID:
-        pst.Str(@ID)
+      'the 'short' commands follow; all are 1 byte, no parameters
 
+      CMD_UNKNOWN:
+        pst.Str(@BBIO)
+
+      CMD_ENTER_OOCD:
+        pst.Str(@OCD)
+        
+      CMD_READ_ADCS:     ' Not supported
+        pst.Tx(CMD_UART_SPEED)   ' Send acknowledgement
+        pst.Tx(8)                ' Number of bytes
+        repeat 8
+          pst.Tx(0)
+
+      'remaining commands are 'long' commands, which take 1 or more parameters
+
+      CMD_PORT_MODE:     ' Not supported
+        if (GetMoreParamBytes(1) == -1)
+          next
+        
+        case vCmd[1]
+          MODE_HIZ:
+            next
+
+          MODE_JTAG:
+            next
+             
+          MODE_JTAG_OD:
+            next
+
+       CMD_FEATURE:
+        if (GetMoreParamBytes(2) == -1) 
+          pst.Tx(0)
+          next
+
+        case vCmd[1]
+          FEATURE_LED:
+            if (vCmd[2])
+              u.LEDYellow
+            else
+              u.LEDRed
+          
+          FEATURE_VREG:   
+            next
+            
+          FEATURE_TRST:   
+            next
+            
+          FEATURE_SRST:   
+            next
+            
+          FEATURE_PULLUP:
+            next           
+
+      CMD_JTAG_SPEED:    ' Not supported
+        if (GetMoreParamBytes(2) == -1)
+          next
+
+      CMD_UART_SPEED:    ' Not supported
+        if (GetMoreParamBytes(1) == -1)
+          pst.Tx(0)
+          next
+
+        pst.Tx(CMD_UART_SPEED)   ' Send acknowledgement
+        pst.Tx(SERIAL_NORMAL)
+            
+      CMD_TAP_SHIFT:
+        if (GetMoreParamBytes(2) == -1)
+          pst.Tx(0)
+
+
+        
+
+      CMD_RESET:
+        next
+      
+      other:             ' Invalid byte
+        pst.Tx(0)
+        
+
+PRI GetMoreParamBytes(num) : val | i
+  repeat i from 1 to num
+    if (vCmd[i]:=pst.RxTime(MAX_RX_DELAY_MS)) < 0
+      val:=-1  
+          
     
-DAT             
-
+DAT
               ORG
-ID            byte "1ALS", 0
+BBIO          byte "BBIO1", 0
+OCD           byte "OCD1", 0
+
