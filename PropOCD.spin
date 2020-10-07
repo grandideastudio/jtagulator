@@ -13,8 +13,9 @@
 
 Program Description:
 
-This object provides the low-level communication interface for the OpenOCD binary
-protocol (xxx and xxx)
+This object provides the low-level communication interface for OpenOCD. It emulates
+the binary protocol used by the Bus Pirate (http://dangerousprototypes.com/docs/Bus_Pirate#JTAG
+and https://github.com/DangerousPrototypes/Bus_Pirate/blob/master/Firmware/OpenOCD.c)
 
 }}
    
