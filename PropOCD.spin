@@ -200,7 +200,7 @@ PRI Do_Tap_Shift | num_sequences, num_bytes, bits, value, i
        bits := num_sequences
 
      value := OpenOCD_Shift(vCmd[i+1] {TDI}, vCmd[i+2] {TMS}, bits) 
-     pst.Tx(value & $ff)
+     pst.Tx(value & $FF)
      
      i += 2
      num_sequences -= bits
