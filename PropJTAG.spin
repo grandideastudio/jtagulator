@@ -463,7 +463,7 @@ PUB Restore_Idle
   TCK_Pulse                   ' Go to Run-Test-Idle
 
   
-PRI TCK_Pulse
+PUB TCK_Pulse
 {
     Generate one TCK pulse.
     Expects TCK to be low upon being called.
@@ -472,6 +472,26 @@ PRI TCK_Pulse
     waitcnt(TCK_DELAY + cnt)
     outa[TCK] := 0              ' TCK low (TDO is now valid on the falling edge of TCK) 
     waitcnt(TCK_DELAY + cnt)
+
+    
+PUB TMS_High
+  outa[TMS] := 1
+
+
+PUB TMS_Low
+  outa[TMS] := 0
+
+
+PUB TDI_High
+  outa[TDI] := 1
+
+
+PUB TDI_Low
+  outa[TDI] := 0
+
+
+PUB TDO_Read : value
+  value := ina[TDO]
   
 
 DAT

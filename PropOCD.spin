@@ -29,10 +29,10 @@ CON
   ' Control characters
   CAN   = 24  ''CAN: Cancel (Ctrl-X)
                        
-  MAX_INPUT_LEN                 = 3      ' OpenOCD commands are three bytes maximum
-
+  'MAX_INPUT_LEN                 = 3      ' OpenOCD commands are three bytes maximum
+  
   MAX_RX_DELAY_MS               = 100    ' Wait time (in ms) for the each byte in commands to be sent before aborting
-
+  
   CMD_UNKNOWN                   = $00    ' unknown command
   CMD_PORT_MODE                 = $01    ' port type
   CMD_FEATURE                   = $02    ' hardware-specific configuration
@@ -57,9 +57,12 @@ CON
   MODE_JTAG                     = 1      ' push-pull, output
   MODE_JTAG_OD                  = 2      ' open drain, output
 
+  MAX_BIT_SEQUENCES             = 8192   ' Maximum number of bit sequences allowed per CMD_TAP_SHIFT
+
   
 VAR
-  byte vCmd[MAX_INPUT_LEN + 1]  ' Buffer for command input string
+  'byte vCmd[MAX_INPUT_LEN + 1]  ' Buffer for command input string
+  byte vCmd[(MAX_BIT_SEQUENCES / 4) + 1]
 
   
 OBJ
@@ -116,7 +119,7 @@ PUB Go(tdi, tdo, tck, tms, tckspeed)
           MODE_JTAG_OD:
             next
 
-       CMD_FEATURE:
+      CMD_FEATURE:
         if (GetMoreParamBytes(2) == -1) 
           pst.Tx(0)
           next
@@ -156,8 +159,7 @@ PUB Go(tdi, tdo, tck, tms, tckspeed)
         if (GetMoreParamBytes(2) == -1)
           pst.Tx(0)
 
-
-        
+        Do_Tap_Shift        
 
       CMD_RESET:
         next
@@ -166,12 +168,73 @@ PUB Go(tdi, tdo, tck, tms, tckspeed)
         pst.Tx(0)
         
 
+PRI Do_Tap_Shift | num_sequences, num_bytes, bits, value, i
+   ' based on HydraBus implementation of Bus Pirate binary protocol
+   ' https://github.com/hydrabus/hydrafw/blob/master/src/hydrabus/hydrabus_mode_jtag.c
+   
+   ' calculate number of requested bit sequences
+   num_sequences := vCmd[1]
+   num_sequences <<= 8
+   num_sequences |= vCmd[2]
+
+   if num_sequences > MAX_BIT_SEQUENCES    ' Upper bounds check
+     num_sequences := MAX_BIT_SEQUENCES
+     
+   pst.Tx(CMD_TAP_SHIFT)   ' Send acknowledgement
+   pst.Tx(vCmd[1])
+   pst.Tx(vCmd[2])
+
+   ' calculate number of bytes to read
+   num_bytes := ((num_sequences + 7) / 8) * 2
+
+   ' get bytes from OpenOCD with the TDI and TMS data to shift into target
+   if (GetMoreParamBytes(num_bytes) == -1)
+     pst.Tx(0)
+     return  ' exit if we don't receive the correct number of bytes 
+
+   i := 0
+   repeat while (num_sequences > 0)
+     if (num_sequences > 8)    ' Do 8 bits at a time until the last set
+       bits := 8
+     else
+       bits := num_sequences
+
+     value := OpenOCD_Shift(vCmd[i+1] {TDI}, vCmd[i+2] {TMS}, bits) 
+     pst.Tx(value & $ff)
+     
+     i += 2
+     num_sequences -= bits
+
+
+PRI OpenOCD_Shift(ocd_tdi, ocd_tms, num_bits) : ocd_tdo   ' Shift data from OpenOCD into target and receive result
+  repeat while (num_bits > 0)
+    if (ocd_tms & 1)
+      jtag.TMS_High
+    else
+      jtag.TMS_Low
+
+    if (ocd_tdi & 1)
+      jtag.TDI_High
+    else
+      jtag.TDI_Low   
+
+    jtag.TCK_Pulse
+    ocd_tdo <<= 1
+    ocd_tdo |= jtag.TDO_Read
+
+    ocd_tdi >>= 1       ' Shift to the next bit in the sequence
+    ocd_tms >>= 1
+    num_bits -= 1       ' Adjust number of remaining bits
+
+  ocd_tdo ><= 8     ' Bitwise reverse since LSB came in first (we want MSB to be first)
+
+   
 PRI GetMoreParamBytes(num) : val | i
   repeat i from 1 to num
     if (vCmd[i]:=pst.RxTime(MAX_RX_DELAY_MS)) < 0
-      val:=-1  
-          
-    
+      val:=-1
+
+      
 DAT
               ORG
 BBIO          byte "BBIO1", 0
