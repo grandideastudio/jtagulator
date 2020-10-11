@@ -126,47 +126,47 @@ PUB Detect_Devices : num
   Enter_Shift_IR              ' Enter Shift IR state
 
   ' Force all devices in the chain (if they exist) into BYPASS mode using opcode of all 1s
-  outa[TDI] := 1              ' Output data bit HIGH
+  TDI_High             
   repeat MAX_IR_CHAIN_LEN - 1 ' Send lots of 1s to account for multiple devices in the chain and varying IR lengths
     TCK_Pulse
 
-  outa[TMS] := 1              ' Go to Exit1 IR
-  TCK_Pulse
+  TMS_High       
+  TCK_Pulse        ' Go to Exit1 IR
 
-  outa[TMS] := 1              ' Go to Update IR, new instruction in effect
-  TCK_Pulse
+  TMS_High       
+  TCK_Pulse        ' Go to Update IR, new instruction in effect
 
-  outa[TMS] := 1              ' Go to Select DR Scan
-  TCK_Pulse
+  TMS_High       
+  TCK_Pulse        ' Go to Select DR Scan
 
-  outa[TMS] := 0              ' Go to Capture DR Scan
-  TCK_Pulse    
+  TMS_Low        
+  TCK_Pulse        ' Go to Capture DR Scan
 
-  outa[TMS] := 0              ' Go to Shift DR Scan
-  TCK_Pulse
+  TMS_Low        
+  TCK_Pulse        ' Go to Shift DR Scan
                           
   repeat MAX_DEVICES_LEN      ' Send 1s to fill DRs of all devices in the chain (In BYPASS mode, DR length = 1 bit)
     TCK_Pulse 
 
   ' We are now in BYPASS mode with all DR set
   ' Send in a 0 on TDI and count until we see it on TDO
-  outa[TDI] := 0              ' Output data bit LOW
+  TDI_Low           
   repeat num from 0 to MAX_DEVICES_LEN - 1 
-    if (ina[TDO] == 0)          ' If we have received our 0, it has propagated through the entire chain (one clock cycle per device in the chain)
+    if (TDO_Read == 0)          ' If we have received our 0, it has propagated through the entire chain (one clock cycle per device in the chain)
       quit                        '  Exit loop (num gets returned)
     TCK_Pulse
 
   if (num > MAX_DEVICES_LEN - 1)  ' If no 0 is received, then no devices are in the chain
     num := 0
 
-  outa[TMS] := 1
-  TCK_Pulse                   ' Go to Exit1 DR
+  TMS_High
+  TCK_Pulse        ' Go to Exit1 DR
 
-  outa[TMS] := 1
-  TCK_Pulse                   ' Go to Update DR, new data in effect
+  TMS_High
+  TCK_Pulse        ' Go to Update DR, new data in effect
 
-  outa[TMS] := 0
-  TCK_Pulse                   ' Go to Run-Test-Idle
+  TMS_Low
+  TCK_Pulse        ' Go to Run-Test-Idle
 
 
 PUB Detect_IR_Length : num 
@@ -182,29 +182,29 @@ PUB Detect_IR_Length : num
   Enter_Shift_IR              ' Go to Shift IR
 
   ' Flush the IR
-  outa[TDI] := 0              ' Output data bit LOW
+  TDI_Low                    
   repeat MAX_IR_LEN - 1       ' Since the length is unknown, send lots of 0s
     TCK_Pulse
 
   ' Once we are sure that the IR is filled with 0s
   ' Send in a 1 on TDI and count until we see it on TDO
-  outa[TDI] := 1              ' Output data bit HIGH
+  TDI_High       
   repeat num from 0 to MAX_IR_LEN - 1 
-    if (ina[TDO] == 1)          ' If we have received our 1, it has propagated through the entire instruction register
+    if (TDO_Read == 1)          ' If we have received our 1, it has propagated through the entire instruction register
       quit                        '  Exit loop (num gets returned)
     TCK_Pulse
 
   if (num > MAX_IR_LEN - 1) or (num < MIN_IR_LEN)  ' If no 1 is received, then we are unable to determine IR length
     num := 0
     
-  outa[TMS] := 1
-  TCK_Pulse                   ' Go to Exit1 IR
+  TMS_High
+  TCK_Pulse        ' Go to Exit1 IR
 
-  outa[TMS] := 1
-  TCK_Pulse                   ' Go to Update IR, new instruction in effect
+  TMS_High
+  TCK_Pulse        ' Go to Update IR, new instruction in effect
 
-  outa[TMS] := 0
-  TCK_Pulse                   ' Go to Run-Test-Idle
+  TMS_Low
+  TCK_Pulse        ' Go to Run-Test-Idle
 
 
 PUB Detect_DR_Length(value) : num | len
@@ -224,29 +224,29 @@ PUB Detect_DR_Length(value) : num | len
 
   ' At this point, a specific DR will be selected, so we can now determine its length.
   ' Flush the DR
-  outa[TDI] := 0              ' Output data bit LOW
+  TDI_Low              
   repeat MAX_DR_LEN - 1       ' Since the length is unknown, send lots of 0s
     TCK_Pulse
 
   ' Once we are sure that the DR is filled with 0s
   ' Send in a 1 on TDI and count until we see it on TDO
-  outa[TDI] := 1              ' Output data bit HIGH
+  TDI_High             
   repeat num from 0 to MAX_DR_LEN - 1 
-    if (ina[TDO] == 1)          ' If we have received our 1, it has propagated through the entire data register
+    if (TDO_Read == 1)          ' If we have received our 1, it has propagated through the entire data register
       quit                        '  Exit loop (num gets returned)
     TCK_Pulse
       
   if (num > MAX_DR_LEN - 1)   ' If no 1 is received, then we are unable to determine DR length
     num := 0
     
-  outa[TMS] := 1
-  TCK_Pulse                   ' Go to Exit1 DR
+  TMS_High
+  TCK_Pulse        ' Go to Exit1 DR
 
-  outa[TMS] := 1
-  TCK_Pulse                   ' Go to Update DR, new data in effect
+  TMS_High
+  TCK_Pulse        ' Go to Update DR, new data in effect
 
-  outa[TMS] := 0
-  TCK_Pulse                   ' Go to Run-Test-Idle
+  TMS_Low
+  TCK_Pulse        ' Go to Run-Test-Idle
 
   
 PUB Bypass_Test(num, bPattern) : value
@@ -262,18 +262,18 @@ PUB Bypass_Test(num, bPattern) : value
   Enter_Shift_IR              ' Enter Shift IR state
 
   ' Force all devices in the chain (if they exist) into BYPASS mode using opcode of all 1s
-  outa[TDI] := 1              ' Output data bit HIGH
+  TDI_High              
   repeat (num * MAX_IR_LEN)   ' Send in 1s
     TCK_Pulse
 
-  outa[TMS] := 1              ' Go to Exit1 IR
-  TCK_Pulse
+  TMS_High         
+  TCK_Pulse        ' Go to Exit1 IR
 
-  outa[TMS] := 1              ' Go to Update IR, new instruction in effect
-  TCK_Pulse
+  TMS_High         
+  TCK_Pulse        ' Go to Update IR, new instruction in effect
 
-  outa[TMS] := 0
-  TCK_Pulse                   ' Go to Run-Test-Idle
+  TMS_Low
+  TCK_Pulse        ' Go to Run-Test-Idle
 
   ' Shift in the 32-bit pattern
   ' Each device in the chain delays the data propagation by one clock cycle
@@ -304,21 +304,21 @@ PUB Get_Device_IDs(num, idptr) | data, i
   Restore_Idle                      ' Reset TAP to Run-Test-Idle
   Enter_Shift_DR                    ' Go to Shift DR
 
-  outa[TDI] := 1                    ' Output data bit HIGH (TDI is ignored when shifting IDCODE, but we need to set a default state)
+  TDI_High         ' TDI is ignored when shifting IDCODE, but we need to set a default state
 
   repeat i from 0 to (num - 1)      ' For each device in the chain...
     data := Shift_Array(0, 32)       ' Receive 32-bit value from DR (should be IDCODE if exists), leaves the TAP in Exit1 DR
     data ><= 32                      ' Bitwise reverse since LSB came in first (we want MSB to be first)
     long[idptr][i] := data           ' Store it in hub memory
     
-    outa[TMS] := 0
-    TCK_Pulse                        ' Go to Pause DR
+    TMS_Low
+    TCK_Pulse       ' Go to Pause DR
   
-    outa[TMS] := 1
-    TCK_Pulse                        ' Go to Exit2 DR
+    TMS_High
+    TCK_Pulse       ' Go to Exit2 DR
 
-    outa[TMS] := 0
-    TCK_Pulse                        ' Go to Shift DR
+    TMS_Low
+    TCK_Pulse       ' Go to Shift DR
 
   Restore_Idle                      ' Reset TAP to Run-Test-Idle
 
@@ -371,11 +371,11 @@ PUB Send_Instruction(instruction, num_bits) : ret_value
 
   ret_value := Shift_Array(instruction, num_bits)
 
-  outa[TMS] := 1
-  TCK_Pulse                   ' Go to Update IR, new instruction in effect
+  TMS_High
+  TCK_Pulse        ' Go to Update IR, new instruction in effect
 
-  outa[TMS] := 0
-  TCK_Pulse                   ' Go to Run-Test-Idle
+  TMS_Low
+  TCK_Pulse        ' Go to Run-Test-Idle
 
 
 PUB Send_Data(data, num_bits) : ret_value
@@ -389,11 +389,11 @@ PUB Send_Data(data, num_bits) : ret_value
 
   ret_value := Shift_Array(data, num_bits)
 
-  outa[TMS] := 1
-  TCK_Pulse                   ' Go to Update DR, new data in effect
+  TMS_High
+  TCK_Pulse        ' Go to Update DR, new data in effect
 
-  outa[TMS] := 0
-  TCK_Pulse                   ' Go to Run-Test-Idle
+  TMS_Low
+  TCK_Pulse        ' Go to Run-Test-Idle
 
 
 PRI Shift_Array(array, num_bits) : ret_value | i 
@@ -404,14 +404,18 @@ PRI Shift_Array(array, num_bits) : ret_value | i
   ret_value := 0
     
   repeat i from 1 to num_bits
-    outa[TDI] := array & 1    ' Output data to target, LSB first
+    if (array & 1)            ' Output data to target, LSB first
+      TDI_High
+    else
+      TDI_Low
+   
     array >>= 1 
 
     ret_value <<= 1     
-    ret_value |= ina[TDO]     ' Receive data, shift order depends on target
+    ret_value |= TDO_Read     ' Receive data, shift order depends on target
      
     if (i == num_bits)        ' If at final bit...
-      outa[TMS] := 1            ' Go to Exit1
+      TMS_High     ' Go to Exit1
       
     TCK_Pulse
 
@@ -421,14 +425,14 @@ PRI Enter_Shift_DR      '
     Move TAP to the Shift-DR state.
     TAP must be in Run-Test-Idle state before being called.
 }
-  outa[TMS] := 1
-  TCK_Pulse                   ' Go to Select DR Scan
+  TMS_High
+  TCK_Pulse        ' Go to Select DR Scan
 
-  outa[TMS] := 0
-  TCK_Pulse                   ' Go to Capture DR
+  TMS_Low
+  TCK_Pulse        ' Go to Capture DR
 
-  outa[TMS] := 0
-  TCK_Pulse                   ' Go to Shift DR
+  TMS_Low
+  TCK_Pulse        ' Go to Shift DR
   
 
 PRI Enter_Shift_IR  
@@ -436,17 +440,17 @@ PRI Enter_Shift_IR
     Move TAP to the Shift-IR state.
     TAP must be in Run-Test-Idle state before being called.
 }
-  outa[TMS] := 1
-  TCK_Pulse                   ' Go to Select DR Scan
+  TMS_High
+  TCK_Pulse        ' Go to Select DR Scan
 
-  outa[TMS] := 1
-  TCK_Pulse                   ' Go to Select IR Scan
+  TMS_High
+  TCK_Pulse        ' Go to Select IR Scan
 
-  outa[TMS] := 0
-  TCK_Pulse                   ' Go to Capture IR
+  TMS_Low
+  TCK_Pulse        ' Go to Capture IR
 
-  outa[TMS] := 0
-  TCK_Pulse                   ' Go to Shift IR
+  TMS_Low
+  TCK_Pulse        ' Go to Shift IR
     
   
 PUB Restore_Idle
@@ -455,12 +459,12 @@ PUB Restore_Idle
     TMS is held high for five consecutive TCK clock periods.
     Leaves the TAP in the Run-Test-Idle state.
 }
-  outa[TMS] := 1              ' TMS high
+  TMS_High           
   repeat 5
     TCK_Pulse
 
-  outa[TMS] := 0             
-  TCK_Pulse                   ' Go to Run-Test-Idle
+  TMS_Low             
+  TCK_Pulse        ' Go to Run-Test-Idle
 
   
 PUB TCK_Pulse
