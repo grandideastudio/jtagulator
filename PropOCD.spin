@@ -218,10 +218,11 @@ PRI OpenOCD_Shift(ocd_tdi, ocd_tms, num_bits) : ocd_tdo   ' Shift data from Open
     else
       jtag.TDI_Low   
 
-    jtag.TCK_Pulse
     ocd_tdo <<= 1
     ocd_tdo |= jtag.TDO_Read
 
+    jtag.TCK_Pulse
+    
     ocd_tdi >>= 1       ' Shift to the next bit in the sequence
     ocd_tms >>= 1
     num_bits -= 1       ' Adjust number of remaining bits
@@ -239,4 +240,3 @@ DAT
               ORG
 BBIO          byte "BBIO1", 0
 OCD           byte "OCD1", 0
-
