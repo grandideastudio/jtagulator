@@ -98,7 +98,7 @@ PUB Go(tdi, tdo, tck, tms, tckspeed)
         pst.Str(@OCD)
         
       CMD_READ_ADCS:     ' Not supported
-        pst.Tx(CMD_UART_SPEED)   ' Send acknowledgement
+        pst.Tx(CMD_READ_ADCS)    ' Send acknowledgement
         pst.Tx(8)                ' Number of bytes
         repeat 8
           pst.Tx(0)
