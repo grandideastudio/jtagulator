@@ -220,8 +220,6 @@ PRI OpenOCD_Shift(ocd_tdi, ocd_tms, num_bits) : ocd_tdo   ' Shift data from Open
 
     ocd_tdo <<= 1
     ocd_tdo |= jtag.TDO_Read
-
-    jtag.TCK_Pulse
     
     ocd_tdi >>= 1       ' Shift to the next bit in the sequence
     ocd_tms >>= 1

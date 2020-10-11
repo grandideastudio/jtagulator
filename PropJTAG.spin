@@ -154,7 +154,6 @@ PUB Detect_Devices : num
   repeat num from 0 to MAX_DEVICES_LEN - 1 
     if (TDO_Read == 0)          ' If we have received our 0, it has propagated through the entire chain (one clock cycle per device in the chain)
       quit                        '  Exit loop (num gets returned)
-    TCK_Pulse
 
   if (num > MAX_DEVICES_LEN - 1)  ' If no 0 is received, then no devices are in the chain
     num := 0
@@ -192,7 +191,6 @@ PUB Detect_IR_Length : num
   repeat num from 0 to MAX_IR_LEN - 1 
     if (TDO_Read == 1)          ' If we have received our 1, it has propagated through the entire instruction register
       quit                        '  Exit loop (num gets returned)
-    TCK_Pulse
 
   if (num > MAX_IR_LEN - 1) or (num < MIN_IR_LEN)  ' If no 1 is received, then we are unable to determine IR length
     num := 0
@@ -234,7 +232,6 @@ PUB Detect_DR_Length(value) : num | len
   repeat num from 0 to MAX_DR_LEN - 1 
     if (TDO_Read == 1)          ' If we have received our 1, it has propagated through the entire data register
       quit                        '  Exit loop (num gets returned)
-    TCK_Pulse
       
   if (num > MAX_DR_LEN - 1)   ' If no 1 is received, then we are unable to determine DR length
     num := 0
@@ -404,6 +401,9 @@ PRI Shift_Array(array, num_bits) : ret_value | i
   ret_value := 0
     
   repeat i from 1 to num_bits
+    if (i == num_bits)        ' If at final bit...
+      TMS_High     ' Go to Exit1
+
     if (array & 1)            ' Output data to target, LSB first
       TDI_High
     else
@@ -413,11 +413,6 @@ PRI Shift_Array(array, num_bits) : ret_value | i
 
     ret_value <<= 1     
     ret_value |= TDO_Read     ' Receive data, shift order depends on target
-     
-    if (i == num_bits)        ' If at final bit...
-      TMS_High     ' Go to Exit1
-      
-    TCK_Pulse
 
        
 PRI Enter_Shift_DR      ' 
@@ -472,19 +467,25 @@ PUB TCK_Pulse
     Generate one TCK pulse.
     Expects TCK to be low upon being called.
 }
-    outa[TCK] := 1              ' TCK high (target samples TMS and TDI on rising edge of TCK, affects TAP) 
-    waitcnt(TCK_DELAY + cnt)
-    outa[TCK] := 0              ' TCK low (TDO is now valid on the falling edge of TCK) 
-    waitcnt(TCK_DELAY + cnt)
+  outa[TCK] := 1              ' TCK high (target samples TMS and TDI, presents valid TDO, TAP state may change) 
+  waitcnt(TCK_DELAY + cnt)
+  outa[TCK] := 0              ' TCK low 
+  waitcnt(TCK_DELAY + cnt)
 
     
-PUB TMS_High
-  outa[TMS] := 1
+PUB TDO_Read : value
+{
+    Generate one TCK pulse. Read TDO inside the pulse.
+    Expects TCK to be low upon being called.
+}
+  outa[TCK] := 1              ' TCK high (target samples TMS and TDI, presents valid TDO, TAP state may change) 
+  waitcnt(TCK_DELAY + cnt)
 
-
-PUB TMS_Low
-  outa[TMS] := 0
-
+  value := ina[TDO]
+  
+  outa[TCK] := 0              ' TCK low 
+  waitcnt(TCK_DELAY + cnt)
+  
 
 PUB TDI_High
   outa[TDI] := 1
@@ -494,9 +495,13 @@ PUB TDI_Low
   outa[TDI] := 0
 
 
-PUB TDO_Read : value
-  value := ina[TDO]
-  
+PUB TMS_High
+  outa[TMS] := 1
+
+
+PUB TMS_Low
+  outa[TMS] := 0
+
 
 DAT
 ' Look-up table to correlate actual JTAG (TCK) clock speed (kHz) to waitcnt delay value
