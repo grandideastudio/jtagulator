@@ -93,9 +93,11 @@ PUB Go(tdi, tdo, tck, tms, tckspeed)
 
       CMD_UNKNOWN:
         pst.Str(@BBIO)
-
+        u.LEDRed
+        
       CMD_ENTER_OOCD:
         pst.Str(@OCD)
+        u.LEDYellow
         
       CMD_READ_ADCS:     ' Not supported
         pst.Tx(CMD_READ_ADCS)    ' Send acknowledgement
@@ -162,10 +164,12 @@ PUB Go(tdi, tdo, tck, tms, tckspeed)
         Do_Tap_Shift        
 
       CMD_RESET:
+        u.LEDRed
         next
       
       other:             ' Invalid byte
         pst.Tx(0)
+        u.LEDRed
         
 
 PRI Do_Tap_Shift | num_sequences, num_bytes, bits, value, i
