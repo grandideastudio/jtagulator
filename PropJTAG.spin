@@ -467,10 +467,7 @@ PUB TCK_Pulse
     Generate one TCK pulse.
     Expects TCK to be low upon being called.
 }
-  outa[TCK] := 1              ' TCK high (target samples TMS and TDI, presents valid TDO, TAP state may change) 
-  waitcnt(TCK_DELAY + cnt)
-  outa[TCK] := 0              ' TCK low 
-  waitcnt(TCK_DELAY + cnt)
+  TDO_Read         ' Ignore the return value
 
     
 PUB TDO_Read : value
