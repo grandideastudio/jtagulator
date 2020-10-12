@@ -118,11 +118,11 @@ OBJ
   str           : "jm_strings"         ' String manipulation methods (JonnyMac)
   rr            : "RealRandom"         ' Random number generation (Chip Gracey, https://github.com/parallaxinc/propeller/tree/master/libraries/community/p1/All/Real%20Random) 
   eeprom        : "Basic_I2C_Driver"   ' I2C protocol for boot EEPROM communication (Michael Green, https://github.com/parallaxinc/propeller/tree/master/libraries/community/p1/All/Basic%20I2C%20Driver)
-  jtag          : "PropJTAG"           ' JTAG/IEEE 1149.1 low-level methods
   uart          : "JDCogSerial"        ' UART/Asynchronous Serial communication engine (Carl Jacobs, https://github.com/parallaxinc/propeller/tree/master/libraries/community/p1/All/JDCogSerial)
   pt_in         : "jm_rxserial"        ' UART/Asynchronous Serial receive driver for passthrough (JonnyMac, https://forums.parallax.com/discussion/114492/prop-baudrates)
   pt_out        : "jm_txserial"        ' UART/Asynchronous Serial transmit driver for passthrough (JonnyMac, https://forums.parallax.com/discussion/114492/prop-baudrates)
-  swd           : "SWDHost"            ' ARM SWD (Serial Wire Debug) low-level functions (Adam Green, https://github.com/adamgreen)
+  jtag          : "PropJTAG"           ' JTAG/IEEE 1149.1 low-level methods
+  swd           : "PropSWD"            ' ARM SWD (Serial Wire Debug) low-level functions (Adam Green, https://github.com/adamgreen)
   sump          : "PropSUMP"           ' OLS/SUMP protocol for logic analyzer mode     
 
   
@@ -1951,13 +1951,13 @@ PRI Set_SWD_Frequency | value
   pst.Dec(swdFrequency)
   
   pst.Str(String(CR, LF, "Enter new SWD clock speed ("))
-  pst.Dec(swd#SWD_SLOW_CLOCK_RATE)
+  pst.Dec(swd#SWD_SLOWEST_CLOCK_RATE)
   pst.Str(String(" - "))
   pst.Dec(swd#SWD_FASTEST_CLOCK_RATE)
   pst.Str(String("): "))
   value := Get_Decimal_Pin  ' Receive decimal value (including 0) 
     
-  if (value < swd#SWD_SLOW_CLOCK_RATE) or (value > swd#SWD_FASTEST_CLOCK_RATE)
+  if (value < swd#SWD_SLOWEST_CLOCK_RATE) or (value > swd#SWD_FASTEST_CLOCK_RATE)
     pst.Str(@ErrOutOfRange)
   else
     swdFrequency := value

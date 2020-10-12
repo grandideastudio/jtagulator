@@ -21,12 +21,13 @@
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     SOFTWARE.
 }
-' SWDHost - Module which can talk to debug targets using ARM's
-'           Serial Wire Debug protocol.
+' PropSWD (was SWDHost) - Module which can talk to debug targets using ARM's
+'                         Serial Wire Debug protocol.
 ' NOTE: At this point it only has the ability to read Debug Port
 '       registers and has only been tested reading the IDCODE DP
 '       register since this is the only functionality needed for
 '       JTAGulating.
+
 
 CON
     ' Number of times to pulse SWCLK with SWDIO pulled high for line reset (specification requires >= 50, cannot exceed 64).
@@ -37,7 +38,7 @@ CON
     
     ' ARM document mentions a lower rate of 1kHz.
     ' https://developer.arm.com/docs/dui0499/latest/arm-dstream-target-interface-connections/signal-descriptions/serial-wire-debug
-    SWD_SLOW_CLOCK_RATE = 1000
+    SWD_SLOWEST_CLOCK_RATE = 1000
 
     ' The fastest I have been able to run my SWD code without hanging in WAITCNT = 385kHz
     ' Reduce to 300kHz for production use (reliability >> speed)
@@ -145,7 +146,7 @@ PUB config(swclkPin, swdioPin, frequency)
     swclkPin indicates which of the Propeller pins is connected to SWCLK.
     swdioPin indicates which of the Propeller pins is connected to SWDIO.
     frequency indicates how fast the SWCLK should pulse, in Hz. It can
-      be set between SWD_SLOW_CLOCK_RATE and SWD_FASTEST_CLOCK_RATE.
+      be set between SWD_SLOWEST_CLOCK_RATE and SWD_FASTEST_CLOCK_RATE.
 }
     ' Store away pins to be used for SWD operations.
     m_swclkPin := swclkPin
@@ -178,6 +179,7 @@ PUB resetSwJtagAndReadIdCode(pValue)
     m_cmdOp := OP_RESET_JTAG2SWD
     RESULT := setupReadDP(DP_IDCODE, pValue)
 
+    
 PUB resetAndReadIdCode(pValue)
 {
   Reset the target and read out its IDCODE.
@@ -195,6 +197,7 @@ PUB resetAndReadIdCode(pValue)
     m_cmdOp := OP_RESET
     RESULT := setupReadDP(DP_IDCODE, pValue)
 
+    
 PUB readDP(address, pValue) : response | data
 {
   Reads the specified Debug Port register.
@@ -210,6 +213,7 @@ PUB readDP(address, pValue) : response | data
     m_cmdOp := OP_READ
     response := setupReadDP(address, pValue)
 
+    
 PRI setupReadDP(address, pValue) : response | data
 {
   Setup to perform a read DP command. 
@@ -231,6 +235,7 @@ PRI setupReadDP(address, pValue) : response | data
         LONG[pValue] := m_respData  
     response := m_respAck  
 
+    
 PRI buildPacketRequest(APnDP, RnW, address) : packet
     ' Only send upper 2-bits of the 4-bit address.
     address := (address >> 2) & $3
