@@ -4,7 +4,7 @@
 | Interface Object                                |
 |                                                 |
 | Author: Joe Grand                               |                     
-| Copyright (c) 2013-2018 Grand Idea Studio, Inc. |
+| Copyright (c) 2013-2020 Grand Idea Studio, Inc. |
 | Web: http://www.grandideastudio.com             |
 |                                                 |
 | Distributed under a Creative Commons            |
@@ -79,6 +79,9 @@ CON
   
   MAX_DR_LEN           =  1024      ' Maximum length of data register
 
+  MIN_TCK_SPEED        =  1         ' Minimum allowable JTAG clock speed (Hz)
+  MAX_TCK_SPEED        =  20_000    ' Maximum allowable JTAG clock speed
+
   
 VAR
   long TDI, TDO, TCK, TMS, TCK_DELAY       ' JTAG globals (must stay in this order)
@@ -93,7 +96,7 @@ PUB Config(tdi_pin, tdo_pin, tck_pin, tms_pin, tck_speed)
   Parameters : TDI, TDO, TCK, TMS channels and TCK clock speed provided by top object
 }
   longmove(@TDI, @tdi_pin, 4)                ' Move passed variables into globals for use in this object
-  TCK_DELAY := DelayTable[tck_speed-1]       ' Look up actual waitcnt delay value for the specified clock speed
+  TCK_DELAY := clkfreq / tck_speed           ' Calculate actual waitcnt delay value for the specified clock speed
       
   ' Set direction of JTAG pins
   ' Output
@@ -470,18 +473,18 @@ PUB TCK_Pulse
   TDO_Read         ' Ignore the return value
 
     
-PUB TDO_Read : value
+PUB TDO_Read : value | stamp
 {
     Generate one TCK pulse. Read TDO inside the pulse.
     Expects TCK to be low upon being called.
 }
   outa[TCK] := 1              ' TCK high (target samples TMS and TDI, presents valid TDO, TAP state may change) 
-  waitcnt(TCK_DELAY + cnt)
+  waitcnt(stamp := TCK_DELAY + cnt)
 
   value := ina[TDO]
   
   outa[TCK] := 0              ' TCK low 
-  waitcnt(TCK_DELAY + cnt)
+  waitcnt(stamp + TCK_DELAY)
   
 
 PUB TDI_High
@@ -499,8 +502,3 @@ PUB TMS_High
 PUB TMS_Low
   outa[TMS] := 0
 
-
-DAT
-' Look-up table to correlate actual JTAG (TCK) clock speed (kHz) to waitcnt delay value
-'                    1      2      3      4     5     6     7     8     9     10    11    12    13    14    15    16    17    18   19   20
-DelayTable    long   38677, 18667, 12005, 8634, 6667, 5316, 4365, 3650, 3092, 2656, 2284, 1980, 1731, 1513, 1323, 1148, 1003, 869, 754, 652

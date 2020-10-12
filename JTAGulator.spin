@@ -45,10 +45,6 @@ CON
 CON
   ' UI
   MAX_LEN_CMD           = 12   ' Maximum length of command string buffer
-  
-  ' JTAG
-  MIN_TCK_SPEED         = 1    ' Minimum allowable JTAG clock speed (kHz)
-  MAX_TCK_SPEED         = 20   ' Maximum allowable JTAG clock speed
 
   ' Target voltage
   VTARGET_IO_MIN        = 14   ' Minimum target I/O voltage (VADJ) (for example, xy = x.yV)
@@ -299,7 +295,7 @@ PRI Do_JTAG_Menu(cmd)
         JTAG_OpenOCD(1)        
 
     "C", "c":                 ' Set JTAG clock speed
-      Set_JTAG_Clock
+      Set_JTAG_Frequency
                
     other:
       Do_Shared_Menu(cmd)
@@ -1071,16 +1067,18 @@ PRI Set_JTAG_Partial : err | xtdi, xtdo, xtck, xtms, buf, num, c     ' Set JTAG 
     jTMS := xtms
 
 
-PRI Set_JTAG_Clock | value
-  pst.Str(String(CR, LF, "Current JTAG clock speed (kHz): "))
+PRI Set_JTAG_Frequency | value
+  pst.Str(String(CR, LF, "Current JTAG clock speed (Hz): "))
   pst.Dec(jTCKSpeed)
   
-  pst.Str(String(CR, LF, "Enter new JTAG clock speed (1 - "))
-  pst.Dec(MAX_TCK_SPEED)
+  pst.Str(String(CR, LF, "Enter new JTAG clock speed ("))
+  pst.Dec(jtag#MIN_TCK_SPEED)
+  pst.Str(String(" - "))
+  pst.Dec(jtag#MAX_TCK_SPEED)
   pst.Str(String("): "))
   value := Get_Decimal_Pin  ' Receive decimal value (including 0)
   
-  if (value < MIN_TCK_SPEED) or (value > MAX_TCK_SPEED)
+  if (value < jtag#MIN_TCK_SPEED) or (value > jtag#MAX_TCK_SPEED)
     pst.Str(@ErrOutOfRange)
   else
     jTCKSpeed := value
@@ -2133,7 +2131,7 @@ PRI Set_Config_Defaults    ' Set configuration globals to default values
   vMode := MODE_NORMAL                ' Operating mode
   vTargetIO := -1                     ' Target I/O voltage (undefined)
   jTDI := jTDO := jTCK := jTMS := 0   ' JTAG pins
-  jTCKSpeed := MAX_TCK_SPEED          ' JTAG clock speed
+  jTCKSpeed := jtag#MAX_TCK_SPEED     ' JTAG clock speed
     
     
 PRI Set_Target_IO_Voltage | value
