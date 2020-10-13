@@ -96,7 +96,7 @@ PUB Config(tdi_pin, tdo_pin, tck_pin, tms_pin, tck_speed)
   Parameters : TDI, TDO, TCK, TMS channels and TCK clock speed provided by top object
 }
   longmove(@TDI, @tdi_pin, 4)                ' Move passed variables into globals for use in this object
-  TCK_DELAY := clkfreq / tck_speed           ' Calculate actual waitcnt delay value for the specified clock speed
+  TCK_DELAY := clkfreq / (tck_speed >> 1)    ' Calculate actual waitcnt delay value for the specified clock speed
       
   ' Set direction of JTAG pins
   ' Output
@@ -502,3 +502,4 @@ PUB TMS_High
 PUB TMS_Low
   outa[TMS] := 0
 
+  
