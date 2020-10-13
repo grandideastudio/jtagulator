@@ -210,7 +210,9 @@ PRI Do_Tap_Shift | num_sequences, num_bytes, bits, value, i
      num_sequences -= bits
 
 
-PRI OpenOCD_Shift(ocd_tdi, ocd_tms, num_bits) : ocd_tdo   ' Shift data from OpenOCD into target and receive result
+PRI OpenOCD_Shift(ocd_tdi, ocd_tms, num_bits) : ocd_tdo | num  ' Shift data from OpenOCD into target and receive result
+  num := num_bits        
+  
   repeat while (num_bits > 0)
     if (ocd_tms & 1)
       jtag.TMS_High
@@ -229,7 +231,7 @@ PRI OpenOCD_Shift(ocd_tdi, ocd_tms, num_bits) : ocd_tdo   ' Shift data from Open
     ocd_tms >>= 1
     num_bits -= 1       ' Adjust number of remaining bits
 
-  ocd_tdo ><= 8     ' Bitwise reverse since LSB came in first (we want MSB to be first)
+  ocd_tdo ><= num   ' Bitwise reverse since LSB came in first (we want MSB to be first)
 
    
 PRI GetMoreParamBytes(num) : val | i
