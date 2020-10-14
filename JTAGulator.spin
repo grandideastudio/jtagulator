@@ -37,9 +37,10 @@ CON
 
   ' Serial terminal
   ' Control characters
-  LF    = 10  ''LF: Line Feed
-  CR    = 13  ''CR: Carriage Return
-  CAN   = 24  ''CAN: Cancel (Ctrl-X)
+  LF     = 10   ' LF: Line Feed
+  CR     = 13   ' CR: Carriage Return
+  CAN    = 24   ' CAN: Cancel (Ctrl-X)
+  QUOTE  = 34   ' Quotation mark
 
 
 CON
@@ -1173,7 +1174,7 @@ PRI JTAG_OpenOCD(first_time) | ackbit   ' OpenOCD interface
       return
           
     pst.Str(String(CR, LF, "Entering OpenOCD mode! Press Ctrl-X to abort..."))
-    pst.Str(String(CR, LF, LF, "Note: Switch to OpenOCD software and use 'interface/jtagulator.cfg'", CR, LF))
+    pst.Str(String(CR, LF, LF, "Example: openocd -f interface/buspirate.cfg -c ", QUOTE, "transport select jtag; buspirate_port /dev/ttyUSB0", QUOTE, CR, LF))
     u.Pause(100)      ' Delay to finish sending messages
     pst.Stop          ' Stop serial communications (this will be restarted from within the sump object)
 
