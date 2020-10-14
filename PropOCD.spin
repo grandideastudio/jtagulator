@@ -72,7 +72,7 @@ OBJ
   jtag          : "PropJTAG"           ' JTAG/IEEE 1149.1 low-level methods
 
 
-PUB Go(tdi, tdo, tck, tms)
+PUB Go(tdi, tdo, tck, tms) | ctr
   pst.Start(RxPin, TxPin, BaudRate)            ' Configure UART
 
   u.LEDRed                                     ' We are initialized and ready to go
@@ -93,11 +93,9 @@ PUB Go(tdi, tdo, tck, tms)
 
       CMD_UNKNOWN:
         pst.Str(@BBIO)
-        u.LEDRed
         
       CMD_ENTER_OOCD:
         pst.Str(@OCD)
-        u.LEDYellow
         
       CMD_READ_ADCS:     ' Not supported
         pst.Tx(CMD_READ_ADCS)    ' Send acknowledgement
@@ -128,10 +126,7 @@ PUB Go(tdi, tdo, tck, tms)
 
         case vCmd[1]
           FEATURE_LED:
-            if (vCmd[2])
-              u.LEDYellow
-            else
-              u.LEDRed
+            next
           
           FEATURE_VREG:   
             next
@@ -158,24 +153,25 @@ PUB Go(tdi, tdo, tck, tms)
         pst.Tx(SERIAL_NORMAL)
             
       CMD_TAP_SHIFT:
+        if (++ctr // 6) == 0
+          !outa[g#LED_G]          ' Toggle LED between red and yellow
+        
         if (GetMoreParamBytes(2) == -1)
           pst.Tx(0)
 
-        Do_Tap_Shift        
+        Do_Tap_Shift
 
       CMD_RESET:
-        u.LEDRed
         next
       
       other:             ' Invalid byte
         pst.Tx(0)
-        u.LEDRed
         
 
 PRI Do_Tap_Shift | num_sequences, num_bytes, bits, value, i
    ' based on HydraBus implementation of Bus Pirate binary protocol
    ' https://github.com/hydrabus/hydrafw/blob/master/src/hydrabus/hydrabus_mode_jtag.c
-   
+
    ' calculate number of requested bit sequences
    num_sequences := vCmd[1]
    num_sequences <<= 8
@@ -208,7 +204,7 @@ PRI Do_Tap_Shift | num_sequences, num_bytes, bits, value, i
      
      i += 2
      num_sequences -= bits
-
+   
 
 PRI OpenOCD_Shift(ocd_tdi, ocd_tms, num_bits) : ocd_tdo | num  ' Shift data from OpenOCD into target and receive result
   num := num_bits        
@@ -244,4 +240,3 @@ DAT
               ORG
 BBIO          byte "BBIO1", 0
 OCD           byte "OCD1", 0
-
