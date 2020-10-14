@@ -363,9 +363,6 @@ PRI Do_SWD_Menu(cmd)
         pst.Str(@ErrTargetIOVoltage)
       else
         SWD_IDCODE_Known
-        
-    "C", "c":
-      Set_SWD_Frequency       ' Set SWD clock speed
 
     other:
       Do_Shared_Menu(cmd)
@@ -2014,25 +2011,6 @@ PRI Display_SWD_Pins
   pst.Str(String(CR, LF))
 
 
-PRI Set_SWD_Frequency | value
-  pst.Str(String(CR, LF, "Current SWD clock speed (Hz): "))
-  pst.Dec(swdFrequency)
-  
-  pst.Str(String(CR, LF, "Enter new SWD clock speed ("))
-  pst.Dec(swd#SWD_SLOW_CLOCK_RATE)
-  pst.Str(String(" - "))
-  pst.Dec(swd#SWD_FASTEST_CLOCK_RATE)
-  pst.Str(String("): "))
-  value := Get_Decimal_Pin  ' Receive decimal value (including 0) 
-    
-  if (value < swd#SWD_SLOW_CLOCK_RATE) or (value > swd#SWD_FASTEST_CLOCK_RATE)
-    pst.Str(@ErrOutOfRange)
-  else
-    swdFrequency := value
-    pst.Str(String(CR, LF, "New SWD clock speed set: "))
-    pst.Dec(swdFrequency)  ' Print a confirmation of newly set clock speed
-
-
 PRI Set_SWD : err | xio, xclk, buf, c     ' Set SWD configuration to known values
   pst.Str(String(CR, LF, "Enter SWDIO pin ["))
   pst.Dec(swdIo)             ' Display current value
@@ -2399,8 +2377,7 @@ MenuGPIO      byte CR, LF, "GPIO Commands:", CR, LF
                           
 MenuSWD       byte CR, LF, "SWD Commands:", CR, LF
               byte "I   Identify SWD pinout (IDCODE Scan)", CR, LF
-              byte "D   Get Device ID", CR, LF
-              byte "C   Set SWD clock speed", 0
+              byte "D   Get Device ID", 0
 
 MenuShared    byte CR, LF, LF, "General Commands:", CR, LF
               byte "V   Set target I/O voltage", CR, LF
@@ -2440,4 +2417,3 @@ VoltageTable  byte  109, 116, 124, 132, 140, 147, 155, 163, 171, 179, 186, 194, 
 ' Look-up table of accepted values for use with UART identification
 BaudRate      long  300, 600, 1200, 1800, 2400, 3600, 4800, 7200, 9600, 14400, 19200, 28800, 31250 {MIDI}, 38400, 57600, 76800, 115200, 153600, 230400, 250000 {DMX}, 307200
 BaudRateEnd
-
