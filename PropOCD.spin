@@ -153,7 +153,7 @@ PUB Go(tdi, tdo, tck, tms) | ctr
         pst.Tx(SERIAL_NORMAL)
             
       CMD_TAP_SHIFT:
-        if (++ctr // 6) == 0
+        if (++ctr // 10) == 0
           !outa[g#LED_G]          ' Toggle LED between red and yellow
         
         if (GetMoreParamBytes(2) == -1)
