@@ -21,7 +21,7 @@ JTAG routines based on Silicon Labs' Application Note AN105: Programming FLASH
 through the JTAG Interface (https://www.silabs.com/documents/public/application-
 notes/an105.pdf). 
 
-Usage: Call Config first to properly set the desired JTAG pinout and clock speed
+Usage: Call Config first to properly set the desired JTAG pinout
  
 }}
 
@@ -79,24 +79,20 @@ CON
   
   MAX_DR_LEN           =  1024      ' Maximum length of data register
 
-  MIN_TCK_SPEED        =  1         ' Minimum allowable JTAG clock speed (Hz)
-  MAX_TCK_SPEED        =  20_000    ' Maximum allowable JTAG clock speed
-
   
 VAR
-  long TDI, TDO, TCK, TMS, TCK_DELAY       ' JTAG globals (must stay in this order)
+  long TDI, TDO, TCK, TMS           ' JTAG globals (must stay in this order)
 
 
 OBJ
  
 
-PUB Config(tdi_pin, tdo_pin, tck_pin, tms_pin, tck_speed)
+PUB Config(tdi_pin, tdo_pin, tck_pin, tms_pin)
 {
   Set JTAG configuration
-  Parameters : TDI, TDO, TCK, TMS channels and TCK clock speed provided by top object
+  Parameters : TDI, TDO, TCK, and TMS channels provided by top object
 }
   longmove(@TDI, @tdi_pin, 4)                ' Move passed variables into globals for use in this object
-  TCK_DELAY := clkfreq / (tck_speed >> 1)    ' Calculate actual waitcnt delay value for the specified clock speed
       
   ' Set direction of JTAG pins
   ' Output
@@ -479,12 +475,10 @@ PUB TDO_Read : value | stamp
     Expects TCK to be low upon being called.
 }
   outa[TCK] := 1              ' TCK high (target samples TMS and TDI, presents valid TDO, TAP state may change) 
-  waitcnt(stamp := TCK_DELAY + cnt)
 
   value := ina[TDO]
   
   outa[TCK] := 0              ' TCK low 
-  waitcnt(stamp + TCK_DELAY)
   
 
 PUB TDI_High

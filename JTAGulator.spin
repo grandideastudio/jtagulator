@@ -74,7 +74,6 @@ CON
   EEPROM_TDO_OFFSET             = 12
   EEPROM_TCK_OFFSET             = 16
   EEPROM_TMS_OFFSET             = 20
-  EEPROM_TCK_SPEED_OFFSET       = 24
 
   
 VAR                   ' Globally accessible variables
@@ -87,7 +86,6 @@ VAR                   ' Globally accessible variables
   long jTCK
   long jTMS
   long jTRST
-  long jTCKSpeed      ' Selectable JTAG clock speed
   long jPinsLow       ' Parameters for IDCODE_Scan, BYPASS_Scan
   long jPinsLowDelay
   long jPinsHighDelay
@@ -292,10 +290,7 @@ PRI Do_JTAG_Menu(cmd)
       if (vTargetIO == -1)
         pst.Str(@ErrTargetIOVoltage)
       else
-        JTAG_OpenOCD(1)        
-
-    "C", "c":                 ' Set JTAG clock speed
-      Set_JTAG_Frequency
+        JTAG_OpenOCD(1)
                
     other:
       Do_Shared_Menu(cmd)
@@ -510,7 +505,7 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
         if (jPinsLow == 1)
           u.Pause(jPinsHighDelay)               ' Delay after deassertion before proceeding 
 
-        jtag.Config(jTDI, jTDO, jTCK, jTMS, jTCKSpeed)   ' Configure JTAG
+        jtag.Config(jTDI, jTDO, jTCK, jTMS)   ' Configure JTAG
         jtag.Get_Device_IDs(1, @value)        ' Try to get the 1st Device ID in the chain (if it exists) by reading the DR      
         if (value <> -1) and (value & 1)      ' Ignore if received Device ID is 0xFFFFFFFF or if bit 0 != 1
           xtdo := jTDO                        ' Keep track of most recent detection results
@@ -541,7 +536,7 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
               if (jPinsLow == 1)
                 u.Pause(jPinsHighDelay)               ' Delay after deassertion before proceeding
             
-              jtag.Config(jTDI, jTDO, jTCK, jTMS, jTCKSpeed)   ' Re-configure JTAG
+              jtag.Config(jTDI, jTDO, jTCK, jTMS)              ' Re-configure JTAG
               value := jtag.Detect_Devices                     ' Get number of devices in the chain (if any)
               data_in := rr.random                             ' Get 32-bit random number to use as the BYPASS pattern
               data_out := jtag.Bypass_Test(value, data_in)     ' Run the BYPASS instruction
@@ -714,7 +709,7 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
           if (jPinsLow == 1)
             u.Pause(jPinsHighDelay)               ' Delay after deassertion before proceeding
           
-          jtag.Config(jTDI, jTDO, jTCK, jTMS, jTCKSpeed)    ' Configure JTAG
+          jtag.Config(jTDI, jTDO, jTCK, jTMS)     ' Configure JTAG
           value := jtag.Detect_Devices
   
           if (value > 0 and value =< jtag#MAX_DEVICES_LEN)  ' Limit maximum possible number of devices in the chain
@@ -784,7 +779,7 @@ PRI IDCODE_Known | value, id[32 {jtag#MAX_DEVICES_LEN}], i, xtdi   ' Get JTAG De
     
   u.TXSEnable                                      ' Enable level shifter outputs
   u.Set_Pins_High(0, g#MAX_CHAN)                   ' In case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#
-  jtag.Config(jTDI, jTDO, jTCK, jTMS, jTCKSpeed)   ' Configure JTAG
+  jtag.Config(jTDI, jTDO, jTCK, jTMS)              ' Configure JTAG
 
   ' Since we might not know how many devices are in the chain, try the maximum allowable number and verify the results afterwards
   jtag.Get_Device_IDs(jtag#MAX_DEVICES_LEN, @id)   ' We assume the IDCODE is the default DR after reset
@@ -805,7 +800,7 @@ PRI BYPASS_Known | num, dataIn, dataOut   ' Test BYPASS (TDI to TDO) (Pinout alr
 
   u.TXSEnable                                 ' Enable level shifter outputs
   u.Set_Pins_High(0, g#MAX_CHAN)              ' In case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#
-  jtag.Config(jTDI, jTDO, jTCK, jTMS, jTCKSpeed)         ' Configure JTAG
+  jtag.Config(jTDI, jTDO, jTCK, jTMS)         ' Configure JTAG
 
   num := jtag.Detect_Devices                 ' Get number of devices in the chain
   pst.Str(String(CR, LF))
@@ -857,7 +852,7 @@ PRI OPCODE_Discovery | num, ctr, irLen, drLen, opcode_max, opcodeH, opcodeL, opc
     
   u.TXSEnable                                 ' Enable level shifter outputs
   u.Set_Pins_High(0, g#MAX_CHAN)              ' In case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#
-  jtag.Config(jTDI, jTDO, jTCK, jTMS, jTCKSpeed)         ' Configure JTAG
+  jtag.Config(jTDI, jTDO, jTCK, jTMS)         ' Configure JTAG
 
   num := jtag.Detect_Devices                  ' Get number of devices in the chain
   if (num == 0)
@@ -1067,25 +1062,6 @@ PRI Set_JTAG_Partial : err | xtdi, xtdo, xtck, xtms, buf, num, c     ' Set JTAG 
     jTMS := xtms
 
 
-PRI Set_JTAG_Frequency | value
-  pst.Str(String(CR, LF, "Current JTAG clock speed (Hz): "))
-  pst.Dec(jTCKSpeed)
-  
-  pst.Str(String(CR, LF, "Enter new JTAG clock speed ("))
-  pst.Dec(jtag#MIN_TCK_SPEED)
-  pst.Str(String(" - "))
-  pst.Dec(jtag#MAX_TCK_SPEED)
-  pst.Str(String("): "))
-  value := Get_Decimal_Pin  ' Receive decimal value (including 0)
-  
-  if (value < jtag#MIN_TCK_SPEED) or (value > jtag#MAX_TCK_SPEED)
-    pst.Str(@ErrOutOfRange)
-  else
-    jTCKSpeed := value
-    pst.Str(String(CR, LF, "New JTAG clock speed set: "))
-    pst.Dec(jTCKSpeed) ' Print a confirmation of newly set clock speed
-
-
 PRI JTAG_Scan_Cleanup(num, tdi, tdo, tck, tms)
   if (num == 0)    ' If no device(s) were found during the search
     longfill(@jTDI, 0, 5)  ' Clear JTAG pinout
@@ -1194,7 +1170,6 @@ PRI JTAG_OpenOCD(first_time) | ackbit   ' OpenOCD interface
     ackbit += writeLong(eepromAddress + EEPROM_TDO_OFFSET, jTDO)
     ackbit += writeLong(eepromAddress + EEPROM_TCK_OFFSET, jTCK)
     ackbit += writeLong(eepromAddress + EEPROM_TMS_OFFSET, jTMS)
-    ackbit += writeLong(eepromAddress + EEPROM_TCK_SPEED_OFFSET, jTCKSpeed)
      
     if ackbit         ' If there's an error with the EEPROM
       pst.Str(@ErrEEPROMNotResponding)
@@ -1211,14 +1186,13 @@ PRI JTAG_OpenOCD(first_time) | ackbit   ' OpenOCD interface
     ackbit += readLong(eepromAddress + EEPROM_TDO_OFFSET, @jTDO)
     ackbit += readLong(eepromAddress + EEPROM_TCK_OFFSET, @jTCK)
     ackbit += readLong(eepromAddress + EEPROM_TMS_OFFSET, @jTMS)
-    ackbit += readLong(eepromAddress + EEPROM_TCK_SPEED_OFFSET, @jTCKSpeed)
   
     if ackbit         ' If there's an error with the EEPROM
       Set_Config_Defaults    ' Revert to default values in case data is invalid
       pst.Str(@ErrEEPROMNotResponding)
       return
          
-  ocd.Go(jTDI, jTDO, jTCK, jTMS, jTCKSpeed)
+  ocd.Go(jTDI, jTDO, jTCK, jTMS)
 
   ' Exit from logic analyzer mode
   pst.Start(115_200)     ' Re-start serial communications                                                                                    
@@ -2131,7 +2105,6 @@ PRI Set_Config_Defaults    ' Set configuration globals to default values
   vMode := MODE_NORMAL                ' Operating mode
   vTargetIO := -1                     ' Target I/O voltage (undefined)
   jTDI := jTDO := jTCK := jTMS := 0   ' JTAG pins
-  jTCKSpeed := jtag#MAX_TCK_SPEED     ' JTAG clock speed
     
     
 PRI Set_Target_IO_Voltage | value
@@ -2411,8 +2384,7 @@ MenuJTAG      byte CR, LF, "JTAG Commands:", CR, LF
               byte "D   Get Device ID(s)", CR, LF
               byte "T   Test BYPASS (TDI to TDO)", CR, LF
               byte "Y   Instruction/Data Register (IR/DR) discovery", CR, LF
-              byte "O   OpenOCD interface", CR, LF
-              byte "C   Set JTAG clock speed", 0
+              byte "O   OpenOCD interface", 0
 
 MenuUART      byte CR, LF, "UART Commands:", CR, LF
               byte "U   Identify UART pinout", CR, LF
@@ -2458,8 +2430,7 @@ ErrIDCODEAborted            byte CR, LF, "IDCODE scan aborted!", 0
 ErrBYPASSAborted            byte CR, LF, "BYPASS scan aborted!", 0
 ErrDiscoveryAborted         byte CR, LF, "IR/DR discovery aborted!", 0
 ErrUARTAborted              byte CR, LF, "UART scan aborted!", 0
-
-                                                               
+         
 ' Look-up table to correlate actual I/O voltage to DAC value
 ' Full DAC range is 0 to 3.3V @ 256 steps = 12.89mV/step
 ' TXS0108E level translator is limited from 1.4V to 3.3V per data sheet table 6.3
@@ -2469,3 +2440,4 @@ VoltageTable  byte  109, 116, 124, 132, 140, 147, 155, 163, 171, 179, 186, 194, 
 ' Look-up table of accepted values for use with UART identification
 BaudRate      long  300, 600, 1200, 1800, 2400, 3600, 4800, 7200, 9600, 14400, 19200, 28800, 31250 {MIDI}, 38400, 57600, 76800, 115200, 153600, 230400, 250000 {DMX}, 307200
 BaudRateEnd
+

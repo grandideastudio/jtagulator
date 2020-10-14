@@ -72,13 +72,13 @@ OBJ
   jtag          : "PropJTAG"           ' JTAG/IEEE 1149.1 low-level methods
 
 
-PUB Go(tdi, tdo, tck, tms, tckspeed)
+PUB Go(tdi, tdo, tck, tms)
   pst.Start(RxPin, TxPin, BaudRate)            ' Configure UART
 
   u.LEDRed                                     ' We are initialized and ready to go
   u.TXSEnable                                  ' Enable level shifter outputs
   u.Set_Pins_High(0, g#MAX_CHAN)               ' In case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#
-  jtag.Config(tdi, tdo, tck, tms, tckspeed)    ' Configure JTAG
+  jtag.Config(tdi, tdo, tck, tms)              ' Configure JTAG
   
   ' Start command receive/process cycle
   repeat
@@ -244,3 +244,4 @@ DAT
               ORG
 BBIO          byte "BBIO1", 0
 OCD           byte "OCD1", 0
+
