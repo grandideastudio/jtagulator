@@ -1174,7 +1174,7 @@ PRI JTAG_OpenOCD(first_time) | ackbit   ' OpenOCD interface
       return
           
     pst.Str(String(CR, LF, "Entering OpenOCD mode! Press Ctrl-X to abort..."))
-    pst.Str(String(CR, LF, LF, "Example: openocd -f interface/buspirate.cfg -c ", QUOTE, "transport select jtag; buspirate_port /dev/ttyUSB0", QUOTE, CR, LF))
+    pst.Str(@MsgOCDNote)
     u.Pause(100)      ' Delay to finish sending messages
     pst.Stop          ' Stop serial communications (this will be restarted from within the sump object)
 
@@ -1861,7 +1861,7 @@ PRI GPIO_Logic(first_time) | ackbit   ' Logic analyzer (OLS/SUMP)
       return
 
     pst.Str(String(CR, LF, "Entering logic analyzer mode! Press Ctrl-X to abort..."))
-    pst.Str(String(CR, LF, LF, "Note: Switch to analyzer software and use Openbench Logic Sniffer driver @ 115.2kbps", CR, LF))
+    pst.Str(@MsgSUMPNote)
     u.Pause(100)      ' Delay to finish sending messages
     pst.Stop          ' Stop serial communications (this will be restarted from within the sump object)
     
@@ -2397,6 +2397,11 @@ MsgDevicesDetected          byte "Number of devices detected: ", 0
 
 MsgSWDWarning               byte CR, LF, "Warning: JTAGulator HW Rev. B and earlier have compatibility issues w/"
                             byte CR, LF, "many SWD-based target devices. Detection results may be affected.", CR, LF, 0
+
+MsgSUMPNote                 byte CR, LF, LF, "Note: Switch to analyzer software and use Openbench Logic Sniffer driver @ 115.2kbps", CR, LF, 0
+
+MsgOCDNote                  byte CR, LF, LF, "Example: openocd -f interface/buspirate.cfg -c ", QUOTE
+                            byte "transport select jtag; buspirate_port /dev/ttyUSB0", QUOTE, CR, LF, 0
 
 ErrEEPROMNotResponding      byte CR, LF, "EEPROM not responding!", 0                            
 ErrTargetIOVoltage          byte CR, LF, "Target I/O voltage must be defined!", 0
