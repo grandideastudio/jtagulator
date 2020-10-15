@@ -37,18 +37,20 @@ CON
 
   ' Serial terminal
   ' Control characters
-  LF    = 10  ''LF: Line Feed
-  CR    = 13  ''CR: Carriage Return
-  CAN   = 24  ''CAN: Cancel (Ctrl-X)
+  LF     = 10   ' LF: Line Feed
+  CR     = 13   ' CR: Carriage Return
+  CAN    = 24   ' CAN: Cancel (Ctrl-X)
+  QUOTE  = 34   ' Quotation mark
 
 
 CON
   ' UI
-  MAX_LEN_CMD = 12     ' Maximum length of command string buffer
+  MAX_LEN_CMD           = 12   ' Maximum length of command string buffer
+
+  ' Target voltage
+  VTARGET_IO_MIN        = 14   ' Minimum target I/O voltage (VADJ) (for example, xy = x.yV)
+  VTARGET_IO_MAX        = 33   ' Maximum target I/O voltage
   
-  ' JTAG/IEEE 1149.1
-  MAX_TCK_SPEED = 20   ' Maximum allowable JTAG clock speed (kHz)
-   
   ' UART/Asynchronous Serial
   MAX_LEN_UART_USER     = 34   ' Maximum length of user input string buffer (accounts for hexadecimal input of 16 bytes, \x00112233445566778899AABBCCDDEEFF)
   MAX_LEN_UART_TX       = 16   ' Maximum number of bytes to transmit to target (based on user input string)
@@ -65,11 +67,19 @@ CON
   eepromAddress   = $8000       ' Starting address within EEPROM for system/user data storage
   MODE_NORMAL     = 0           ' JTAGulator main mode
   MODE_SUMP       = 1           ' Logic analyzer (OLS/SUMP)
-  
+  MODE_OCD        = 2           ' OpenOCD interface
+
+  EEPROM_MODE_OFFSET            = 0
+  EEPROM_VTARGET_OFFSET         = 4
+  EEPROM_TDI_OFFSET             = 8
+  EEPROM_TDO_OFFSET             = 12
+  EEPROM_TCK_OFFSET             = 16
+  EEPROM_TMS_OFFSET             = 20
+
   
 VAR                   ' Globally accessible variables
   byte vCmd[MAX_LEN_CMD + 1]  ' Buffer for command input string + \0
-  long vTargetIO      ' Target I/O voltage (for example, 18 = 1.8V)
+  long vTargetIO      ' Target I/O voltage
   long vMode          ' JTAGulator operating mode (determined on start-up)
   
   long jTDI           ' JTAG pins (must stay in this order)
@@ -77,7 +87,6 @@ VAR                   ' Globally accessible variables
   long jTCK
   long jTMS
   long jTRST
-  long jTCKSpeed      ' Selectable JTAG clock speed
   long jPinsLow       ' Parameters for IDCODE_Scan, BYPASS_Scan
   long jPinsLowDelay
   long jPinsHighDelay
@@ -123,38 +132,18 @@ OBJ
   pt_out        : "jm_txserial"        ' UART/Asynchronous Serial transmit driver for passthrough (JonnyMac, https://forums.parallax.com/discussion/114492/prop-baudrates)
   jtag          : "PropJTAG"           ' JTAG/IEEE 1149.1 low-level methods
   swd           : "PropSWD"            ' ARM SWD (Serial Wire Debug) low-level functions (Adam Green, https://github.com/adamgreen)
-  sump          : "PropSUMP"           ' OLS/SUMP protocol for logic analyzer mode     
+  sump          : "PropSUMP"           ' OLS/SUMP protocol for logic analyzer mode
+  ocd           : "PropOCD"            ' OpenOCD binary protocol     
 
   
-PUB main | cmd, ackbit
+PUB main | cmd
   System_Init        ' Initialize system/hardware
   JTAG_Init          ' Initialize JTAG-specific items
   UART_Init          ' Initialize UART-specific items
   GPIO_Init          ' Initialize GPIO-specific items
   SWD_Init           ' Initialize SWD-specific items
 
-  ' Read values from EEPROM to determine operating mode
-  ' JTAGulator's EEPROM (64KB) is larger than required by the Propeller, so there is 32KB of additional,
-  ' unused area available for data storage. Values will not get overwritten when JTAGulator firmware is
-  ' re-loaded into the EEPROM.
-  ackbit := 0
-  ackbit += readLong(eepromAddress, @vMode)
-  ackbit += readLong(eepromAddress + 4, @vTargetIO)
-  if ackbit          ' If there's an error with the EEPROM
-    pst.Str(@ErrEEPROMNotResponding)
-
-  ' Select operating mode
-  case vMode
-    MODE_SUMP:       ' Logic analyzer (OLS/SUMP)
-      pst.Stop              ' Stop serial communications (this will be restarted from within the sump object)
-      DACOutput(VoltageTable[vTargetIO - 12])    ' Set target I/O voltage
-      GPIO_Logic(0)         ' Start logic analyzer mode
-      idMenu := MENU_GPIO   ' Set to previously active menu upon return
-
-    other:           ' MODE_NORMAL
-      u.LEDYellow
-      pst.CharIn                   ' Wait until the user presses a key before getting started
-      pst.Str(@InitHeader)         ' Display header
+  Do_Mode            ' Read EEPROM to determine/select operating mode
 
   ' Start command receive/process cycle
   repeat
@@ -172,7 +161,7 @@ PUB main | cmd, ackbit
         MENU_MAIN:                    ' Main/Top
           Do_Main_Menu(cmd)
       
-        MENU_JTAG:                    ' JTAG/IEEE 1149.1
+        MENU_JTAG:                    ' JTAG
           Do_JTAG_Menu(cmd)
 
         MENU_UART:                    ' UART/Asynchronous Serial
@@ -191,6 +180,45 @@ PUB main | cmd, ackbit
     else
       Display_Invalid_Command
 
+
+PRI Do_Mode | ackbit     ' Read EEPROM to determine/select operating mode
+  ' JTAGulator's EEPROM (64KB) is larger than required by the Propeller, so there is 32KB of additional,
+  ' unused area available for data storage. Values will not get overwritten when JTAGulator firmware is
+  ' re-loaded into the EEPROM.
+  ackbit := 0
+  ackbit += readLong(eepromAddress + EEPROM_MODE_OFFSET, @vMode)
+  ackbit += readLong(eepromAddress + EEPROM_VTARGET_OFFSET, @vTargetIO)
+         
+  if ackbit          ' If there's an error with the EEPROM
+    pst.Str(@ErrEEPROMNotResponding)
+    vMode := MODE_NORMAL
+
+  if (vMode <> MODE_NORMAL) and (vMode <> MODE_SUMP) and (vMode <> MODE_OCD)
+    vMode := MODE_NORMAL
+
+  if (vTargetIO < VTARGET_IO_MIN) or (vTargetIO > VTARGET_IO_MAX)
+    vMode := MODE_NORMAL
+   
+  ' Select operating mode
+  case vMode
+    MODE_SUMP:       ' Logic analyzer (OLS/SUMP)
+      pst.Stop              ' Stop serial communications (this will be restarted from within the sump object)
+      DACOutput(VoltageTable[vTargetIO - VTARGET_IO_MIN])    ' Set target I/O voltage
+      GPIO_Logic(0)         ' Start logic analyzer mode
+      idMenu := MENU_GPIO   ' Set to previously active menu upon return
+
+    MODE_OCD:        ' OpenOCD interface
+      pst.Stop              ' Stop serial communications (this will be restarted from within the ocd object)
+      DACOutput(VoltageTable[vTargetIO - VTARGET_IO_MIN])    ' Set target I/O voltage
+      JTAG_OpenOCD(0)       ' Start OpenOCD mode
+      idMenu := MENU_JTAG   ' Set to previously active menu upon return
+
+    MODE_NORMAL:     ' JTAGulator main mode
+      Set_Config_Defaults          ' Set configuration globals to default values
+      u.LEDYellow
+      pst.CharIn                   ' Wait until the user presses a key before getting started
+      pst.Str(@InitHeader)         ' Display header
+    
 
 CON {{ MENU METHODS }}
 
@@ -259,8 +287,11 @@ PRI Do_JTAG_Menu(cmd)
       else
         OPCODE_Discovery
 
-    "C", "c":                 ' Set JTAG clock speed
-      Set_JTAG_Clock
+    "O", "o":                 ' OpenOCD interface (Pinout already known) 
+      if (vTargetIO == -1)
+        pst.Str(@ErrTargetIOVoltage)
+      else
+        JTAG_OpenOCD(1)
                
     other:
       Do_Shared_Menu(cmd)
@@ -333,9 +364,6 @@ PRI Do_SWD_Menu(cmd)
         pst.Str(@ErrTargetIOVoltage)
       else
         SWD_IDCODE_Known
-        
-    "C", "c":
-      Set_SWD_Frequency       ' Set SWD clock speed
 
     other:
       Do_Shared_Menu(cmd)
@@ -422,9 +450,6 @@ PRI JTAG_Init
   ' OPCODE_Discovery
   jIgnoreReg := 1
 
-  ' Clock (TCK) speed
-  jTCKSpeed := MAX_TCK_SPEED
-
 
 PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}], i, data_in, data_out, xtdi, xtdo, xtck, xtms    ' Identify JTAG pinout (IDCODE Scan or Combined Scan)
   if (type == 0)    ' IDCODE Scan only
@@ -478,7 +503,7 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
         if (jPinsLow == 1)
           u.Pause(jPinsHighDelay)               ' Delay after deassertion before proceeding 
 
-        jtag.Config(jTDI, jTDO, jTCK, jTMS, jTCKSpeed)   ' Configure JTAG
+        jtag.Config(jTDI, jTDO, jTCK, jTMS)   ' Configure JTAG
         jtag.Get_Device_IDs(1, @value)        ' Try to get the 1st Device ID in the chain (if it exists) by reading the DR      
         if (value <> -1) and (value & 1)      ' Ignore if received Device ID is 0xFFFFFFFF or if bit 0 != 1
           xtdo := jTDO                        ' Keep track of most recent detection results
@@ -509,7 +534,7 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
               if (jPinsLow == 1)
                 u.Pause(jPinsHighDelay)               ' Delay after deassertion before proceeding
             
-              jtag.Config(jTDI, jTDO, jTCK, jTMS, jTCKSpeed)   ' Re-configure JTAG
+              jtag.Config(jTDI, jTDO, jTCK, jTMS)              ' Re-configure JTAG
               value := jtag.Detect_Devices                     ' Get number of devices in the chain (if any)
               data_in := rr.random                             ' Get 32-bit random number to use as the BYPASS pattern
               data_out := jtag.Bypass_Test(value, data_in)     ' Run the BYPASS instruction
@@ -682,7 +707,7 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
           if (jPinsLow == 1)
             u.Pause(jPinsHighDelay)               ' Delay after deassertion before proceeding
           
-          jtag.Config(jTDI, jTDO, jTCK, jTMS, jTCKSpeed)    ' Configure JTAG
+          jtag.Config(jTDI, jTDO, jTCK, jTMS)     ' Configure JTAG
           value := jtag.Detect_Devices
   
           if (value > 0 and value =< jtag#MAX_DEVICES_LEN)  ' Limit maximum possible number of devices in the chain
@@ -752,7 +777,7 @@ PRI IDCODE_Known | value, id[32 {jtag#MAX_DEVICES_LEN}], i, xtdi   ' Get JTAG De
     
   u.TXSEnable                                      ' Enable level shifter outputs
   u.Set_Pins_High(0, g#MAX_CHAN)                   ' In case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#
-  jtag.Config(jTDI, jTDO, jTCK, jTMS, jTCKSpeed)   ' Configure JTAG
+  jtag.Config(jTDI, jTDO, jTCK, jTMS)              ' Configure JTAG
 
   ' Since we might not know how many devices are in the chain, try the maximum allowable number and verify the results afterwards
   jtag.Get_Device_IDs(jtag#MAX_DEVICES_LEN, @id)   ' We assume the IDCODE is the default DR after reset
@@ -773,7 +798,7 @@ PRI BYPASS_Known | num, dataIn, dataOut   ' Test BYPASS (TDI to TDO) (Pinout alr
 
   u.TXSEnable                                 ' Enable level shifter outputs
   u.Set_Pins_High(0, g#MAX_CHAN)              ' In case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#
-  jtag.Config(jTDI, jTDO, jTCK, jTMS, jTCKSpeed)         ' Configure JTAG
+  jtag.Config(jTDI, jTDO, jTCK, jTMS)         ' Configure JTAG
 
   num := jtag.Detect_Devices                 ' Get number of devices in the chain
   pst.Str(String(CR, LF))
@@ -825,7 +850,7 @@ PRI OPCODE_Discovery | num, ctr, irLen, drLen, opcode_max, opcodeH, opcodeL, opc
     
   u.TXSEnable                                 ' Enable level shifter outputs
   u.Set_Pins_High(0, g#MAX_CHAN)              ' In case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#
-  jtag.Config(jTDI, jTDO, jTCK, jTMS, jTCKSpeed)         ' Configure JTAG
+  jtag.Config(jTDI, jTDO, jTCK, jTMS)         ' Configure JTAG
 
   num := jtag.Detect_Devices                  ' Get number of devices in the chain
   if (num == 0)
@@ -1035,23 +1060,6 @@ PRI Set_JTAG_Partial : err | xtdi, xtdo, xtck, xtms, buf, num, c     ' Set JTAG 
     jTMS := xtms
 
 
-PRI Set_JTAG_Clock | value
-  pst.Str(String(CR, LF, "Current JTAG clock speed (kHz): "))
-  pst.Dec(jTCKSpeed)
-  
-  pst.Str(String(CR, LF, "Enter new JTAG clock speed (1 - "))
-  pst.Dec(MAX_TCK_SPEED)
-  pst.Str(String("): "))
-  value := Get_Decimal_Pin  ' Receive decimal value (including 0)
-  
-  if (value < 1) or (value > MAX_TCK_SPEED)
-    pst.Str(@ErrOutOfRange)
-  else
-    jTCKSpeed := value
-    pst.Str(String(CR, LF, "New JTAG clock speed set: "))
-    pst.Dec(jTCKSpeed) ' Print a confirmation of newly set clock speed
-
-
 PRI JTAG_Scan_Cleanup(num, tdi, tdo, tck, tms)
   if (num == 0)    ' If no device(s) were found during the search
     longfill(@jTDI, 0, 5)  ' Clear JTAG pinout
@@ -1145,7 +1153,60 @@ PRI Display_Device_ID(value, num, details)
 
   pst.Str(String(CR, LF))
     
+
+PRI JTAG_OpenOCD(first_time) | ackbit   ' OpenOCD interface
+  if (first_time == 1)
+    u.LEDRed
+
+    if (Set_JTAG(1) == -1)  ' Ask user for the known JTAG pinout
+      return                  ' Abort if error
+
+    ackbit := 0       ' Set flags so JTAGulator will start up in OpenOCD mode on next reset
+    ackbit += writeLong(eepromAddress + EEPROM_MODE_OFFSET, MODE_OCD)
+    ackbit += writeLong(eepromAddress + EEPROM_VTARGET_OFFSET, vTargetIO)
+    ackbit += writeLong(eepromAddress + EEPROM_TDI_OFFSET, jTDI)
+    ackbit += writeLong(eepromAddress + EEPROM_TDO_OFFSET, jTDO)
+    ackbit += writeLong(eepromAddress + EEPROM_TCK_OFFSET, jTCK)
+    ackbit += writeLong(eepromAddress + EEPROM_TMS_OFFSET, jTMS)
+     
+    if ackbit         ' If there's an error with the EEPROM
+      pst.Str(@ErrEEPROMNotResponding)
+      return
+          
+    pst.Str(String(CR, LF, "Entering OpenOCD mode! Press Ctrl-X to abort..."))
+    pst.Str(@MsgOCDNote)
+    u.Pause(100)      ' Delay to finish sending messages
+    pst.Stop          ' Stop serial communications (this will be restarted from within the sump object)
+
+  else    ' We're entering the mode from power-up, so read additional values from EEPROM
+    ackbit := 0
+    ackbit += readLong(eepromAddress + EEPROM_TDI_OFFSET, @jTDI)
+    ackbit += readLong(eepromAddress + EEPROM_TDO_OFFSET, @jTDO)
+    ackbit += readLong(eepromAddress + EEPROM_TCK_OFFSET, @jTCK)
+    ackbit += readLong(eepromAddress + EEPROM_TMS_OFFSET, @jTMS)
   
+    if ackbit         ' If there's an error with the EEPROM
+      Set_Config_Defaults    ' Revert to default values in case data is invalid
+      pst.Str(@ErrEEPROMNotResponding)
+      return
+         
+  ocd.Go(jTDI, jTDO, jTCK, jTMS)
+
+  ' Exit from logic analyzer mode
+  pst.Start(115_200)     ' Re-start serial communications                                                                                    
+
+  ackbit := 0            ' Clear flag so JTAGulator will start up normally on next reset
+  ackbit += writeLong(eepromAddress + EEPROM_MODE_OFFSET, MODE_NORMAL)
+
+  if ackbit              ' If there's an error with the EEPROM
+    pst.Str(@ErrEEPROMNotResponding)
+
+  if (first_time == 0)   ' If we're returning from being disconnected, revert to default values
+    Set_Config_Defaults         
+    
+  pst.Str(String(CR, LF, "OpenOCD mode complete."))
+
+    
 CON {{ UART METHODS }}
 
 PRI UART_Init
@@ -1790,28 +1851,33 @@ PRI Display_IO_Pins(value) | count
 PRI GPIO_Logic(first_time) | ackbit   ' Logic analyzer (OLS/SUMP)
   if (first_time == 1)
     u.LEDRed
-
+  
     ackbit := 0       ' Set flags so JTAGulator will start up in logic analyzer mode on next reset
-    ackbit += writeLong(eepromAddress, MODE_SUMP)
-    ackbit += writeLong(eepromAddress + 4, vTargetIO)
+    ackbit += writeLong(eepromAddress + EEPROM_MODE_OFFSET, MODE_SUMP)
+    ackbit += writeLong(eepromAddress + EEPROM_VTARGET_OFFSET, vTargetIO)
+    
     if ackbit         ' If there's an error with the EEPROM
       pst.Str(@ErrEEPROMNotResponding)
+      return
 
     pst.Str(String(CR, LF, "Entering logic analyzer mode! Press Ctrl-X to abort..."))
-    pst.Str(String(CR, LF, LF, "Note: Switch to analyzer software and use Openbench Logic Sniffer driver @ 115.2kbps", CR, LF))
+    pst.Str(@MsgSUMPNote)
     u.Pause(100)      ' Delay to finish sending messages
     pst.Stop          ' Stop serial communications (this will be restarted from within the sump object)
     
   sump.Go
 
   ' Exit from logic analyzer mode
-  pst.Start(115_200)  ' Re-start serial communications                                                                                    
+  pst.Start(115_200)     ' Re-start serial communications                                                                                    
 
-  ackbit := 0         ' Clear flags so JTAGulator will start up normally on next reset
-  ackbit += writeLong(eepromAddress, MODE_NORMAL)
-  ackbit += writeLong(eepromAddress + 4, -1)
-  if ackbit           ' If there's an error with the EEPROM
+  ackbit := 0            ' Clear flag so JTAGulator will start up normally on next reset
+  ackbit += writeLong(eepromAddress + EEPROM_MODE_OFFSET, MODE_NORMAL)
+
+  if ackbit              ' If there's an error with the EEPROM
     pst.Str(@ErrEEPROMNotResponding)
+
+  if (first_time == 0)   ' If we're returning from being disconnected, revert to default values
+    Set_Config_Defaults
 
   pst.Str(String(CR, LF, "Logic analyzer mode complete."))
   
@@ -1946,25 +2012,6 @@ PRI Display_SWD_Pins
   pst.Str(String(CR, LF))
 
 
-PRI Set_SWD_Frequency | value
-  pst.Str(String(CR, LF, "Current SWD clock speed (Hz): "))
-  pst.Dec(swdFrequency)
-  
-  pst.Str(String(CR, LF, "Enter new SWD clock speed ("))
-  pst.Dec(swd#SWD_SLOWEST_CLOCK_RATE)
-  pst.Str(String(" - "))
-  pst.Dec(swd#SWD_FASTEST_CLOCK_RATE)
-  pst.Str(String("): "))
-  value := Get_Decimal_Pin  ' Receive decimal value (including 0) 
-    
-  if (value < swd#SWD_SLOWEST_CLOCK_RATE) or (value > swd#SWD_FASTEST_CLOCK_RATE)
-    pst.Str(@ErrOutOfRange)
-  else
-    swdFrequency := value
-    pst.Str(String(CR, LF, "New SWD clock speed set: "))
-    pst.Dec(swdFrequency)  ' Print a confirmation of newly set clock speed
-
-
 PRI Set_SWD : err | xio, xclk, buf, c     ' Set SWD configuration to known values
   pst.Str(String(CR, LF, "Enter SWDIO pin ["))
   pst.Dec(swdIo)             ' Display current value
@@ -2027,12 +2074,17 @@ PRI System_Init
   DACOutput(0)                  ' DAC output off 
 
   idMenu := MENU_MAIN           ' Set default menu
-  vTargetIO := -1               ' Target voltage is undefined
 
   eeprom.Initialize(eeprom#BootPin)    ' Setup I2C
 
   pst.Start(115_200)            ' Start serial communications                                                                                    
 
+
+PRI Set_Config_Defaults    ' Set configuration globals to default values
+  vMode := MODE_NORMAL                ' Operating mode
+  vTargetIO := -1                     ' Target I/O voltage (undefined)
+  jTDI := jTDO := jTCK := jTMS := 0   ' JTAG pins
+    
     
 PRI Set_Target_IO_Voltage | value
   pst.Str(String(CR, LF, "Current target I/O voltage: "))
@@ -2051,13 +2103,13 @@ PRI Set_Target_IO_Voltage | value
     vTargetIO := -1
     DACOutput(0)               ' DAC output off 
     pst.Str(String(CR, LF, "Target I/O voltage off."))
-  elseif (value < 14) or (value > 33)
+  elseif (value < VTARGET_IO_MIN) or (value > VTARGET_IO_MAX)
     pst.Str(@ErrOutOfRange)
   else
     vTargetIO := value
-    DACOutput(VoltageTable[vTargetIO - 14])    ' Look up value that corresponds to the actual desired voltage and set DAC output
+    DACOutput(VoltageTable[vTargetIO - VTARGET_IO_MIN])    ' Look up value that corresponds to the actual desired voltage and set DAC output
     pst.Str(String(CR, LF, "New target I/O voltage set: "))
-    Display_Target_IO_Voltage                  ' Print a confirmation of newly set voltage
+    Display_Target_IO_Voltage  ' Print a confirmation of newly set voltage
     pst.Str(String(CR, LF, "Warning: Ensure VADJ is NOT connected to target!"))
 
 
@@ -2288,15 +2340,15 @@ InitHeader    byte CR, LF, LF
               byte "           Welcome to JTAGulator. Press 'H' for available commands.", CR, LF
               byte "         Warning: Use of this tool may affect target system behavior!", 0
 
-VersionInfo   byte CR, LF, "JTAGulator FW 1.8", CR, LF
+VersionInfo   byte CR, LF, "JTAGulator FW 1.9 (in progress)", CR, LF
               byte "Designed by Joe Grand, Grand Idea Studio, Inc.", CR, LF
               byte "Main: jtagulator.com", CR, LF
               byte "Source: github.com/grandideastudio/jtagulator", CR, LF
               byte "Support: www.parallax.com/support", 0
 
 MenuMain      byte CR, LF, "Target Interfaces:", CR, LF
-              byte "J   JTAG/IEEE 1149.1", CR, LF
-              byte "U   UART/Asynchronous Serial", CR, LF
+              byte "J   JTAG", CR, LF
+              byte "U   UART", CR, LF
               byte "G   GPIO", CR, LF
               byte "S   SWD", CR, LF, LF
               byte "General Commands:", CR, LF
@@ -2311,7 +2363,7 @@ MenuJTAG      byte CR, LF, "JTAG Commands:", CR, LF
               byte "D   Get Device ID(s)", CR, LF
               byte "T   Test BYPASS (TDI to TDO)", CR, LF
               byte "Y   Instruction/Data Register (IR/DR) discovery", CR, LF
-              byte "C   Set JTAG clock speed", 0
+              byte "O   OpenOCD interface", 0
 
 MenuUART      byte CR, LF, "UART Commands:", CR, LF
               byte "U   Identify UART pinout", CR, LF
@@ -2326,8 +2378,7 @@ MenuGPIO      byte CR, LF, "GPIO Commands:", CR, LF
                           
 MenuSWD       byte CR, LF, "SWD Commands:", CR, LF
               byte "I   Identify SWD pinout (IDCODE Scan)", CR, LF
-              byte "D   Get Device ID", CR, LF
-              byte "C   Set SWD clock speed", 0
+              byte "D   Get Device ID", 0
 
 MenuShared    byte CR, LF, LF, "General Commands:", CR, LF
               byte "V   Set target I/O voltage", CR, LF
@@ -2347,6 +2398,11 @@ MsgDevicesDetected          byte "Number of devices detected: ", 0
 MsgSWDWarning               byte CR, LF, "Warning: JTAGulator HW Rev. B and earlier have compatibility issues w/"
                             byte CR, LF, "many SWD-based target devices. Detection results may be affected.", CR, LF, 0
 
+MsgSUMPNote                 byte CR, LF, LF, "Note: Switch to analyzer software and use Openbench Logic Sniffer driver @ 115.2kbps", CR, LF, 0
+
+MsgOCDNote                  byte CR, LF, LF, "Example: openocd -f interface/buspirate.cfg -c ", QUOTE
+                            byte "transport select jtag; buspirate_port /dev/ttyUSB0", QUOTE, CR, LF, 0
+
 ErrEEPROMNotResponding      byte CR, LF, "EEPROM not responding!", 0                            
 ErrTargetIOVoltage          byte CR, LF, "Target I/O voltage must be defined!", 0
 ErrOutOfRange               byte CR, LF, "Value out of range!", 0
@@ -2357,9 +2413,7 @@ ErrIDCODEAborted            byte CR, LF, "IDCODE scan aborted!", 0
 ErrBYPASSAborted            byte CR, LF, "BYPASS scan aborted!", 0
 ErrDiscoveryAborted         byte CR, LF, "IR/DR discovery aborted!", 0
 ErrUARTAborted              byte CR, LF, "UART scan aborted!", 0
-ErrLogicAborted             byte CR, LF, "Logic analyzer mode aborted!", 0
-
-                                                               
+         
 ' Look-up table to correlate actual I/O voltage to DAC value
 ' Full DAC range is 0 to 3.3V @ 256 steps = 12.89mV/step
 ' TXS0108E level translator is limited from 1.4V to 3.3V per data sheet table 6.3
