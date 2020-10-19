@@ -4,6 +4,20 @@ JTAGulator Change Log
 Visit the JTAGulator [GitHub repository](https://github.com/grandideastudio/jtagulator/commits/master) for full commit comments.
 
 
+1.9
+---
+Release date: **xx**
+
+* JTAG: Added support (`O`) to interface directly with [OpenOCD](http://openocd.org/), a cross-platform, open source software tool that provides debugging, in-system programming, and boundary-scan testing for embedded target devices. The JTAGulator emulates the binary protocol used by the [Bus Pirate](http://dangerousprototypes.com/docs/Bus_Pirate#JTAG). See operational details on the [Wiki](https://github.com/grandideastudio/jtagulator/wiki/OpenOCD) (thanks to BenGardiner)
+
+* JTAG: Fixed low-level JTAG routines (`PropJTAG`) to sample TDO after TCK rising edge (not before) to properly conform to the IEEE 1149.1 specification.
+
+* JTAG: Removed adjustable clock speed functionality (`C`). JTAG clock operates at 25kHz maximum.
+
+* SWD: Removed adjustable clock speed functionality (`C`). SWD clock defaults to 100kHz. Can be manually adjusted in `SWD_Init` from 1 to 300kHz.
+
+
+
 1.8
 ---
 Release date: **October 6, 2020**
@@ -19,7 +33,7 @@ Release date: **October 6, 2020**
 ---
 Release date: **June 17, 2020**
 
-* SWD: Added support for ARM Serial Wire Debug (SWD). There are compatibility issues with many SWD-based targets and JTAGulator Rev. B and earlier hardware, which affect signal levels and detection results. See discussion in [Pull Request #30](https://github.com/grandideastudio/jtagulator/pull/30) (thanks to adamgreen). 
+* SWD: Added support for detecting [ARM Serial Wire Debug (SWD)](https://developer.arm.com/architectures/cpu-architecture/debug-visibility-and-trace/coresight-architecture/serial-wire-debug) interfaces. There are compatibility issues with many SWD-based targets and JTAGulator Rev. B and earlier hardware, which affect signal levels and detection results. See discussion in [Pull Request #30](https://github.com/grandideastudio/jtagulator/pull/30) (thanks to adamgreen). 
 
 * UART: Increased user string input size for `UART_Scan` to 16 bytes for both ASCII and hexadecimal input. [Issue #34](https://github.com/grandideastudio/jtagulator/issues/34)
 
