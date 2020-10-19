@@ -118,7 +118,9 @@ VAR                   ' Globally accessible variables
   long chEnd
   
   long idMenu         ' Menu ID of currently active menu
-  
+
+  long vBuf[sump#MAX_SAMPLE_PERIODS]   ' Buffer for general purpose data transfer 
+
   
 OBJ
   g             : "JTAGulatorCon"      ' JTAGulator global constants
@@ -1189,8 +1191,9 @@ PRI JTAG_OpenOCD(first_time) | ackbit   ' OpenOCD interface
       Set_Config_Defaults    ' Revert to default values in case data is invalid
       pst.Str(@ErrEEPROMNotResponding)
       return
-         
-  ocd.Go(jTDI, jTDO, jTCK, jTMS)
+
+  longfill (@vBuf, 0, sump#MAX_SAMPLE_PERIODS)  ' Clear input buffer
+  ocd.Go(jTDI, jTDO, jTCK, jTMS, vBuf)
 
   ' Exit from logic analyzer mode
   pst.Start(115_200)     ' Re-start serial communications                                                                                    
@@ -1864,8 +1867,9 @@ PRI GPIO_Logic(first_time) | ackbit   ' Logic analyzer (OLS/SUMP)
     pst.Str(@MsgSUMPNote)
     u.Pause(100)      ' Delay to finish sending messages
     pst.Stop          ' Stop serial communications (this will be restarted from within the sump object)
-    
-  sump.Go
+
+  longfill (@vBuf, 0, sump#MAX_SAMPLE_PERIODS)  ' Clear input buffer
+  sump.Go(vBuf)
 
   ' Exit from logic analyzer mode
   pst.Start(115_200)     ' Re-start serial communications                                                                                    

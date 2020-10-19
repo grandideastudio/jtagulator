@@ -28,8 +28,6 @@ CON
 
   ' Control characters
   CAN   = 24  ''CAN: Cancel (Ctrl-X)
-                       
-  'MAX_INPUT_LEN                 = 3      ' OpenOCD commands are three bytes maximum
   
   MAX_RX_DELAY_MS               = 100    ' Wait time (in ms) for the each byte in commands to be sent before aborting
   
@@ -61,9 +59,8 @@ CON
 
   
 VAR
-  'byte vCmd[MAX_INPUT_LEN + 1]  ' Buffer for command input string
-  byte vCmd[(MAX_BIT_SEQUENCES / 4) + 1]
-
+  long vCmd        ' Address of global buffer from top object
+   
   
 OBJ
   g             : "JTAGulatorCon"      ' JTAGulator global constants
@@ -72,9 +69,11 @@ OBJ
   jtag          : "PropJTAG"           ' JTAG/IEEE 1149.1 low-level methods
 
 
-PUB Go(tdi, tdo, tck, tms) | ctr
+PUB Go(tdi, tdo, tck, tms, bufPtr) | ctr
   pst.Start(RxPin, TxPin, BaudRate)            ' Configure UART
 
+  vCmd := bufPtr
+  
   u.LEDRed                                     ' We are initialized and ready to go
   u.TXSEnable                                  ' Enable level shifter outputs
   u.Set_Pins_High(0, g#MAX_CHAN)               ' In case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#
@@ -82,9 +81,9 @@ PUB Go(tdi, tdo, tck, tms) | ctr
   
   ' Start command receive/process cycle
   repeat
-    vCmd[0]:=pst.Rx
+    byte[vCmd][0]:=pst.Rx
 
-    case vCmd[0]
+    case byte[vCmd][0]
       CAN:          ' If Ctrl-X (CAN) character received, exit OpenOCD mode
         pst.Stop      ' Stop serial communications
         return        ' Go back to main JTAGulator mode
@@ -109,7 +108,7 @@ PUB Go(tdi, tdo, tck, tms) | ctr
         if (GetMoreParamBytes(1) == -1)
           next
         
-        case vCmd[1]
+        case byte[vCmd][1]
           MODE_HIZ:
             next
 
@@ -124,7 +123,7 @@ PUB Go(tdi, tdo, tck, tms) | ctr
           pst.Tx(0)
           next
 
-        case vCmd[1]
+        case byte[vCmd][1]
           FEATURE_LED:
             next
           
@@ -173,16 +172,16 @@ PRI Do_Tap_Shift | num_sequences, num_bytes, bits, value, i
    ' https://github.com/hydrabus/hydrafw/blob/master/src/hydrabus/hydrabus_mode_jtag.c
 
    ' calculate number of requested bit sequences
-   num_sequences := vCmd[1]
+   num_sequences := byte[vCmd][1]
    num_sequences <<= 8
-   num_sequences |= vCmd[2]
+   num_sequences |= byte[vCmd][2]
 
    if num_sequences > MAX_BIT_SEQUENCES    ' Upper bounds check
      num_sequences := MAX_BIT_SEQUENCES
      
    pst.Tx(CMD_TAP_SHIFT)   ' Send acknowledgement
-   pst.Tx(vCmd[1])
-   pst.Tx(vCmd[2])
+   pst.Tx(byte[vCmd][1])
+   pst.Tx(byte[vCmd][2])
 
    ' calculate number of bytes to read
    num_bytes := ((num_sequences + 7) / 8) * 2
@@ -199,7 +198,7 @@ PRI Do_Tap_Shift | num_sequences, num_bytes, bits, value, i
      else
        bits := num_sequences
 
-     value := OpenOCD_Shift(vCmd[i+1] {TDI}, vCmd[i+2] {TMS}, bits) 
+     value := OpenOCD_Shift(byte[vCmd][i+1] {TDI}, byte[vCmd][i+2] {TMS}, bits) 
      pst.Tx(value & $FF)
      
      i += 2
@@ -232,7 +231,7 @@ PRI OpenOCD_Shift(ocd_tdi, ocd_tms, num_bits) : ocd_tdo | num  ' Shift data from
    
 PRI GetMoreParamBytes(num) : val | i
   repeat i from 1 to num
-    if (vCmd[i]:=pst.RxTime(MAX_RX_DELAY_MS)) < 0
+    if (byte[vCmd][i]:=pst.RxTime(MAX_RX_DELAY_MS)) < 0
       val:=-1
 
       

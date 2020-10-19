@@ -131,7 +131,7 @@ VAR 'This is a struct used by the sampler cog; its layout and the offsets above 
 
   long samplerRunning
 
-  long sampleBuffer[MAX_SAMPLE_PERIODS]
+  long sampleBuffer        ' Address of global buffer from top object
 
   
 OBJ
@@ -140,7 +140,7 @@ OBJ
   
 
 PRI Start    ' Start a new cog to run PASM routine 
-  Stop                                           ' Call the Stop function, just in case the calling object called Start two times in a row  
+  Stop                                           ' Call the Stop function, just in case the calling object called Start two times in a row
   Cog := cognew(@samplerInit, @clocksWait) + 1   ' Launch the cog with a pointer to the parameters
   if Cog =< 0    ' Failed to start SUMP sampler
     repeat  ' Repeat until system reset
@@ -157,8 +157,10 @@ PRI Stop
     Cog := 0
     
 
-PUB Go | coggood, i, isSendSamples
+PUB Go(bufPtr) | coggood, i, isSendSamples
   pst.Start(RxPin, TxPin, BaudRate)  ' Configure UART
+
+  sampleBuffer := bufPtr
 
   clocksWait:=DEFAULT_CLOCKS_WAIT
   readPeriods:=DEFAULT_READ_PERIODS 
@@ -219,7 +221,7 @@ PUB Go | coggood, i, isSendSamples
         u.LEDYellow
         i:=0
         repeat while i < MAX_SAMPLE_PERIODS ' Clear buffer before starting capture
-          sampleBuffer[i++]:=$00000000
+          long[sampleBuffer][i++]:=$00000000
 
         samplerRunning:=1                   ' Arm the sampler cog
         isSendSamples:=1                    ' Send samples after successful capture
@@ -424,7 +426,7 @@ PRI GetFourMoreParamBytes : val
 PRI SendAllSamples | i   'NB: OLS sends samples in reverse
   i := 0
   repeat while i < readPeriods
-    SendSamples(sampleBuffer[delayPeriods - 1 - i])
+    SendSamples(long[sampleBuffer][delayPeriods - 1 - i])
     ++i
 
     
