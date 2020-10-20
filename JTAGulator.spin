@@ -78,7 +78,8 @@ CON
 
   
 VAR                   ' Globally accessible variables
-  byte vCmd[MAX_LEN_CMD + 1]  ' Buffer for command input string + \0
+  byte vCmd[MAX_LEN_CMD + 1]           ' Buffer for command input string + \0
+  long vBuf[sump#MAX_SAMPLE_PERIODS]   ' Buffer for stack/data transfer (shared across objects)  
   long vTargetIO      ' Target I/O voltage
   long vMode          ' JTAGulator operating mode (determined on start-up)
   
@@ -105,7 +106,6 @@ VAR                   ' Globally accessible variables
   long uLoopPerChan
   long uLoopPause
   long uLocalEcho     ' Parameter for UART_Passthrough
-  long uStack[50]     ' Stack space for passthrough cog
 
   long gWriteValue    ' Parameter for Write_IO_Pins
  
@@ -117,9 +117,7 @@ VAR                   ' Globally accessible variables
   long chStart        ' Channel range for the current scan (specified by the user)
   long chEnd
   
-  long idMenu         ' Menu ID of currently active menu
-
-  long vBuf[sump#MAX_SAMPLE_PERIODS]   ' Buffer for data transfer 
+  long idMenu         ' Menu ID of currently active menu 
 
   
 OBJ
@@ -1659,11 +1657,11 @@ PRI UART_Passthrough | ch, cog    ' UART/terminal passthrough
 
   ' Based on Serial_Pass_Through.spin from Chapter 4 of
   ' https://www.parallax.com/sites/default/files/downloads/122-32450-XBeeTutorial-v1.0.1.pdf
-  u.TXSEnable                         ' Enable level shifter outputs
-  PT_In.Init(uTXD, uBaud)             ' Start serial port, receive only from target
-  PT_Out.Init(uRXD, uBaud)            ' Start serial port, transmit only to target 
-  cog := cognew(RX_from_Target, @uStack)  ' Start cog for target -> PC communication
-  u.Pause(50)                         ' Delay for cog setup
+  u.TXSEnable                               ' Enable level shifter outputs
+  PT_In.Init(uTXD, uBaud)                   ' Start serial port, receive only from target
+  PT_Out.Init(uRXD, uBaud)                  ' Start serial port, transmit only to target 
+  cog := cognew(RX_from_Target, @vBuf) + 1  ' Start cog for target -> PC communication
+  u.Pause(50)                               ' Delay for cog setup
   pst.Str(String(CR, LF, "Entering UART passthrough! Press Ctrl-X to abort...", CR, LF))
   
   pst.RxFlush
@@ -1680,7 +1678,7 @@ PRI UART_Passthrough | ch, cog    ' UART/terminal passthrough
     until (ch == CAN)
   
   ' Stop passthrough cogs
-  cogstop(cog)
+  cogstop(cog~ - 1)
   PT_Out.Cleanup     
   PT_In.Cleanup
 
