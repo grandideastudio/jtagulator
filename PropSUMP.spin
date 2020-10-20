@@ -485,7 +485,8 @@ samplerOff              RDLONG  t1,                 samplerRunningA     WZ
 samplerArm              MOVS    samplerTramp,       #samplerArmed1
 
                         MOV     samplerTargetA,     PAR                     
-                        ADD     samplerTargetA,     #SAMPLEBUFFER_OFF    ' point to the beginning of sampleBuffer
+                        ADD     samplerTargetA,     #SAMPLEBUFFER_OFF  
+                        RDLONG  samplerTargetA,     samplerTargetA       ' point to the beginning of sampleBuffer
                         
                         MOV     t1,                 PAR
                         ADD     t1,                 #DELAYPERIODS_OFF
