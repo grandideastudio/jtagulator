@@ -119,7 +119,7 @@ VAR                   ' Globally accessible variables
   
   long idMenu         ' Menu ID of currently active menu
 
-  long vBuf[sump#MAX_SAMPLE_PERIODS]   ' Buffer for general purpose data transfer 
+  long vBuf[sump#MAX_SAMPLE_PERIODS]   ' Buffer for data transfer 
 
   
 OBJ
@@ -1193,7 +1193,7 @@ PRI JTAG_OpenOCD(first_time) | ackbit   ' OpenOCD interface
       return
 
   longfill (@vBuf, 0, sump#MAX_SAMPLE_PERIODS)  ' Clear input buffer
-  ocd.Go(jTDI, jTDO, jTCK, jTMS, vBuf)
+  ocd.Go(jTDI, jTDO, jTCK, jTMS, @vBuf)
 
   ' Exit from logic analyzer mode
   pst.Start(115_200)     ' Re-start serial communications                                                                                    
@@ -1869,7 +1869,7 @@ PRI GPIO_Logic(first_time) | ackbit   ' Logic analyzer (OLS/SUMP)
     pst.Stop          ' Stop serial communications (this will be restarted from within the sump object)
 
   longfill (@vBuf, 0, sump#MAX_SAMPLE_PERIODS)  ' Clear input buffer
-  sump.Go(vBuf)
+  sump.Go(@vBuf)
 
   ' Exit from logic analyzer mode
   pst.Start(115_200)     ' Re-start serial communications                                                                                    
