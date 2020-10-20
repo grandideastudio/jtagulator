@@ -16,6 +16,7 @@ Release date: **xx**
 
 * SWD: Removed adjustable clock speed functionality (`C`). SWD clock defaults to 100kHz. Can be manually adjusted in `SWD_Init` from 1 to 300kHz.
 
+* General: Minor code optimizations.
 
 
 1.8
