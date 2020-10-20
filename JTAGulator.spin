@@ -2233,6 +2233,8 @@ PRI Get_Decimal_Pin : value | i       ' Get a decimal number from the user (incl
 
 
 PRI Get_Bit_Field(value, highBit, lowBit) : fieldVal | mask, bitnum    ' Return the bit field within a specified range. Based on a fork by Bob Heinemann (https://github.com/BobHeinemann/jtagulator/blob/master/JTAGulator.spin)
+  mask := 0
+
   repeat bitNum from lowBit to highBit
     mask |= |<bitNum
 
