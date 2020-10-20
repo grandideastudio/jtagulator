@@ -274,7 +274,7 @@ PUB Bypass_Test(num, bPattern) : value
   ' Shift in the 32-bit pattern
   ' Each device in the chain delays the data propagation by one clock cycle
   value := Send_Data(bPattern, 32 + num)
-  value ><= 32                ' Bitwise reverse since LSB came in first (we want MSB to be first)
+  value ><= 32     ' Bitwise reverse since LSB came in first (we want MSB to be first)
 
 
 PUB Get_Device_IDs(num, idptr) | data, i
@@ -469,15 +469,13 @@ PUB TCK_Pulse
   TDO_Read         ' Ignore the return value
 
     
-PUB TDO_Read : value | stamp
+PUB TDO_Read : value
 {
     Generate one TCK pulse. Read TDO inside the pulse.
     Expects TCK to be low upon being called.
 }
   outa[TCK] := 1              ' TCK high (target samples TMS and TDI, presents valid TDO, TAP state may change) 
-
-  value := ina[TDO]
-  
+  value := ina[TDO]  
   outa[TCK] := 0              ' TCK low 
   
 

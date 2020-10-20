@@ -198,7 +198,7 @@ PUB resetAndReadIdCode(pValue)
     RESULT := setupReadDP(DP_IDCODE, pValue)
 
     
-PUB readDP(address, pValue) : response | data
+PUB readDP(address, pValue) : response
 {
   Reads the specified Debug Port register.
   Parameters
@@ -214,7 +214,7 @@ PUB readDP(address, pValue) : response | data
     response := setupReadDP(address, pValue)
 
     
-PRI setupReadDP(address, pValue) : response | data
+PRI setupReadDP(address, pValue) : response
 {
   Setup to perform a read DP command. 
   Used to send a read DP command but also at the end of reset commands too to read IDCODE.

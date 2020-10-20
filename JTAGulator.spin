@@ -767,7 +767,7 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
   pst.Str(String(CR, LF, "BYPASS scan complete."))
 
 
-PRI IDCODE_Known | value, id[32 {jtag#MAX_DEVICES_LEN}], i, xtdi   ' Get JTAG Device IDs (Pinout already known)
+PRI IDCODE_Known | id[32 {jtag#MAX_DEVICES_LEN}], i, xtdi   ' Get JTAG Device IDs (Pinout already known)
   xtdi := jTDI   ' Save current value, if it exists
   
   if (Set_JTAG(0) == -1)  ' Ask user for the known JTAG pinout
@@ -1800,7 +1800,7 @@ PRI Monitor_IO_Pins | value, prev   ' Read all channels (input, continuous)
   pst.RxFlush
 
   
-PRI Write_IO_Pins : err | value, i, data     ' Write all channels (output)
+PRI Write_IO_Pins : err | value     ' Write all channels (output)
   pst.Str(String(CR, LF, "Enter value to output (in hex) ["))
   pst.Hex(gWriteValue, g#MAX_CHAN >> 2)  ' Display current value
   pst.Str(String("]: "))
