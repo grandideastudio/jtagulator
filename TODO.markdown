@@ -7,13 +7,7 @@ This is a list of features and/or additions we'd like to eventually build into t
 Bug Fixes
 ---------
 
-* Inconsistent IDCODE Scan and/or BYPASS Scan results on certain targets. Confirmed on HTC One X, Pogoplug, BeagleBone Black, and Arcadyan VGV7519. May be multiple issues or all due to a single root cause. [Issue #3](https://github.com/grandideastudio/jtagulator/issues/3) (in progress)
-
-
-General
--------
-
-* Compatibility w/ [OpenOCD](http://openocd.org): This would enable the JTAGulator to directly manipulate target devices once the interface is found (instead of having to disconnect the JTAGulator and connect other JTAG hardware to do the job like we have to do now). 
+* Inconsistent IDCODE Scan and/or BYPASS Scan results on certain targets. This is caused by the front end circuitry (input protection, level translators) affecting the target's signals. [Issue #3](https://github.com/grandideastudio/jtagulator/issues/3) (in progress)
 
 
 Protocols/Discovery
