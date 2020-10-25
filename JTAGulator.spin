@@ -50,6 +50,9 @@ CON
   ' Target voltage
   VTARGET_IO_MIN        = 14   ' Minimum target I/O voltage (VADJ) (for example, xy = x.yV)
   VTARGET_IO_MAX        = 33   ' Maximum target I/O voltage
+
+  ' JTAG
+  NUM_RTCK_ITERATIONS   = 100  ' Number of times to check for RTCK correlation from TCK
   
   ' UART/Asynchronous Serial
   MAX_LEN_UART_USER     = 34   ' Maximum length of user input string buffer (accounts for hexadecimal input of 16 bytes, \x00112233445566778899AABBCCDDEEFF)
@@ -268,6 +271,12 @@ PRI Do_JTAG_Menu(cmd)
        pst.Str(@ErrTargetIOVoltage)
       else
         BYPASS_Scan
+
+    "R", "r":                 ' Identify RTCK (Adaptive Clocking)
+      if (vTargetIO == -1)
+        pst.Str(@ErrTargetIOVoltage)
+      else
+        RTCK_Scan
             
     "D", "d":                 ' Get JTAG Device IDs (Pinout already known)
       if (vTargetIO == -1)
@@ -604,10 +613,12 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
 
   if (type == 0)  
     JTAG_Scan_Cleanup(num, 0, xtdo, xtck, xtms)  ' TDI isn't used during an IDCODE Scan 
-    pst.Str(@MsgIDCODEComplete)
+    pst.Str(String(CR, LF, "IDCODE"))
   else
     JTAG_Scan_Cleanup(num, xtdi, xtdo, xtck, xtms)
-    pst.Str(String(CR, LF, "JTAG scan complete."))
+    pst.Str(String(CR, LF, "JTAG"))
+
+  pst.Str(@MsgScanComplete)
 
          
 PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtck, xtms, tdiStart, tdiEnd, tdoStart, tdoEnd, tckStart, tckEnd, tmsStart, tmsEnd    ' Identify JTAG pinout (BYPASS Scan)
@@ -764,8 +775,91 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
     
   JTAG_Scan_Cleanup(num, xtdi, xtdo, xtck, xtms)
     
-  pst.Str(String(CR, LF, "BYPASS scan complete."))
+  pst.Str(String(CR, LF, "BYPASS"))
+  pst.Str(@MsgScanComplete)
 
+  
+PRI RTCK_Scan | ctr, num, matches, xtck, xrtck      '  Identify RTCK (Adaptive Clocking) 
+  if (Get_Channels(2) == -1)   ' Get the channel range to use
+    return
+  Display_Permutations((chEnd - chStart + 1), 2)  ' TCK, RTCK
+
+  if (Get_Settings == -1)      ' Get configurable scan settings
+    return
+    
+  pst.Str(@MsgPressSpacebarToBegin)
+  if (pst.CharIn <> " ")
+    pst.Str(@ErrRTCKAborted)
+    return
+
+  pst.Str(@MsgJTAGulating)
+  u.TXSEnable   ' Enable level shifter outputs
+  if (jPinsLow == 1)
+    u.Set_Pins_Low(chStart, chEnd)  ' Set current channel range to output LOW
+    u.Pause(jPinsLowDelay)          ' Delay to stay asserted
+         
+  num := 0      ' Counter of possibly good pinouts
+  ctr := 0      ' Counter of total loop iterations
+  repeat xtck from chStart to chEnd   ' For every possible pin permutation
+    repeat xrtck from chStart to chEnd
+      if (xtck == xrtck)
+        next
+
+      if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
+        pst.RxFlush
+        pst.Str(@ErrRTCKAborted)
+        return
+
+      u.Set_Pins_High(chStart, chEnd)       ' Set current channel range to output HIGH (in case there are active low signals that may affect operation, like SRST#)  
+      if (jPinsLow == 1)
+        u.Pause(jPinsHighDelay)               ' Delay after deassertion before proceeding 
+
+      u.Set_Pins_Input(chStart, chEnd)      ' Set current channel range to input (RTCK pulled HIGH may affect JTAG TAP functionality)
+
+{{
+
+                                         _____//_____
+TCK (from JTAGulator to target):  ______/            \__________  
+                                         |      |
+                                         |<---->| _____//_____
+RTCK (from target to JTAGulator):     ___|______|/            \__________
+
+                                           ^ Delay time varies with target
+}}
+      matches := 0
+      dira[xtck] := 1    ' Set current pin as output
+      outa[xtck] := 0
+      repeat NUM_RTCK_ITERATIONS
+        !outa[xtck]
+        u.Pause(10)        ' Delay for target to propagate signal from TCK to RTCK (if it exists)
+        if (outa[xtck] == ina[xrtck])      'Check if RTCK mirrors TCK
+          ++matches   
+
+      if (matches == NUM_RTCK_ITERATIONS)    ' Valid candidates should match 100% of the time
+        ++num
+
+        pst.Str(String(CR, LF, "TCK: "))
+        pst.Dec(xtck)
+
+        pst.Str(String(CR, LF, "RTCK: "))
+        pst.Dec(xrtck)
+  
+        pst.Str(String(CR, LF))
+          
+      ' Progress indicator
+      ++ctr
+      Display_Progress(ctr, 1)
+
+      if (jPinsLow == 1)
+        u.Set_Pins_Low(chStart, chEnd)  ' Set current channel range to output LOW
+        u.Pause(jPinsLowDelay)          ' Delay to stay asserted
+
+  if (num == 0)
+    pst.Str(@ErrNoDeviceFound)  
+  
+  pst.Str(String(CR, LF, "RTCK"))
+  pst.Str(@MsgScanComplete)
+ 
 
 PRI IDCODE_Known | id[32 {jtag#MAX_DEVICES_LEN}], i, xtdi   ' Get JTAG Device IDs (Pinout already known)
   xtdi := jTDI   ' Save current value, if it exists
@@ -1389,9 +1483,10 @@ PRI UART_Scan | value, baud_idx, i, j, ctr, num, display, xstr[MAX_LEN_UART_USER
     pst.Str(@ErrNoDeviceFound)
   UART_Scan_Cleanup(num, xtxd, xrxd, xbaud)
   
-  pst.Str(String(CR, LF, "UART scan complete."))  
+  pst.Str(String(CR, LF, "UART"))  
+  pst.Str(@MsgScanComplete)
 
-
+  
 PRI UART_Scan_TXD | value, baud_idx, i, t, num, display, data[MAX_LEN_UART_RX >> 2], xtxd, xbaud, loopquit, loopnum, numbaud, skip    ' Identify UART pinout (TXD only, user configurable)
   pst.Str(@MsgUARTPinout)
 
@@ -1619,8 +1714,9 @@ PRI UART_Scan_TXD | value, baud_idx, i, t, num, display, data[MAX_LEN_UART_RX >>
     pst.Str(@ErrNoDeviceFound)
   UART_Scan_Cleanup(num, xtxd, 0, xbaud)  ' RXD isn't used in this command
 
-  pst.Str(String(CR, LF, "UART TXD scan complete."))
-  
+  pst.Str(String(CR, LF, "UART TXD"))
+  pst.Str(@MsgScanComplete)
+
     
 PRI UART_Passthrough | ch, cog    ' UART/terminal passthrough
   pst.Str(@MsgUARTPinout)
@@ -1917,7 +2013,7 @@ PRI SWD_IDCODE_Scan | response, idcode, ctr, num, xclk, xio     ' Identify SWD p
          
   swd.init      ' Initialize SWD host module
   num := 0      ' Counter of possibly good pinouts
-  ctr := 0      ' Counter of total loop iterataions.
+  ctr := 0      ' Counter of total loop iterations
   repeat swdClk from chStart to chEnd   ' For every possible pin permutation
     repeat swdIo from chStart to chEnd
       if (swdIo == swdClk)
@@ -1963,8 +2059,9 @@ PRI SWD_IDCODE_Scan | response, idcode, ctr, num, xclk, xio     ' Identify SWD p
     pst.Str(@ErrNoDeviceFound)  
   SWD_Scan_Cleanup(num, xclk, xio)
   
-  pst.Str(@MsgIDCODEComplete)
-
+  pst.Str(String(CR, LF, "IDCODE"))
+  pst.Str(@MsgScanComplete)
+  
 
 PRI SWD_IDCODE_Known | response, idcode   ' Get SWD Device ID (Pinout already known)
   pst.Str(@MsgSWDWarning)
@@ -2115,7 +2212,7 @@ PRI Set_Target_IO_Voltage | value
     pst.Str(String(CR, LF, "Warning: Ensure VADJ is NOT connected to target!"))
 
 
-PRI Get_Settings : err | value     ' Get user-configurable settings used in IDCODE_Scan and BYPASS_Scan
+PRI Get_Settings : err | value     ' Get user-configurable settings used in IDCODE and BYPASS Scans
   pst.Str(String(CR, LF, LF, "Bring channels LOW between each permutation? ["))
   if (jPinsLow == 0)
     pst.Str(String("y/N]: "))
@@ -2364,6 +2461,7 @@ MenuJTAG      byte CR, LF, "JTAG Commands:", CR, LF
               byte "J   Identify JTAG pinout", CR, LF
               byte "I   Identify JTAG pinout (IDCODE Scan)", CR, LF
               byte "B   Identify JTAG pinout (BYPASS Scan)", CR, LF
+              byte "R   Identify RTCK (Adaptive Clocking)", CR, LF
               byte "D   Get Device ID(s)", CR, LF
               byte "T   Test BYPASS (TDI to TDO)", CR, LF
               byte "Y   Instruction/Data Register (IR/DR) discovery", CR, LF
@@ -2394,10 +2492,11 @@ CharProgress  byte "-", 0   ' Character used for progress indicator
 ' Any messages repeated more than once are placed here to save space
 MsgPressSpacebarToBegin     byte CR, LF, "Press spacebar to begin (any other key to abort)...", 0 
 MsgJTAGulating              byte CR, LF, "JTAGulating! Press any key to abort...", CR, LF, 0
-MsgIDCODEComplete           byte CR, LF, "IDCODE scan complete.", 0
+MsgDevicesDetected          byte "Number of devices detected: ", 0
+
+MsgScanComplete             byte " scan complete.", 0
 MsgIDCODEDisplayComplete    byte CR, LF, "IDCODE listing complete.", 0
 MsgUARTPinout               byte CR, LF, "UART pin naming is from the target's perspective.", 0
-MsgDevicesDetected          byte "Number of devices detected: ", 0
 
 MsgSWDWarning               byte CR, LF, "Warning: JTAGulator HW Rev. B and earlier have compatibility issues w/"
                             byte CR, LF, "many SWD-based target devices. Detection results may be affected.", CR, LF, 0
@@ -2415,8 +2514,9 @@ ErrNoDeviceFound            byte CR, LF, "No target device(s) found!", 0
 ErrJTAGAborted              byte CR, LF, "JTAG scan aborted!", 0
 ErrIDCODEAborted            byte CR, LF, "IDCODE scan aborted!", 0
 ErrBYPASSAborted            byte CR, LF, "BYPASS scan aborted!", 0
-ErrDiscoveryAborted         byte CR, LF, "IR/DR discovery aborted!", 0
+ErrRTCKAborted              byte CR, LF, "RTCK scan aborted!", 0
 ErrUARTAborted              byte CR, LF, "UART scan aborted!", 0
+ErrDiscoveryAborted         byte CR, LF, "IR/DR discovery aborted!", 0
          
 ' Look-up table to correlate actual I/O voltage to DAC value
 ' Full DAC range is 0 to 3.3V @ 256 steps = 12.89mV/step
