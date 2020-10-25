@@ -54,7 +54,7 @@ PUB TXSDisable     ' Disable level shifter outputs (high impedance)
   outa[g#TXS_OE] := 0
 
 
-PUB Set_Pins_High(start_ch, end_ch) | i     ' Set range of channels to output HIGH
+PUB Set_Pins_High(start_ch, end_ch) | i    ' Set range of channels to output HIGH
   repeat i from start_ch to end_ch
     dira[i] := 1
     outa[i] := 1
@@ -65,7 +65,11 @@ PUB Set_Pins_Low(start_ch, end_ch) | i     ' Set range of channels to output LOW
     dira[i] := 1
     outa[i] := 0
 
+    
+PUB Set_Pins_Input(start_ch, end_ch) | i   ' Set range of channels to input
+  repeat i from start_ch to end_ch
+    dira[i] := 0
+    
 
 PUB Pause(ms)
   waitcnt(clkfreq / 1000 * ms + cnt)
-
