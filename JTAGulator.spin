@@ -52,7 +52,7 @@ CON
   VTARGET_IO_MAX        = 33   ' Maximum target I/O voltage
 
   ' JTAG
-  NUM_RTCK_ITERATIONS   = 100  ' Number of times to check for RTCK correlation from TCK
+  NUM_RTCK_ITERATIONS   = 10   ' Number of times to check for RTCK correlation from TCK
   
   ' UART/Asynchronous Serial
   MAX_LEN_UART_USER     = 34   ' Maximum length of user input string buffer (accounts for hexadecimal input of 16 bytes, \x00112233445566778899AABBCCDDEEFF)
@@ -453,7 +453,7 @@ PRI JTAG_Init
   jPinsLowDelay := 100
   jPinsHighDelay := 100
   
-  ' BYPASS_Scan
+  ' BYPASS_Scan, RTCK_Scan
   jPinsKnown := 0
 
   ' OPCODE_Discovery
@@ -610,6 +610,7 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
 
   if (num == 0)
     pst.Str(@ErrNoDeviceFound)
+    jPinsKnown := 0
 
   if (type == 0)  
     JTAG_Scan_Cleanup(num, 0, xtdo, xtck, xtms)  ' TDI isn't used during an IDCODE Scan 
@@ -622,12 +623,13 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
 
          
 PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtck, xtms, tdiStart, tdiEnd, tdoStart, tdoEnd, tckStart, tckEnd, tmsStart, tmsEnd    ' Identify JTAG pinout (BYPASS Scan)
-  if (Get_Channels(4) == -1)   ' Get the channel range to use
+  num := 4   ' Number of pins needed to locate (TDI, TDO, TCK, TMS)
+
+  if (Get_Channels(num) == -1)   ' Get the channel range to use
     return
 
   tdiStart := tdoStart := tmsStart := tckStart := chStart   ' Set default start and end channels
   tdiEnd := tdoEnd := tmsEnd := tckEnd := chEnd
-  num := 4   ' Number of pins needed to locate (TDI, TDO, TCK, TMS)
     
   pst.Str(String(CR, LF, "Are any pins already known? ["))
   if (jPinsKnown == 0)
@@ -729,6 +731,8 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
             if (data_in == data_out)   ' If match, then continue with this current pinout  
               Display_JTAG_Pins          ' Display pinout
               num += 1                   ' Increment counter
+              jPinsKnown := 1            ' Enable known pins flag   
+
               xtdi := jTDI               ' Keep track of most recent detection results
               xtdo := jTDO                        
               xtck := jTCK
@@ -772,6 +776,7 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
           
   if (num == 0)
     pst.Str(@ErrNoDeviceFound)
+    jPinsKnown := 0
     
   JTAG_Scan_Cleanup(num, xtdi, xtdo, xtck, xtms)
     
@@ -779,11 +784,54 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
   pst.Str(@MsgScanComplete)
 
   
-PRI RTCK_Scan | ctr, num, matches, xtck, xrtck      '  Identify RTCK (Adaptive Clocking) 
-  if (Get_Channels(2) == -1)   ' Get the channel range to use
-    return
-  Display_Permutations((chEnd - chStart + 1), 2)  ' TCK, RTCK
+PRI RTCK_Scan | ctr, num, known, matches, xtck, xrtck, tckStart, tckEnd      '  Identify RTCK (Adaptive Clocking) 
+  num := 2   ' Number of pins needed to locate (TCK, RTCK)
 
+  if (Get_Channels(num) == -1)   ' Get the channel range to use
+    return
+
+  tckStart := chStart   ' Set default start and end channels
+  tckEnd := chEnd
+
+  known := jPinsKnown
+  pst.Str(String(CR, LF, "Is TCK already known? ["))
+  if (known == 0)
+    pst.Str(String("y/N]: "))
+  else
+    pst.Str(String("Y/n]: "))  
+  pst.StrInMax(@vCmd,  MAX_LEN_CMD) ' Wait here to receive a carriage return terminated string or one of MAX_LEN_CMD bytes (the result is null terminated) 
+  if (strsize(@vCmd) =< 1)            ' We're only looking for a single character (or NULL, which will have a string size of 0)
+    case vCmd[0]                        ' Check the first character of the input string
+      0:                                ' The user only entered a CR, so keep the same value and pass through.
+      "N", "n":
+        known := 0                      ' Disable flag                
+      "Y", "y":                         ' If the user wants to use a partial pinout
+        known := 1                      ' Enable flag
+      other:                            ' Any other key causes an error
+        pst.Str(@ErrOutOfRange)
+        return
+  else
+    pst.Str(@ErrOutOfRange)
+    return
+
+  if (known == 1)
+    pst.Str(String(CR, LF, "Enter X if pin is unknown."))
+    pst.Str(String(CR, LF, "Enter TCK pin ["))
+    pst.Dec(jTCK)               ' Display current value
+    pst.Str(String("]: "))
+    xtck := Get_Pin             ' Get new value from user
+    if (xtck == -1)             ' If carriage return was pressed...      
+      xtck := jTCK                ' Keep current setting
+    if (xtck < -2) or (xtck > chEnd)   ' If entered value is out of range, abort
+      pst.Str(@ErrOutOfRange)
+      return -1
+
+    if (xtck <> -2)
+      tckStart := tckEnd := xtck
+      num -= 1
+
+  Display_Permutations((chEnd - chStart + 1) - (2 - num), num)  ' calculate number of permutations, accounting for any known channels
+  
   if (Get_Settings == -1)      ' Get configurable scan settings
     return
     
@@ -800,7 +848,7 @@ PRI RTCK_Scan | ctr, num, matches, xtck, xrtck      '  Identify RTCK (Adaptive C
          
   num := 0      ' Counter of possibly good pinouts
   ctr := 0      ' Counter of total loop iterations
-  repeat xtck from chStart to chEnd   ' For every possible pin permutation
+  repeat xtck from tckStart to tckEnd   ' For every possible pin permutation
     repeat xrtck from chStart to chEnd
       if (xtck == xrtck)
         next
@@ -837,7 +885,7 @@ RTCK (from target to JTAGulator):     ___|______|/            \__________
 
       if (matches == NUM_RTCK_ITERATIONS)    ' Valid candidates should match 100% of the time
         ++num
-
+        
         pst.Str(String(CR, LF, "TCK: "))
         pst.Dec(xtck)
 
@@ -848,15 +896,16 @@ RTCK (from target to JTAGulator):     ___|______|/            \__________
           
       ' Progress indicator
       ++ctr
-      Display_Progress(ctr, 1)
-
-      if (jPinsLow == 1)
+      if (jPinsLow == 0)
+        Display_Progress(ctr, 10)
+      else
+        Display_Progress(ctr, 1) 
         u.Set_Pins_Low(chStart, chEnd)  ' Set current channel range to output LOW
         u.Pause(jPinsLowDelay)          ' Delay to stay asserted
 
   if (num == 0)
-    pst.Str(@ErrNoDeviceFound)  
-  
+    pst.Str(@ErrNoDeviceFound)
+
   pst.Str(String(CR, LF, "RTCK"))
   pst.Str(@MsgScanComplete)
  
@@ -881,6 +930,7 @@ PRI IDCODE_Known | id[32 {jtag#MAX_DEVICES_LEN}], i, xtdi   ' Get JTAG Device ID
     
   if (i == 0)
     pst.Str(@ErrNoDeviceFound)
+    jPinsKnown := 0
          
   jTDI := xtdi   ' Set TDI back to its current value, if it exists (it was set to a temporary pin value to avoid contention)
   pst.Str(@MsgIDCODEDisplayComplete)
@@ -900,6 +950,7 @@ PRI BYPASS_Known | num, dataIn, dataOut   ' Test BYPASS (TDI to TDO) (Pinout alr
   pst.Dec(num)
   if (num == 0)
     pst.Str(@ErrNoDeviceFound)
+    jPinsKnown := 0
     return
   
   dataIn := rr.random                         ' Get 32-bit random number to use as the BYPASS pattern
@@ -949,6 +1000,7 @@ PRI OPCODE_Discovery | num, ctr, irLen, drLen, opcode_max, opcodeH, opcodeL, opc
   num := jtag.Detect_Devices                  ' Get number of devices in the chain
   if (num == 0)
     pst.Str(@ErrNoDeviceFound)
+    jPinsKnown := 0
     return
   elseif (num > 1)
     pst.Str(String(CR, LF, "Too many devices in the chain!"))
@@ -1481,6 +1533,7 @@ PRI UART_Scan | value, baud_idx, i, j, ctr, num, display, xstr[MAX_LEN_UART_USER
 
   if (num == 0)
     pst.Str(@ErrNoDeviceFound)
+    
   UART_Scan_Cleanup(num, xtxd, xrxd, xbaud)
   
   pst.Str(String(CR, LF, "UART"))  
@@ -1712,6 +1765,7 @@ PRI UART_Scan_TXD | value, baud_idx, i, t, num, display, data[MAX_LEN_UART_RX >>
         
   if (num == 0)
     pst.Str(@ErrNoDeviceFound)
+    
   UART_Scan_Cleanup(num, xtxd, 0, xbaud)  ' RXD isn't used in this command
 
   pst.Str(String(CR, LF, "UART TXD"))
@@ -2056,7 +2110,8 @@ PRI SWD_IDCODE_Scan | response, idcode, ctr, num, xclk, xio     ' Identify SWD p
         u.Pause(jPinsLowDelay)          ' Delay to stay asserted
 
   if (num == 0)
-    pst.Str(@ErrNoDeviceFound)  
+    pst.Str(@ErrNoDeviceFound)
+      
   SWD_Scan_Cleanup(num, xclk, xio)
   
   pst.Str(String(CR, LF, "IDCODE"))
@@ -2461,7 +2516,7 @@ MenuJTAG      byte CR, LF, "JTAG Commands:", CR, LF
               byte "J   Identify JTAG pinout", CR, LF
               byte "I   Identify JTAG pinout (IDCODE Scan)", CR, LF
               byte "B   Identify JTAG pinout (BYPASS Scan)", CR, LF
-              byte "R   Identify RTCK (Adaptive Clocking)", CR, LF
+              byte "R   Identify RTCK (adaptive clocking)", CR, LF
               byte "D   Get Device ID(s)", CR, LF
               byte "T   Test BYPASS (TDI to TDO)", CR, LF
               byte "Y   Instruction/Data Register (IR/DR) discovery", CR, LF
