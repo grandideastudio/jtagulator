@@ -13,10 +13,6 @@ Bug Fixes
 Protocols/Discovery
 -------------------
 
-* JTAG: RTCK pin detection (adaptive clocking)
-
-* JTAG: Compact JTAG aka cJTAG (IEEE 1149.7) [Issue #13](https://github.com/grandideastudio/jtagulator/issues/13)
-
 * UART: Automatic baud rate detection for UART Scan
 
 

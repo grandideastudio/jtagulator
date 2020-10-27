@@ -8,7 +8,11 @@ Visit the JTAGulator [GitHub repository](https://github.com/grandideastudio/jtag
 ---
 Release date: **xx**
 
-* Nothing yet.
+* JTAG: Added RTCK Scan (`R`) for [adaptive clocking](https://developer.arm.com/documentation/dui0517/h/rvi-debug-unit-system-design-guidelines/using-adaptive-clocking-to-synchronize-the-jtag-port?lang=en) discovery. RTCK (return test clock) is implemented by synthesizable CPU cores that need to synchronize an external JTAG hardware adapter's test clock (TCK) with their own internal core clock (thanks to Bryan Angelo).
+
+* JTAG: Fixed JTAG Scan (`J`) to check for nTRST when TDI is connected to channel 0.
+ 
+* General: Minor code modifications and cleanup.
 
 
 1.9
@@ -23,7 +27,7 @@ Release date: **October 21, 2020**
 
 * SWD: Removed adjustable clock speed functionality (`C`). SWD clock defaults to 100kHz. Can be manually adjusted in `SWD_Init` from 1 to 300kHz.
 
-* General: Minor code code cleanup and optimizations.
+* General: Minor code cleanup and optimizations.
 
 
 1.8
@@ -172,7 +176,7 @@ Release date: **August 7, 2014**
 
 * Added support for detecting the optional JTAG nTRST pin. This pin is often pulled low on target systems, which will intentionally disable the JTAG interface. If it isn't one of the pins connected to the JTAGulator, the interface might not be discovered.
 
-* Fixed/modified JTAG routines to more closely conform to the IEEE 1149.1 specification (thanks to Bryan Angelo @ Qualcomm).
+* Fixed/modified JTAG routines to more closely conform to the IEEE 1149.1 specification (thanks to Bryan Angelo).
 
 * Added extended IDCODE decoding based on IEEE 1149.1 specification for easier/quicker identification of manufacturer, part number, and version (thanks to Bob Heinemann).
 
