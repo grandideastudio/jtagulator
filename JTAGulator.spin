@@ -558,7 +558,7 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
                   Display_Device_ID(id[i], i + 1, 0)       ' Display Device ID of current device (without details)
                 quit                              ' Break out of the search for TDI and continue... 
               else
-                xtdi := 0
+                xtdi := -1
                   
               ' Progress indicator
               ++ctr
@@ -569,7 +569,7 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
                 u.Set_Pins_Low(chStart, chEnd)  ' Set current channel range to output LOW
                 u.Pause(jPinsLowDelay)          ' Delay to stay asserted
 
-          if (type == 0) or (type == 1 and xtdi <> 0)     
+          if (type == 0) or (type == 1 and xtdi <> -1)     
             ' Now try to determine if the TRST# pin is being used on the target
             repeat jTRST from chStart to chEnd     ' For every remaining channel...
               if (jTRST == jTMS) or (jTRST == jTCK) or (jTRST == jTDO) or (jTRST == jTDI)
