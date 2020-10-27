@@ -585,6 +585,12 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
                   pst.Str(@ErrJTAGAborted)
                 return
 
+              u.Set_Pins_High(chStart, chEnd)       ' Set current channel range to output HIGH (in case there are active low signals that may affect operation, like SRST#)  
+              if (jPinsLow == 1)
+                u.Pause(jPinsHighDelay)               ' Delay after deassertion before proceeding
+              
+              jtag.Config(jTDI, jTDO, jTCK, jTMS)   ' Re-configure JTAG
+              
               dira[jTRST] := 1  ' Set current pin to output
               outa[jTRST] := 0  ' Output LOW
               u.Pause(100)      ' Give target time to react
@@ -593,10 +599,17 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
               if (value_new <> id[0])             ' If the new value doesn't match what we already have, then the current pin may be a reset line.
                 pst.Str(String("TRST#: "))          ' Display the pin number
                 pst.Dec(jTRST)
-                pst.Str(String(CR, LF))
+                pst.Str(String(CR, LF))                        
 
-              outa[jTRST] := 1  ' Bring the current pin HIGH when done          
-
+              ' Progress indicator
+              ++ctr
+              if (jPinsLow == 0)
+                Display_Progress(ctr, 100)
+              else
+                Display_Progress(ctr, 1) 
+                u.Set_Pins_Low(chStart, chEnd)  ' Set current channel range to output LOW
+                u.Pause(jPinsLowDelay)          ' Delay to stay asserted
+                      
             pst.Str(String(CR, LF))
 
         ' Progress indicator
@@ -738,6 +751,10 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
               xtck := jTCK
               xtms := jTMS 
 
+              if (jPinsLow == 1)
+                u.Set_Pins_Low(chStart, chEnd)  ' Set current channel range to output LOW
+                u.Pause(jPinsLowDelay)          ' Delay to stay asserted
+                 
               ' Now try to determine if the TRST# pin is being used on the target
               repeat jTRST from chStart to chEnd     ' For every remaining channel...
                 if (jTRST == jTMS) or (jTRST == jTCK) or (jTRST == jTDO) or (jTRST == jTDI)
@@ -748,18 +765,31 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
                   pst.RxFlush
                   pst.Str(@ErrBYPASSAborted)
                   return
-               
+
+                u.Set_Pins_High(chStart, chEnd)       ' Set current channel range to output HIGH (in case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#)
+                if (jPinsLow == 1)
+                  u.Pause(jPinsHighDelay)               ' Delay after deassertion before proceeding
+          
+                jtag.Config(jTDI, jTDO, jTCK, jTMS)     ' Re-configure JTAG
+                         
                 dira[jTRST] := 1  ' Set current pin to output
                 outa[jTRST] := 0  ' Output LOW
                 u.Pause(100)      ' Give target time to react
                 
                 value_new := jtag.Detect_Devices
                 if (value_new <> value) and (value_new =< jtag#MAX_DEVICES_LEN)    ' If the new value doesn't match what we already have, then the current pin may be a reset line.
-                  pst.Str(String("TRST#: "))    ' So, display the pin number
+                  pst.Str(String("TRST#: "))    ' Display the pin number
                   pst.Dec(jTRST)
                   pst.Str(String(CR, LF))
                      
-                outa[jTRST] := 1  ' Bring the current pin HIGH when done
+                ' Progress indicator
+                ++ctr
+                if (jPinsLow == 0)
+                  Display_Progress(ctr, 10)
+                else
+                  Display_Progress(ctr, 1) 
+                  u.Set_Pins_Low(chStart, chEnd)  ' Set current channel range to output LOW
+                  u.Pause(jPinsLowDelay)          ' Delay to stay asserted
             
               pst.Str(@MsgDevicesDetected)
               pst.Dec(value)
