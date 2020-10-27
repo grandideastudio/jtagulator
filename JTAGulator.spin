@@ -563,9 +563,9 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
               ' Progress indicator
               ++ctr
               if (jPinsLow == 0)
-                Display_Progress(ctr, 100)
+                Display_Progress(ctr, 100, 1)
               else
-                Display_Progress(ctr, 1) 
+                Display_Progress(ctr, 1, 1) 
                 u.Set_Pins_Low(chStart, chEnd)  ' Set current channel range to output LOW
                 u.Pause(jPinsLowDelay)          ' Delay to stay asserted
 
@@ -604,9 +604,9 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
               ' Progress indicator
               ++ctr
               if (jPinsLow == 0)
-                Display_Progress(ctr, 100)
+                Display_Progress(ctr, 100, 0)
               else
-                Display_Progress(ctr, 1) 
+                Display_Progress(ctr, 1, 0) 
                 u.Set_Pins_Low(chStart, chEnd)  ' Set current channel range to output LOW
                 u.Pause(jPinsLowDelay)          ' Delay to stay asserted
                       
@@ -615,9 +615,9 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
         ' Progress indicator
         ++ctr
         if (jPinsLow == 0)
-          Display_Progress(ctr, 100)
+          Display_Progress(ctr, 100, 1)
         else
-          Display_Progress(ctr, 1) 
+          Display_Progress(ctr, 1, 1) 
           u.Set_Pins_Low(chStart, chEnd)  ' Set current channel range to output LOW
           u.Pause(jPinsLowDelay)          ' Delay to stay asserted
 
@@ -785,9 +785,9 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
                 ' Progress indicator
                 ++ctr
                 if (jPinsLow == 0)
-                  Display_Progress(ctr, 10)
+                  Display_Progress(ctr, 10, 0)
                 else
-                  Display_Progress(ctr, 1) 
+                  Display_Progress(ctr, 1, 0) 
                   u.Set_Pins_Low(chStart, chEnd)  ' Set current channel range to output LOW
                   u.Pause(jPinsLowDelay)          ' Delay to stay asserted
             
@@ -798,9 +798,9 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
         ' Progress indicator
           ++ctr
           if (jPinsLow == 0)
-            Display_Progress(ctr, 10)
+            Display_Progress(ctr, 10, 1)
           else
-            Display_Progress(ctr, 1) 
+            Display_Progress(ctr, 1, 1) 
             u.Set_Pins_Low(chStart, chEnd)  ' Set current channel range to output LOW
             u.Pause(jPinsLowDelay)          ' Delay to stay asserted
           
@@ -926,9 +926,9 @@ RTCK (from target to JTAGulator):     ___|______|/            \__________
       ' Progress indicator
       ++ctr
       if (jPinsLow == 0)
-        Display_Progress(ctr, 10)
+        Display_Progress(ctr, 10, 1)
       else
-        Display_Progress(ctr, 1) 
+        Display_Progress(ctr, 1, 1) 
         u.Set_Pins_Low(chStart, chEnd)  ' Set current channel range to output LOW
         u.Pause(jPinsLowDelay)          ' Delay to stay asserted
 
@@ -1079,7 +1079,7 @@ PRI OPCODE_Discovery | num, ctr, irLen, drLen, opcode_max, opcodeH, opcodeL, opc
 
       ' Progress indicator
       ++ctr
-      Display_Progress(ctr, 32)
+      Display_Progress(ctr, 32, 1)
 
   jtag.Restore_Idle   ' Reset JTAG TAP to Run-Test-Idle state
   pst.Str(String(CR, LF, "IR/DR discovery complete."))
@@ -1558,7 +1558,7 @@ PRI UART_Scan | value, baud_idx, i, j, ctr, num, display, xstr[MAX_LEN_UART_USER
 
     ' Progress indicator
       ++ctr
-      Display_Progress(ctr, 1) 
+      Display_Progress(ctr, 1, 1) 
 
   if (num == 0)
     pst.Str(@ErrNoDeviceFound)
@@ -1751,7 +1751,7 @@ PRI UART_Scan_TXD | value, baud_idx, i, t, num, display, data[MAX_LEN_UART_RX >>
                 quit
          
           ' Progress indicator
-          Display_Progress(1, 1)  ' Change after each baud rate attempt
+          Display_Progress(1, 1, 1)  ' Change after each baud rate attempt
 
           if (i > 0)                           ' If we've received any data...
             display := 1                         ' Set flag to display all data by default
@@ -2132,9 +2132,9 @@ PRI SWD_IDCODE_Scan | response, idcode, ctr, num, xclk, xio     ' Identify SWD p
       ' Progress indicator
       ++ctr
       if (jPinsLow == 0)
-        Display_Progress(ctr, 30)
+        Display_Progress(ctr, 30, 1)
       else
-        Display_Progress(ctr, 1) 
+        Display_Progress(ctr, 1, 1) 
         u.Set_Pins_Low(chStart, chEnd)  ' Set current channel range to output LOW
         u.Pause(jPinsLowDelay)          ' Delay to stay asserted
 
@@ -2454,10 +2454,11 @@ PRI Display_Target_IO_Voltage
     pst.Dec(vTargetIO // 10)
 
 
-PRI Display_Progress(ctr, mod)      ' Display a progress indicator during JTAGulation (every mod counts)
-  if ((ctr // mod) == 0)   
-    pst.Str(@CharProgress)    ' Print character
+PRI Display_Progress(ctr, mod, char)      ' Display a progress indicator during JTAGulation (every mod counts)
+  if ((ctr // mod) == 0)
     !outa[g#LED_G]            ' Toggle LED between red and yellow
+    if (char <> 0)   
+      pst.Str(@CharProgress)    ' Print character
 
 
 PRI Display_Binary(data, len) | mod, count 
