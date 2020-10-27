@@ -860,10 +860,8 @@ PRI RTCK_Scan | ctr, num, known, matches, xtck, xrtck, tckStart, tckEnd      '  
 
       u.Set_Pins_High(chStart, chEnd)       ' Set current channel range to output HIGH (in case there are active low signals that may affect operation, like SRST#)  
       if (jPinsLow == 1)
-        u.Pause(jPinsHighDelay)               ' Delay after deassertion before proceeding 
-
-      u.Set_Pins_Input(chStart, chEnd)      ' Set current channel range to input (RTCK pulled HIGH may affect JTAG TAP functionality)
-
+        u.Pause(jPinsHighDelay)               ' Delay after deassertion before proceeding
+         
 {{
 
                                          _____//_____
@@ -875,6 +873,7 @@ RTCK (from target to JTAGulator):     ___|______|/            \__________
                                            ^ Delay time varies with target
 }}
       matches := 0
+      dira[xrtck] := 0   ' Set current pin as input
       dira[xtck] := 1    ' Set current pin as output
       outa[xtck] := 0
       repeat NUM_RTCK_ITERATIONS
