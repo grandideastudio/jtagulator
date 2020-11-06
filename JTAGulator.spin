@@ -1837,6 +1837,7 @@ PRI UART_Scan_Autobaud | i, t, ctr, num, PulseData[24 {g#MAX_CHAN} << 1], indexL
 
   num := 0   ' Counter of possible pinouts
   xtxd := xbaud := 0
+  longfill(@MinimumPulseOld, $7FFFFFFF, g#MAX_CHAN)
   repeat until (pst.RxEmpty == 0)  
     {
       Every time a pulse ends, the pulse time will automatically be recorded in the
@@ -1844,54 +1845,22 @@ PRI UART_Scan_Autobaud | i, t, ctr, num, PulseData[24 {g#MAX_CHAN} << 1], indexL
       A full transition (low-high-low or high-low-high) is required before a time is reported.
       PulseData retains the last detected pulse and is not cleared when/if the data stops.  
     }
-    longfill(@MinimumPulseOld, $7FFFFFFF, g#MAX_CHAN)    
     repeat uTXD from chStart to chEnd  ' Only display the desired channels...
       indexLow := uTXD << 1
       indexHigh := indexLow + 1
                        
-      MinimumPulse[uTXD] := PulseData[indexLow] <# PulseData[indexHigh]     ' update entry with the minimum measured pulse (in clock ticks)
+      MinimumPulse[uTXD] := PulseData[indexLow] <# PulseData[indexHigh]     ' Update entry with the minimum measured pulse (in clock ticks)
 
-      if (MinimumPulse[uTXD] > 0 and MinimumPulseOld[uTXD] <> MinimumPulse[uTXD])  ' if we've detected a pulse on the channel, assume it represents the minimum bit width of a UART signal
+      if (MinimumPulse[uTXD] > 0) and (MinimumPulseOld[uTXD] <> MinimumPulse[uTXD])  ' If we've detected a pulse on the channel, assume it represents the minimum bit width of a UART signal
         MinimumPulseOld[uTXD] := MinimumPulse[uTXD]
-        t := clkfreq / MinimumPulse[uTXD]  ' temporarily store the measured baud rate
+        t := clkfreq / MinimumPulse[uTXD]  ' Temporarily store the measured baud rate
+        uBaud := UART_Best_Fit(t)          ' Locate best fit value for measured baud rate (if it exists)
 
-        'Locate best fit value for measured baud rate (if it exists)
-        uBaud := 0
-        case t          ' +/- 5% tolerance
-          104..116         : uBaud := 110
-          285..315         : uBaud := 300
-          570..630         : uBaud := 600
-          1140..1260       : uBaud := 1200
-          1710..1890       : uBaud := 1800
-          2280..2520       : uBaud := 2400
-          3420..3780       : uBaud := 3600
-          4560..5040       : uBaud := 4800
-          6840..7560       : uBaud := 7200
-          9120..10080      : uBaud := 9600
-          13680..15120     : uBaud := 14400
-          18240..20160     : uBaud := 19200
-          27360..30240     : uBaud := 28800
-          29687..32813     : uBaud := 31250
-          36480..40320     : uBaud := 38400
-          54720..60480     : uBaud := 57600
-          72960..80640     : uBaud := 76800
-          109440..120960   : uBaud := 115200
-          145920..161280   : uBaud := 153600
-          218880..241920   : uBaud := 230400
-          437760..483840   : uBaud := 460800
-          875520..967680   : uBaud := 921600
-          912000..1008000  : uBaud := 960000
-          950000..1050000  : uBaud := 1000000
-          1140000..1260000 : uBaud := 1200000
-          1425000..1575000 : uBaud := 1500000
-          1900000..2100000 : uBaud := 2000000
-          2850000..3150000 : uBaud := 3000000
-
+        Display_UART_Pins(1, t)
+        
         num += 1                 ' Increment counter
         xtxd := uTXD             ' Keep track of most recent detection results
         xbaud := uBaud
-
-        Display_UART_Pins(1, t)
         
 {{        
           UART.Start(|<uTXD, |<uRXD, uBaud)  ' Configure UART
@@ -1941,6 +1910,39 @@ PRI UART_Scan_Autobaud | i, t, ctr, num, PulseData[24 {g#MAX_CHAN} << 1], indexL
   pst.Str(String(CR, LF, "UART TXD"))
   pst.Str(@MsgScanComplete)
 
+
+PRI UART_Best_Fit(actual) : bestfit    ' Locate best fit value for measured baud rate (if it exists, return 0 otherwise)
+  case actual                          ' +/- 5% tolerance unless otherwise noted
+    104..116         : bestfit := 110
+    285..315         : bestfit := 300
+    570..630         : bestfit := 600
+    1140..1260       : bestfit := 1200
+    1710..1890       : bestfit := 1800
+    2280..2520       : bestfit := 2400
+    3420..3780       : bestfit := 3600
+    4560..5040       : bestfit := 4800
+    6840..7560       : bestfit := 7200
+    9120..10080      : bestfit := 9600
+    13680..15120     : bestfit := 14400
+    18240..20160     : bestfit := 19200
+    27360..30240     : bestfit := 28800
+    30241..32813     : bestfit := 31250      ' - reduced
+    36480..40320     : bestfit := 38400
+    54720..60480     : bestfit := 57600
+    72960..80640     : bestfit := 76800
+    109440..120960   : bestfit := 115200
+    145920..161280   : bestfit := 153600
+    218880..241920   : bestfit := 230400
+    241921..262500   : bestfit := 250000     ' - reduced
+    437760..483840   : bestfit := 460800
+    875520..949248   : bestfit := 921600     ' + 3%
+    949249..988800   : bestfit := 960000     ' +/- 3%
+    988801..1050000  : bestfit := 1000000    ' - reduced
+    1140000..1260000 : bestfit := 1200000
+    1425000..1575000 : bestfit := 1500000
+    1900000..2100000 : bestfit := 2000000
+    2850000..3150000 : bestfit := 3000000
+  
     
 PRI UART_Passthrough | ch, cog    ' UART/terminal passthrough
   pst.Str(@MsgUARTPinout)
