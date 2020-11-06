@@ -58,6 +58,7 @@ CON
   MAX_LEN_UART_USER     = 34   ' Maximum length of user input string buffer (accounts for hexadecimal input of 16 bytes, \x00112233445566778899AABBCCDDEEFF)
   MAX_LEN_UART_TX       = 16   ' Maximum number of bytes to transmit to target (based on user input string)
   MAX_LEN_UART_RX       = 16   ' Maximum number of bytes to receive from target
+  UART_SCAN_DELAY       = 20   ' Maximum time to receive a byte from the target (ms)
     
   ' Menu
   MENU_MAIN     = 0    ' Main/Top
@@ -124,19 +125,20 @@ VAR                   ' Globally accessible variables
 
   
 OBJ
-  g             : "JTAGulatorCon"      ' JTAGulator global constants
-  u             : "JTAGulatorUtil"     ' JTAGulator general purpose utilities
-  pst           : "PropSerial"         ' Serial communication for user interface (modified version of built-in Parallax Serial Terminal)
-  str           : "jm_strings"         ' String manipulation methods (JonnyMac)
-  rr            : "RealRandom"         ' Random number generation (Chip Gracey, https://github.com/parallaxinc/propeller/tree/master/libraries/community/p1/All/Real%20Random) 
-  eeprom        : "Basic_I2C_Driver"   ' I2C protocol for boot EEPROM communication (Michael Green, https://github.com/parallaxinc/propeller/tree/master/libraries/community/p1/All/Basic%20I2C%20Driver)
-  uart          : "JDCogSerial"        ' UART/Asynchronous Serial communication engine (Carl Jacobs, https://github.com/parallaxinc/propeller/tree/master/libraries/community/p1/All/JDCogSerial)
-  pt_in         : "jm_rxserial"        ' UART/Asynchronous Serial receive driver for passthrough (JonnyMac, https://forums.parallax.com/discussion/114492/prop-baudrates)
-  pt_out        : "jm_txserial"        ' UART/Asynchronous Serial transmit driver for passthrough (JonnyMac, https://forums.parallax.com/discussion/114492/prop-baudrates)
-  jtag          : "PropJTAG"           ' JTAG/IEEE 1149.1 low-level methods
-  swd           : "PropSWD"            ' ARM SWD (Serial Wire Debug) low-level functions (Adam Green, https://github.com/adamgreen)
-  sump          : "PropSUMP"           ' OLS/SUMP protocol for logic analyzer mode
-  ocd           : "PropOCD"            ' OpenOCD binary protocol     
+  g             : "JTAGulatorCon"          ' JTAGulator global constants
+  u             : "JTAGulatorUtil"         ' JTAGulator general purpose utilities
+  pst           : "PropSerial"             ' Serial communication for user interface (modified version of built-in Parallax Serial Terminal)
+  str           : "jm_strings"             ' String manipulation methods (JonnyMac)
+  rr            : "RealRandom"             ' Random number generation (Chip Gracey, https://github.com/parallaxinc/propeller/tree/master/libraries/community/p1/All/Real%20Random) 
+  pulse         : "ReadPulseWidths.spin"   ' Read low and high pulse durations on specified input pins (https://www.parallax.com/downloads/eddie-propeller-firmware) 
+  eeprom        : "Basic_I2C_Driver"       ' I2C protocol for boot EEPROM communication (Michael Green, https://github.com/parallaxinc/propeller/tree/master/libraries/community/p1/All/Basic%20I2C%20Driver)
+  uart          : "JDCogSerial"            ' UART/Asynchronous Serial communication engine (Carl Jacobs, https://github.com/parallaxinc/propeller/tree/master/libraries/community/p1/All/JDCogSerial)
+  pt_in         : "jm_rxserial"            ' UART/Asynchronous Serial receive driver for passthrough (JonnyMac, https://forums.parallax.com/discussion/114492/prop-baudrates)
+  pt_out        : "jm_txserial"            ' UART/Asynchronous Serial transmit driver for passthrough (JonnyMac, https://forums.parallax.com/discussion/114492/prop-baudrates)
+  jtag          : "PropJTAG"               ' JTAG/IEEE 1149.1 low-level methods
+  swd           : "PropSWD"                ' ARM SWD (Serial Wire Debug) low-level functions (Adam Green, https://github.com/adamgreen)
+  sump          : "PropSUMP"               ' OLS/SUMP protocol for logic analyzer mode
+  ocd           : "PropOCD"                ' OpenOCD binary protocol     
 
   
 PUB main | cmd
@@ -150,7 +152,6 @@ PUB main | cmd
 
   ' Start command receive/process cycle
   repeat
-    UART.Stop                      ' Disable UART cog (if it was running)
     u.TXSDisable                   ' Disable level shifter outputs (high-impedance)
     u.LEDGreen                     ' Set status indicator to show that we're ready
     Display_Command_Prompt         ' Display command prompt
@@ -320,6 +321,12 @@ PRI Do_UART_Menu(cmd)
       else
         UART_Scan_TXD
 
+    "A", "a":                 ' Identify UART pinout (Automatic baud rate detection)
+      if (vTargetIO == -1)
+        pst.Str(@ErrTargetIOVoltage)
+      else
+        UART_Scan_Autobaud
+        
     "P", "p":                 ' UART passthrough
       if (vTargetIO == -1)
         pst.Str(@ErrTargetIOVoltage)
@@ -490,6 +497,7 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
   ' Pin enumeration logic based on JTAGenum (http://deadhacker.com/2010/02/03/jtag-enumeration/)
   num := 0      ' Counter of possible pinouts
   ctr := 0
+  xtdi := xtdo := xtck := xtms := 0  
   repeat jTDO from chStart to chEnd   ' For every possible pin permutation (except TDI and TRST)...
     repeat jTCK from chStart to chEnd
       if (jTCK == jTDO)
@@ -711,7 +719,8 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
     u.Pause(jPinsLowDelay)          ' Delay to stay asserted
     
   num := 0  ' Counter of possible pinouts
-  ctr := 0  
+  ctr := 0
+  xtdi := xtdo := xtck := xtms := 0
   repeat jTDI from tdiStart to tdiEnd        ' For every possible pin permutation (except TRST#)...
     repeat jTDO from tdoStart to tdoEnd
       if (jTDO == jTDI)  ' Ensure each pin number is unique
@@ -1496,6 +1505,7 @@ PRI UART_Scan | value, baud_idx, i, j, ctr, num, display, xstr[MAX_LEN_UART_USER
 
   num := 0   ' Counter of possible pinouts
   ctr := 0
+  xtxd := xrxd := xbaud := 0 
   repeat uTXD from chStart to chEnd   ' For every possible pin permutation...
     repeat uRXD from chStart to chEnd
       if (uRXD == uTXD)
@@ -1507,9 +1517,11 @@ PRI UART_Scan | value, baud_idx, i, j, ctr, num, display, xstr[MAX_LEN_UART_USER
           pst.RxFlush
           pst.Str(@ErrUARTAborted)
           return
+
         uBaud := BaudRate[baud_idx]        ' Store current baud rate into uBaud variable
                 
         UART.Start(|<uTXD, |<uRXD, uBaud)  ' Configure UART
+        u.Pause(10)                        ' Delay for cog setup
         UART.RxFlush                       ' Flush receive buffer
           
         if (uHex == 0)                     ' If the user string is ASCII
@@ -1522,12 +1534,10 @@ PRI UART_Scan | value, baud_idx, i, j, ctr, num, display, xstr[MAX_LEN_UART_USER
 
         i := 0
         repeat while (i < MAX_LEN_UART_RX)    ' Check for a response from the target and grab up to MAX_LEN_UART_RX bytes
-          value := UART.RxTime(20)           ' Wait up to 20ms to receive a byte from the target
-          if (value < 0)                     ' If there's no data...
-            quit                               ' Exit the loop
-          byte[@data][i++] := value          ' Store the byte in our array and try for more!
-
-        repeat until (UART.RxTime(20) < 0)   ' Wait here until the target has stopped sending data
+          value := UART.RxTime(UART_SCAN_DELAY)   ' Wait up to UART_SCAN_DELAY (in ms) to receive a byte from the target
+          if (value < 0)                          ' If there's no data...
+            quit                                    ' Exit the loop
+          byte[@data][i++] := value               ' Store the byte in our array and try for more!
         
         if (i > 0)                           ' If we've received any data...
           display := 1                         ' Set flag to display all data by default
@@ -1537,8 +1547,8 @@ PRI UART_Scan | value, baud_idx, i, j, ctr, num, display, xstr[MAX_LEN_UART_USER
                 display := 0                       ' Clear flag to skip the entire result
                 
           if (display == 1)
-            Display_UART_Pins                    ' Display current UART pinout
-            pst.Str(String("Data: "))            ' Display the data in ASCII
+            Display_UART_Pins(0, 0)              ' Display current UART pinout
+            pst.Str(String("Data: "))    ' Display the data in ASCII
             repeat value from 0 to (i-1)         ' For entire buffer         
               if (byte[@data][value] < $20) or (byte[@data][value] > $7E) ' If the byte is an unprintable character 
                 pst.Char(".")                                               ' Print a . instead
@@ -1715,6 +1725,7 @@ PRI UART_Scan_TXD | value, baud_idx, i, t, num, display, data[MAX_LEN_UART_RX >>
   uRXD := g#PROP_SDA  ' RXD isn't used in this command, so set it to a temporary pin so it doesn't interfere with enumeration
   
   num := 0   ' Counter of possible pinouts
+  xtxd := xbaud := 0  
   repeat uTXD from chStart to chEnd  ' For every possible pin permutation...
     loopnum := 0
     loopquit := 0
@@ -1731,6 +1742,7 @@ PRI UART_Scan_TXD | value, baud_idx, i, t, num, display, data[MAX_LEN_UART_RX >>
         if (skip == 0)
           uBaud := BaudRate[baud_idx]        ' Store current baud rate into uBaud variable
           UART.Start(|<uTXD, |<uRXD, uBaud)  ' Configure UART
+          u.Pause(10)                        ' Delay for cog setup
           UART.RxFlush                       ' Flush receive buffer
          
           i := 0
@@ -1761,9 +1773,9 @@ PRI UART_Scan_TXD | value, baud_idx, i, t, num, display, data[MAX_LEN_UART_RX >>
                   display := 0                                                ' Clear flag to skip the entire result
 
             if (display == 1)    
-              Display_UART_Pins                    ' Display current UART pinout (TXD only)
-              pst.Str(String("Data: "))            ' Display the data in ASCII
-              repeat value from 0 to (i-1)           ' For entire receive buffer         
+              Display_UART_Pins(0, 0)              ' Display current UART pinout (TXD only)
+              pst.Str(String("Data: "))    ' Display the data in ASCII
+              repeat value from 0 to (i-1)         ' For entire receive buffer         
                 if (byte[@data][value] < $20) or (byte[@data][value] > $7E) ' If the byte is an unprintable character... 
                   pst.Char(".")                                               ' Print a . instead
                 else
@@ -1796,6 +1808,135 @@ PRI UART_Scan_TXD | value, baud_idx, i, t, num, display, data[MAX_LEN_UART_RX >>
     pst.Str(@ErrNoDeviceFound)
     
   UART_Scan_Cleanup(num, xtxd, 0, xbaud)  ' RXD isn't used in this command
+
+  pst.Str(String(CR, LF, "UART TXD"))
+  pst.Str(@MsgScanComplete)
+
+
+PRI UART_Scan_Autobaud | i, t, ctr, num, PulseData[24 {g#MAX_CHAN} << 1], indexLow, indexHigh, MinimumPulse[24 {g#MAX_CHAN}], MinimumPulseOld[24 {g#MAX_CHAN}], UartData[MAX_LEN_UART_RX >> 2], xtxd, xbaud    ' Identify UART pinout (Automatic baud rate detection)
+  pst.Str(@MsgUARTPinout)
+
+  if (Get_Channels(1) == -1)   ' Get the channel range to use
+    return   
+
+  pst.Str(@MsgPressSpacebarToBegin)
+  if (pst.CharIn <> " ")
+    pst.Str(@ErrUARTAborted)
+    return
+
+  u.TXSEnable    ' Enable level shifter outputs
+  u.Set_Pins_Input(chStart, chEnd)  ' Set current channel range to input
+ 
+  PulseData := %00000000_11111111_11111111_11111111   ' Enable all channels (we're only processing the ones in our channel range, but it makes the array math easier)
+  pulse.Start(@PulseData)           ' Start pulse width detection cog  
+  u.Pause(50)                       ' Delay for cog setup
+  
+  pst.Str(@MsgJTAGulating)
+
+  uRXD := g#PROP_SDA  ' RXD isn't used in this command, so set it to a temporary pin so it doesn't interfere with enumeration
+
+  num := 0   ' Counter of possible pinouts
+  xtxd := xbaud := 0
+  repeat until (pst.RxEmpty == 0)  
+    {
+      Every time a pulse ends, the pulse time will automatically be recorded in the
+      PulseData array. The longs store the low then high times for each pin being monitored.
+      A full transition (low-high-low or high-low-high) is required before a time is reported.
+      PulseData retains the last detected pulse and is not cleared when/if the data stops.  
+    }
+    longfill(@MinimumPulseOld, $7FFFFFFF, g#MAX_CHAN)    
+    repeat uTXD from chStart to chEnd  ' Only display the desired channels...
+      indexLow := uTXD << 1
+      indexHigh := indexLow + 1
+                       
+      MinimumPulse[uTXD] := PulseData[indexLow] <# PulseData[indexHigh]     ' update entry with the minimum measured pulse (in clock ticks)
+
+      if (MinimumPulse[uTXD] > 0 and MinimumPulseOld[uTXD] <> MinimumPulse[uTXD])  ' if we've detected a pulse on the channel, assume it represents the minimum bit width of a UART signal
+        MinimumPulseOld[uTXD] := MinimumPulse[uTXD]
+        t := clkfreq / MinimumPulse[uTXD]  ' temporarily store the measured baud rate
+
+        'Locate best fit value for measured baud rate (if it exists)
+        uBaud := 0
+        case t          ' +/- 5% tolerance
+          104..116         : uBaud := 110
+          285..315         : uBaud := 300
+          570..630         : uBaud := 600
+          1140..1260       : uBaud := 1200
+          1710..1890       : uBaud := 1800
+          2280..2520       : uBaud := 2400
+          3420..3780       : uBaud := 3600
+          4560..5040       : uBaud := 4800
+          6840..7560       : uBaud := 7200
+          9120..10080      : uBaud := 9600
+          13680..15120     : uBaud := 14400
+          18240..20160     : uBaud := 19200
+          27360..30240     : uBaud := 28800
+          29687..32813     : uBaud := 31250
+          36480..40320     : uBaud := 38400
+          54720..60480     : uBaud := 57600
+          72960..80640     : uBaud := 76800
+          109440..120960   : uBaud := 115200
+          145920..161280   : uBaud := 153600
+          218880..241920   : uBaud := 230400
+          437760..483840   : uBaud := 460800
+          875520..967680   : uBaud := 921600
+          912000..1008000  : uBaud := 960000
+          950000..1050000  : uBaud := 1000000
+          1140000..1260000 : uBaud := 1200000
+          1425000..1575000 : uBaud := 1500000
+          1900000..2100000 : uBaud := 2000000
+          2850000..3150000 : uBaud := 3000000
+
+        num += 1                 ' Increment counter
+        xtxd := uTXD             ' Keep track of most recent detection results
+        xbaud := uBaud
+
+        Display_UART_Pins(1, t)
+        
+{{        
+          UART.Start(|<uTXD, |<uRXD, uBaud)  ' Configure UART
+          u.Pause(10)                        ' Delay for cog setup        
+          UART.RxFlush                       ' Flush receive buffer
+         
+          i := 0
+          t := cnt
+          repeat while (i < MAX_LEN_UART_RX) and ((cnt - t) / (clkfreq / 1000) =< uWaitPerBaud)    ' Check for a response from the target and grab up to MAX_LEN_UART_RX bytes
+            value := UART.RxCheck                ' Check if a byte is received from the target
+            if (value => 0)              
+              byte[@data][i++] := value            ' Store the byte in our array and try for more!
+
+
+          if (i > 0)                           ' If we've received any data...
+            display := 1                         ' Set flag to display all data by default
+            if (uPrintable == 1)                 ' If user only wants to see printable characters
+              repeat value from 0 to (i-1)         ' For entire buffer
+                if (byte[@data][value] < $20 or byte[@data][value] > $7E) and (byte[@data][value] <> CR and byte[@data][value] <> LF) ' If any byte is unprintable (except for CR or LF)
+                  display := 0                                                ' Clear flag to skip the entire result
+
+            if (display == 1)    
+              Display_UART_Pins(1, t)              ' Display current UART pinout (TXD only)
+              pst.Str(String("Data: "))            ' Display the data in ASCII
+              repeat value from 0 to (i-1)           ' For entire receive buffer         
+                if (byte[@data][value] < $20) or (byte[@data][value] > $7E) ' If the byte is an unprintable character... 
+                  pst.Char(".")                                               ' Print a . instead
+                else
+                  pst.Char(byte[@data][value])
+         
+              pst.Str(String(" [ "))
+              repeat value from 0 to (i-1)         ' Display the data in hexadecimal
+                pst.Hex(byte[@data][value], 2)
+                pst.Char(" ")
+              pst.Str(String("]", CR, LF))
+}}
+  
+    ' Progress indicator
+    ++ctr
+    Display_Progress(ctr, 100, 1)
+
+  pulse.Stop   ' Stop pulse width detection cog
+
+  UART_Scan_Cleanup(num, xtxd, 0, xbaud)  ' RXD isn't used in this command
+  pst.RxFlush
 
   pst.Str(String(CR, LF, "UART TXD"))
   pst.Str(@MsgScanComplete)
@@ -1920,6 +2061,8 @@ PRI Set_UART : err | xtxd, xrxd, xbaud            ' Set UART configuration to kn
 
 
 PRI UART_Scan_Cleanup(num, txd, rxd, baud)
+  UART.Stop       ' Disable UART cog (if it was running)
+
   if (num == 0)   ' If no device(s) were found during the search
     longfill(@uTXD, 0, 3)  ' Clear UART pinout + settings
   else             ' Update globals with the most recent detection results
@@ -1928,21 +2071,33 @@ PRI UART_Scan_Cleanup(num, txd, rxd, baud)
     uBaud := 0       ' For a given UART interface, multiple baud rates could return potentially valid data. So, have the user decide which is the best/most likely choice for the given target. 
 
 
-PRI Display_UART_Pins
+PRI Display_UART_Pins(txdOnly, mBaud)   ' Display UART pin configuration
+{
+ txdOnly: 0 from UART_Scan (fixed baud rate), 1 from UART_Scan_Autobaud
+ mBaud: measured potential baud rate from UART_Scan_Autobaud (ignored if txdOnly = 0)
+}
   pst.Str(String(CR, LF, "TXD: "))
   pst.Dec(uTXD)
-  
-  pst.Str(String(CR, LF, "RXD: "))
-  if (uRXD => g#MAX_CHAN)   ' RXD isn't used during UART_Scan_TXD (we're not sending any data to the target), so it can't be determined
-    pst.Str(String("N/A"))  
-  else
+
+  if (txdOnly == 0)
+    pst.Str(String(CR, LF, "RXD: "))
     pst.Dec(uRXD)
 
-  pst.Str(String(CR, LF, "Baud: "))
-  pst.Dec(uBaud)
-
+  if (txdOnly == 0)
+    pst.Str(String(CR, LF, "Baud: "))
+    pst.Dec(uBaud) 
+  else
+    pst.Str(String(CR, LF, "Baud (Measured): "))
+    pst.Dec(mBaud)
+    
+    pst.Str(String(CR, LF, "Baud (Best Fit): "))
+      if (uBaud == 0)
+        pst.Str(String("N/A")) 
+      else
+        pst.Dec(uBaud)
+        
   pst.Str(String(CR, LF))
-          
+  
 
 CON {{ GPIO METHODS }}
 
@@ -2097,6 +2252,7 @@ PRI SWD_IDCODE_Scan | response, idcode, ctr, num, xclk, xio     ' Identify SWD p
   swd.init      ' Initialize SWD host module
   num := 0      ' Counter of possibly good pinouts
   ctr := 0      ' Counter of total loop iterations
+  xclk := xio := 0
   repeat swdClk from chStart to chEnd   ' For every possible pin permutation
     repeat swdIo from chStart to chEnd
       if (swdIo == swdClk)
@@ -2511,7 +2667,7 @@ PRI writeLong(addrReg, data) : ackbit | startTime
   return false ' write completed successfully
 
                
-DAT
+DAT  
 InitHeader    byte CR, LF, LF
               byte "                                    UU  LLL", CR, LF                                     
               byte " JJJ  TTTTTTT AAAAA  GGGGGGGGGGG   UUUU LLL   AAAAA TTTTTTTT OOOOOOO  RRRRRRRRR", CR, LF 
@@ -2555,6 +2711,7 @@ MenuJTAG      byte CR, LF, "JTAG Commands:", CR, LF
 MenuUART      byte CR, LF, "UART Commands:", CR, LF
               byte "U   Identify UART pinout", CR, LF
               byte "T   Identify UART pinout (TXD only)", CR, LF
+              byte "A   Identify UART pinout (TXD only, autobaud)", CR, LF
               byte "P   UART passthrough", 0
 
 MenuGPIO      byte CR, LF, "GPIO Commands:", CR, LF     
@@ -2609,6 +2766,6 @@ ErrDiscoveryAborted         byte CR, LF, "IR/DR discovery aborted!", 0
 '                   1.4  1.5  1.6  1.7  1.8  1.9  2.0  2.1  2.2  2.3  2.4  2.5  2.6  2.7  2.8  2.9  3.0  3.1  3.2  3.3           
 VoltageTable  byte  109, 116, 124, 132, 140, 147, 155, 163, 171, 179, 186, 194, 202, 210, 217, 225, 233, 241, 248, 255
 
-' Look-up table of accepted values for use with UART identification
+' Look-up table of accepted values for use with UART_Scan
 BaudRate      long  300, 600, 1200, 1800, 2400, 3600, 4800, 7200, 9600, 14400, 19200, 28800, 31250 {MIDI}, 38400, 57600, 76800, 115200, 153600, 230400, 250000 {DMX}, 307200
 BaudRateEnd
