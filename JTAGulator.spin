@@ -1773,7 +1773,7 @@ PRI UART_Scan_TXD | value, baud_idx, i, t, num, display, data[MAX_LEN_UART_RX >>
                   display := 0                                                ' Clear flag to skip the entire result
 
             if (display == 1)    
-              Display_UART_Pins(1, 0)              ' Display current UART pinout (TXD only)
+              Display_UART_Pins(0, 0)              ' Display current UART pinout (TXD only)
               pst.Str(String("Data: "))            ' Display the data in ASCII
               repeat value from 0 to (i-1)         ' For entire receive buffer         
                 if (byte[@data][value] < $20) or (byte[@data][value] > $7E) ' If the byte is an unprintable character... 
@@ -2074,7 +2074,7 @@ PRI UART_Scan_Cleanup(num, txd, rxd, baud)
 
 PRI Display_UART_Pins(txdOnly, mBaud)   ' Display UART pin configuration
 {
- txdOnly: 0 from UART_Scan (fixed baud rate), 1 from UART_Scan_Autobaud
+ txdOnly: 0 from UART_Scan or UART_Scan_TXD (fixed baud rate), 1 from UART_Scan_Autobaud
  mBaud: measured potential baud rate from UART_Scan_Autobaud (ignored if txdOnly = 0)
 }
   pst.Str(String(CR, LF, "TXD: "))
