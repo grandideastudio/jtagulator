@@ -1548,7 +1548,7 @@ PRI UART_Scan | value, baud_idx, i, j, ctr, num, display, xstr[MAX_LEN_UART_USER
                 
           if (display == 1)
             Display_UART_Pins(0, 0)              ' Display current UART pinout
-            pst.Str(String("Data: "))    ' Display the data in ASCII
+            pst.Str(String("Data: "))            ' Display the data in ASCII
             repeat value from 0 to (i-1)         ' For entire buffer         
               if (byte[@data][value] < $20) or (byte[@data][value] > $7E) ' If the byte is an unprintable character 
                 pst.Char(".")                                               ' Print a . instead
@@ -1773,8 +1773,8 @@ PRI UART_Scan_TXD | value, baud_idx, i, t, num, display, data[MAX_LEN_UART_RX >>
                   display := 0                                                ' Clear flag to skip the entire result
 
             if (display == 1)    
-              Display_UART_Pins(0, 0)              ' Display current UART pinout (TXD only)
-              pst.Str(String("Data: "))    ' Display the data in ASCII
+              Display_UART_Pins(1, 0)              ' Display current UART pinout (TXD only)
+              pst.Str(String("Data: "))            ' Display the data in ASCII
               repeat value from 0 to (i-1)         ' For entire receive buffer         
                 if (byte[@data][value] < $20) or (byte[@data][value] > $7E) ' If the byte is an unprintable character... 
                   pst.Char(".")                                               ' Print a . instead
@@ -1813,7 +1813,7 @@ PRI UART_Scan_TXD | value, baud_idx, i, t, num, display, data[MAX_LEN_UART_RX >>
   pst.Str(@MsgScanComplete)
 
 
-PRI UART_Scan_Autobaud | i, t, ctr, num, PulseData[24 {g#MAX_CHAN} << 1], indexLow, indexHigh, MinimumPulse[24 {g#MAX_CHAN}], MinimumPulseOld[24 {g#MAX_CHAN}], UartData[MAX_LEN_UART_RX >> 2], xtxd, xbaud    ' Identify UART pinout (Automatic baud rate detection)
+PRI UART_Scan_Autobaud | i, t, ctr, num, PulseData[24 {g#MAX_CHAN} << 1], indexLow, indexHigh, MeasuredOld[24 {g#MAX_CHAN}], UartData[MAX_LEN_UART_RX >> 2], xtxd, xbaud    ' Identify UART pinout (Automatic baud rate detection)
   pst.Str(@MsgUARTPinout)
 
   if (Get_Channels(1) == -1)   ' Get the channel range to use
@@ -1837,7 +1837,7 @@ PRI UART_Scan_Autobaud | i, t, ctr, num, PulseData[24 {g#MAX_CHAN} << 1], indexL
 
   num := 0   ' Counter of possible pinouts
   xtxd := xbaud := 0
-  longfill(@MinimumPulseOld, $7FFFFFFF, g#MAX_CHAN)
+  longfill(@MeasuredOld, $7FFFFFFF, g#MAX_CHAN)
   repeat until (pst.RxEmpty == 0)  
     {
       Every time a pulse ends, the pulse time will automatically be recorded in the
@@ -1849,13 +1849,12 @@ PRI UART_Scan_Autobaud | i, t, ctr, num, PulseData[24 {g#MAX_CHAN} << 1], indexL
       indexLow := uTXD << 1
       indexHigh := indexLow + 1
                        
-      MinimumPulse[uTXD] := PulseData[indexLow] <# PulseData[indexHigh]     ' Update entry with the minimum measured pulse (in clock ticks)
+      i := PulseData[indexLow] <# PulseData[indexHigh]    ' Minimum measured pulse (in clock ticks), assume it represents the minimum bit width of a UART signal
+      t := clkfreq / i                                    ' Temporarily store the measured baud rate (result is 0 if i = 0)      
 
-      if (MinimumPulse[uTXD] > 0) and (MinimumPulseOld[uTXD] <> MinimumPulse[uTXD])  ' If we've detected a pulse on the channel, assume it represents the minimum bit width of a UART signal
-        MinimumPulseOld[uTXD] := MinimumPulse[uTXD]
-        t := clkfreq / MinimumPulse[uTXD]  ' Temporarily store the measured baud rate
-        uBaud := UART_Best_Fit(t)          ' Locate best fit value for measured baud rate (if it exists)
-
+      if (t > 0 and MeasuredOld[uTXD] <> t)   ' If the measured baud rate has changed since we last displayed it...
+        MeasuredOld[uTXD] := t
+        uBaud := UART_Best_Fit(t)               ' Locate best fit value for measured baud rate (if it exists, 0 otherwise)
         Display_UART_Pins(1, t)
         
         num += 1                 ' Increment counter
@@ -1900,7 +1899,7 @@ PRI UART_Scan_Autobaud | i, t, ctr, num, PulseData[24 {g#MAX_CHAN} << 1], indexL
   
     ' Progress indicator
     ++ctr
-    Display_Progress(ctr, 100, 1)
+    Display_Progress(ctr, 200, 1)
 
   pulse.Stop   ' Stop pulse width detection cog
 
@@ -2081,7 +2080,7 @@ PRI Display_UART_Pins(txdOnly, mBaud)   ' Display UART pin configuration
   pst.Str(String(CR, LF, "TXD: "))
   pst.Dec(uTXD)
 
-  if (txdOnly == 0)
+  if (txdOnly == 0 and uRXD <> g#PROP_SDA)
     pst.Str(String(CR, LF, "RXD: "))
     pst.Dec(uRXD)
 
