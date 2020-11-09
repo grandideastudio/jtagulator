@@ -1412,7 +1412,7 @@ PRI UART_Init
   uLocalEcho := 0
   
 
-PRI UART_Scan | value, baud_idx, i, j, ctr, num, display, xstr[MAX_LEN_UART_USER + 1], data[MAX_LEN_UART_RX >> 2], xtxd, xrxd, xbaud    ' Identify UART pinout
+PRI UART_Scan | baud_idx, i, j, ctr, num, xstr[MAX_LEN_UART_USER + 1], xtxd, xrxd, xbaud    ' Identify UART pinout
   pst.Str(@MsgUARTPinout)
 
  ' Get user string to send during UART discovery
@@ -1532,39 +1532,11 @@ PRI UART_Scan | value, baud_idx, i, j, ctr, num, display, xstr[MAX_LEN_UART_USER
           repeat uHex
             UART.tx(byte[@uSTR][i++])
 
-        i := 0
-        repeat while (i < MAX_LEN_UART_RX)    ' Check for a response from the target and grab up to MAX_LEN_UART_RX bytes
-          value := UART.RxTime(UART_SCAN_DELAY)   ' Wait up to UART_SCAN_DELAY (in ms) to receive a byte from the target
-          if (value < 0)                          ' If there's no data...
-            quit                                    ' Exit the loop
-          byte[@data][i++] := value               ' Store the byte in our array and try for more!
-        
-        if (i > 0)                           ' If we've received any data...
-          display := 1                         ' Set flag to display all data by default
-          if (uPrintable == 1)                 ' If user only wants to see printable characters
-            repeat value from 0 to (i-1)         ' For entire buffer
-              if (byte[@data][value] < $20 or byte[@data][value] > $7E) and (byte[@data][value] <> CR and byte[@data][value] <> LF) ' If any byte is unprintable (except for CR or LF)
-                display := 0                       ' Clear flag to skip the entire result
-                
-          if (display == 1)
-            Display_UART_Pins(0, 0)              ' Display current UART pinout
-            pst.Str(String("Data: "))            ' Display the data in ASCII
-            repeat value from 0 to (i-1)         ' For entire buffer         
-              if (byte[@data][value] < $20) or (byte[@data][value] > $7E) ' If the byte is an unprintable character 
-                pst.Char(".")                                               ' Print a . instead
-              else
-                pst.Char(byte[@data][value])
-          
-            pst.Str(String(" [ "))
-            repeat value from 0 to (i-1)        ' Display the data in hexadecimal
-              pst.Hex(byte[@data][value], 2)
-              pst.Char(" ")
-            pst.Str(String("]", CR, LF))
-
-            num += 1                            ' Increment counter
-            xtxd := uTXD                        ' Keep track of most recent detection results
-            xrxd := uRXD
-            xbaud := uBaud
+        if (UART_Get_Display_Data(0, 0))   ' Check for a response from the target and display data
+          num += 1                            ' Increment counter
+          xtxd := uTXD                        ' Keep track of most recent detection results
+          xrxd := uRXD
+          xbaud := uBaud
 
     ' Progress indicator
       ++ctr
@@ -1813,7 +1785,7 @@ PRI UART_Scan_TXD | value, baud_idx, i, t, num, display, data[MAX_LEN_UART_RX >>
   pst.Str(@MsgScanComplete)
 
 
-PRI UART_Scan_Autobaud | i, t, ch, ctr, bits, num, exit, PulseData[24 {g#MAX_CHAN} << 1], UartData[MAX_LEN_UART_RX >> 2], xtxd, xbaud    ' Identify UART pinout (Automatic baud rate detection)
+PRI UART_Scan_Autobaud | i, t, ch, ctr, bits, num, exit, PulseData[24 {g#MAX_CHAN} << 1], xtxd, xbaud    ' Identify UART pinout (Automatic baud rate detection)
   pst.Str(@MsgUARTPinout)
 
   if (Get_Channels(1) == -1)   ' Get the channel range to use
@@ -1850,7 +1822,6 @@ PRI UART_Scan_Autobaud | i, t, ch, ctr, bits, num, exit, PulseData[24 {g#MAX_CHA
     else
       ch ^= i                ' Isolate the bits that changed (will be set to 1)
       ch &= $00FFFFFF        ' Mask bits representing CH23..0
-      'Display_IO_Pins(ch)    ' Display value
 
       ' Monitor each channel individually
       bits := 0
@@ -1869,89 +1840,29 @@ PRI UART_Scan_Autobaud | i, t, ch, ctr, bits, num, exit, PulseData[24 {g#MAX_CHA
           i := PulseData[1] <# PulseData[0]    ' Minimum measured pulse (in clock ticks)
                                              
           if (i > 0)                           ' If we've measured a pulse, assume it represents the minimum bit width of a UART signal
-            pst.Str(String(CR, LF, "L: "))
+            {pst.Str(String(CR, LF, "L: "))
             pst.Dec(PulseData[0])
             pst.Str(String(" H: "))
-            pst.Dec(PulseData[1])
+            pst.Dec(PulseData[1])}
       
             t := clkfreq / i                     ' Temporarily store the measured baud rate (result is 0 if i = 0)                         
-            uTXD := bits - 1                     ' Store the current channel
+            uTXD := bits                         ' Store the current channel
             uBaud := UART_Best_Fit(t)            ' Locate best fit value for measured baud rate (if it exists, 0 otherwise)
-            Display_UART_Pins(1, t)
 
-            num += 1                             ' Increment counter
-            xtxd := uTXD                         ' Keep track of most recent detection results
-            xbaud := uBaud      
+            pulse.Stop                           ' Stop pulse width detection cog            
+            UART.Start(|<uTXD, |<uRXD, uBaud)    ' Configure UART
+            u.Pause(10)                          ' Delay for cog setup
+            UART.RxFlush                         ' Flush receive buffer
+
+            if (UART_Get_Display_Data(1, t))     ' Check for a response from the target and display data
+              num += 1                             ' Increment counter
+              xtxd := uTXD                         ' Keep track of most recent detection results
+              xbaud := uBaud      
 
           pulse.Stop   ' Stop pulse width detection cog
 
         bits += 1      
-        ch >>= 1   ' Shift to the next bit (channel)       
- 
-     
-  {{
-
-
-  repeat until (pst.RxEmpty == 0)  
-
-    repeat uTXD from chStart to chEnd
-      indexLow := 0  'uTXD << 1
-      indexHigh := indexLow + 1
-
-      PulseData := 1 << uTXD     ' Enable the current channel only for maximum detection speed
-      pulse.Start(@PulseData)    ' Start pulse width detection cog  
-      u.Pause(50)                ' Delay for cog to capture pulses (if they exist on the current channel)
-                       
-      i := PulseData[indexLow] <# PulseData[indexHigh]    ' Minimum measured pulse (in clock ticks), assume it represents the minimum bit width of a UART signal
-      t := clkfreq / i                                    ' Temporarily store the measured baud rate (result is 0 if i = 0)      
-
-      if (t > 0 and MeasuredOld[uTXD] <> t)   ' If the measured baud rate has changed since we last displayed it...
-        MeasuredOld[uTXD] := t
-        uBaud := UART_Best_Fit(t)               ' Locate best fit value for measured baud rate (if it exists, 0 otherwise)
-        Display_UART_Pins(1, t)
-
-        num += 1                 ' Increment counter
-        xtxd := uTXD             ' Keep track of most recent detection results
-        xbaud := uBaud
-
-      pulse.Stop   ' Stop pulse width detection cog
-      
-{       
-          UART.Start(|<uTXD, |<uRXD, uBaud)  ' Configure UART
-          u.Pause(10)                        ' Delay for cog setup        
-          UART.RxFlush                       ' Flush receive buffer
-         
-          i := 0
-          t := cnt
-          repeat while (i < MAX_LEN_UART_RX) and ((cnt - t) / (clkfreq / 1000) =< uWaitPerBaud)    ' Check for a response from the target and grab up to MAX_LEN_UART_RX bytes
-            value := UART.RxCheck                ' Check if a byte is received from the target
-            if (value => 0)              
-              byte[@data][i++] := value            ' Store the byte in our array and try for more!
-
-
-          if (i > 0)                           ' If we've received any data...
-            display := 1                         ' Set flag to display all data by default
-            if (uPrintable == 1)                 ' If user only wants to see printable characters
-              repeat value from 0 to (i-1)         ' For entire buffer
-                if (byte[@data][value] < $20 or byte[@data][value] > $7E) and (byte[@data][value] <> CR and byte[@data][value] <> LF) ' If any byte is unprintable (except for CR or LF)
-                  display := 0                                                ' Clear flag to skip the entire result
-
-            if (display == 1)    
-              Display_UART_Pins(1, t)              ' Display current UART pinout (TXD only)
-              pst.Str(String("Data: "))            ' Display the data in ASCII
-              repeat value from 0 to (i-1)           ' For entire receive buffer         
-                if (byte[@data][value] < $20) or (byte[@data][value] > $7E) ' If the byte is an unprintable character... 
-                  pst.Char(".")                                               ' Print a . instead
-                else
-                  pst.Char(byte[@data][value])
-         
-              pst.Str(String(" [ "))
-              repeat value from 0 to (i-1)         ' Display the data in hexadecimal
-                pst.Hex(byte[@data][value], 2)
-                pst.Char(" ")
-              pst.Str(String("]", CR, LF))
-}
-}}
+        ch >>= 1   ' Shift to the next bit (channel) 
 
   UART_Scan_Cleanup(num, xtxd, 0, xbaud)  ' RXD isn't used in this command
   pst.RxFlush
@@ -1960,6 +1871,38 @@ PRI UART_Scan_Autobaud | i, t, ch, ctr, bits, num, exit, PulseData[24 {g#MAX_CHA
   pst.Str(@MsgScanComplete)
 
 
+PRI UART_Get_Display_Data(txdOnly, mBaud) : display | i, value, data[MAX_LEN_UART_RX >> 2]   ' Check for a response from the target and display data (UART.Start must be called first)
+  i := 0
+  
+  repeat while (i < MAX_LEN_UART_RX)    ' Check for a response from the target and grab up to MAX_LEN_UART_RX bytes
+    value := UART.RxTime(UART_SCAN_DELAY)   ' Wait up to UART_SCAN_DELAY (in ms) to receive a byte from the target
+    if (value < 0)                          ' If there's no data...
+      quit                                    ' Exit the loop
+    byte[@data][i++] := value               ' Store the byte in our array and try for more
+        
+  if (i > 0)                           ' If we've received any data...
+    display := 1                         ' Set flag to display all data by default
+    if (uPrintable == 1)                 ' If user only wants to see printable characters
+      repeat value from 0 to (i-1)         ' For entire buffer
+        if (byte[@data][value] < $20 or byte[@data][value] > $7E) and (byte[@data][value] <> CR and byte[@data][value] <> LF) ' If any byte is unprintable (except for CR or LF)
+          display := 0                       ' Clear flag to skip the entire result
+                
+    if (display == 1)
+      Display_UART_Pins(txdOnly, mBaud)    ' Display current UART pinout
+      pst.Str(String("Data: "))            ' Display the data in ASCII
+      repeat value from 0 to (i-1)         ' For entire buffer         
+        if (byte[@data][value] < $20) or (byte[@data][value] > $7E) ' If the byte is an unprintable character 
+          pst.Char(".")                                               ' Print a . instead
+        else
+          pst.Char(byte[@data][value])
+          
+      pst.Str(String(" [ "))
+      repeat value from 0 to (i-1)        ' Display the data in hexadecimal
+        pst.Hex(byte[@data][value], 2)
+        pst.Char(" ")
+      pst.Str(String("]", CR, LF))
+
+                
 PRI UART_Best_Fit(actual) : bestfit    ' Locate best fit value for measured baud rate (if it exists, return 0 otherwise)
   case actual                          ' +/- 5% tolerance unless otherwise noted
     104..116         : bestfit := 110
