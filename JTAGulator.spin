@@ -1813,7 +1813,7 @@ PRI UART_Scan_TXD | value, baud_idx, i, t, num, display, data[MAX_LEN_UART_RX >>
   pst.Str(@MsgScanComplete)
 
 
-PRI UART_Scan_Autobaud | i, t, ctr, num, PulseData[24 {g#MAX_CHAN} << 1], indexLow, indexHigh, MeasuredOld[24 {g#MAX_CHAN}], UartData[MAX_LEN_UART_RX >> 2], xtxd, xbaud    ' Identify UART pinout (Automatic baud rate detection)
+PRI UART_Scan_Autobaud | i, t, ch, ctr, bits, num, exit, PulseData[24 {g#MAX_CHAN} << 1], UartData[MAX_LEN_UART_RX >> 2], xtxd, xbaud    ' Identify UART pinout (Automatic baud rate detection)
   pst.Str(@MsgUARTPinout)
 
   if (Get_Channels(1) == -1)   ' Get the channel range to use
@@ -1824,30 +1824,83 @@ PRI UART_Scan_Autobaud | i, t, ctr, num, PulseData[24 {g#MAX_CHAN} << 1], indexL
     pst.Str(@ErrUARTAborted)
     return
 
-  u.TXSEnable    ' Enable level shifter outputs
-  u.Set_Pins_Input(chStart, chEnd)  ' Set current channel range to input
- 
-  PulseData := %00000000_11111111_11111111_11111111   ' Enable all channels (we're only processing the ones in our channel range, but it makes the array math easier)
-  pulse.Start(@PulseData)           ' Start pulse width detection cog  
-  u.Pause(50)                       ' Delay for cog setup
-  
   pst.Str(@MsgJTAGulating)
+  
+  u.TXSEnable                       ' Enable level shifter outputs
+  u.Set_Pins_Input(chStart, chEnd)  ' Set current channel range to input
 
   uRXD := g#PROP_SDA  ' RXD isn't used in this command, so set it to a temporary pin so it doesn't interfere with enumeration
-
+  
   num := 0   ' Counter of possible pinouts
   xtxd := xbaud := 0
-  longfill(@MeasuredOld, $7FFFFFFF, g#MAX_CHAN)
+  exit := 0
+  repeat
+    i := ina[g#MAX_CHAN-1..0]                        ' Read current state of channels
+    repeat while (ch := ina[g#MAX_CHAN-1..0]) == i   ' Wait until there's a change on one or more channels
+      ' Progress indicator
+      ++ctr
+      Display_Progress(ctr, $4000, 1)
+    
+      if (pst.RxEmpty == 0)
+        exit := 1
+        quit
+
+    if (exit)
+      quit
+    else
+      ch ^= i                ' Isolate the bits that changed (will be set to 1)
+      ch &= $00FFFFFF        ' Mask bits representing CH23..0
+      'Display_IO_Pins(ch)    ' Display value
+
+      ' Monitor each channel individually
+      bits := 0
+      repeat while (ch)
+        if (ch & 1)
+        
+          PulseData := 1 << bits         ' Enable the current channel only for maximum detection speed
+          pulse.Start(@PulseData)        ' Start pulse width detection cog  
+          u.Pause(50)                    ' Delay for cog to capture pulses (if they exist on the current channel)
+          {
+             Every time a pulse ends, the pulse time will automatically be recorded in the
+             PulseData array. The longs store the low then high times for each pin being monitored.
+             A full transition (low-high-low or high-low-high) is required before a time is reported.
+             PulseData retains the last detected pulse and is not cleared if/when the data stops.  
+          }
+          i := PulseData[1] <# PulseData[0]    ' Minimum measured pulse (in clock ticks)
+                                             
+          if (i > 0)                           ' If we've measured a pulse, assume it represents the minimum bit width of a UART signal
+            pst.Str(String(CR, LF, "L: "))
+            pst.Dec(PulseData[0])
+            pst.Str(String(" H: "))
+            pst.Dec(PulseData[1])
+      
+            t := clkfreq / i                     ' Temporarily store the measured baud rate (result is 0 if i = 0)                         
+            uTXD := bits - 1                     ' Store the current channel
+            uBaud := UART_Best_Fit(t)            ' Locate best fit value for measured baud rate (if it exists, 0 otherwise)
+            Display_UART_Pins(1, t)
+
+            num += 1                             ' Increment counter
+            xtxd := uTXD                         ' Keep track of most recent detection results
+            xbaud := uBaud      
+
+          pulse.Stop   ' Stop pulse width detection cog
+
+        bits += 1      
+        ch >>= 1   ' Shift to the next bit (channel)       
+ 
+     
+  {{
+
+
   repeat until (pst.RxEmpty == 0)  
-    {
-      Every time a pulse ends, the pulse time will automatically be recorded in the
-      PulseData array. The longs store the low then high times for each pin being monitored.
-      A full transition (low-high-low or high-low-high) is required before a time is reported.
-      PulseData retains the last detected pulse and is not cleared when/if the data stops.  
-    }
-    repeat uTXD from chStart to chEnd  ' Only display the desired channels...
-      indexLow := uTXD << 1
+
+    repeat uTXD from chStart to chEnd
+      indexLow := 0  'uTXD << 1
       indexHigh := indexLow + 1
+
+      PulseData := 1 << uTXD     ' Enable the current channel only for maximum detection speed
+      pulse.Start(@PulseData)    ' Start pulse width detection cog  
+      u.Pause(50)                ' Delay for cog to capture pulses (if they exist on the current channel)
                        
       i := PulseData[indexLow] <# PulseData[indexHigh]    ' Minimum measured pulse (in clock ticks), assume it represents the minimum bit width of a UART signal
       t := clkfreq / i                                    ' Temporarily store the measured baud rate (result is 0 if i = 0)      
@@ -1856,12 +1909,14 @@ PRI UART_Scan_Autobaud | i, t, ctr, num, PulseData[24 {g#MAX_CHAN} << 1], indexL
         MeasuredOld[uTXD] := t
         uBaud := UART_Best_Fit(t)               ' Locate best fit value for measured baud rate (if it exists, 0 otherwise)
         Display_UART_Pins(1, t)
-        
+
         num += 1                 ' Increment counter
         xtxd := uTXD             ' Keep track of most recent detection results
         xbaud := uBaud
-        
-{{        
+
+      pulse.Stop   ' Stop pulse width detection cog
+      
+{       
           UART.Start(|<uTXD, |<uRXD, uBaud)  ' Configure UART
           u.Pause(10)                        ' Delay for cog setup        
           UART.RxFlush                       ' Flush receive buffer
@@ -1895,13 +1950,8 @@ PRI UART_Scan_Autobaud | i, t, ctr, num, PulseData[24 {g#MAX_CHAN} << 1], indexL
                 pst.Hex(byte[@data][value], 2)
                 pst.Char(" ")
               pst.Str(String("]", CR, LF))
+}
 }}
-  
-    ' Progress indicator
-    ++ctr
-    Display_Progress(ctr, 200, 1)
-
-  pulse.Stop   ' Stop pulse width detection cog
 
   UART_Scan_Cleanup(num, xtxd, 0, xbaud)  ' RXD isn't used in this command
   pst.RxFlush
