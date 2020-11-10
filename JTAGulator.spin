@@ -1791,9 +1791,9 @@ PRI UART_Scan_Autobaud | i, t, ch, ctr, bits, num, exit, PulseData[24 {g#MAX_CHA
   
   u.TXSEnable                       ' Enable level shifter outputs
   u.Set_Pins_Input(chStart, chEnd)  ' Set current channel range to input
-
+              
   uRXD := g#PROP_SDA  ' RXD isn't used in this command, so set it to a temporary pin so it doesn't interfere with enumeration
-  
+              
   num := 0   ' Counter of possible pinouts
   xtxd := xbaud := 0
   exit := 0
@@ -1813,7 +1813,7 @@ PRI UART_Scan_Autobaud | i, t, ch, ctr, bits, num, exit, PulseData[24 {g#MAX_CHA
     else
       ch ^= i                ' Isolate the bits that changed (will be set to 1)
       ch &= $00FFFFFF        ' Mask bits representing CH23..0
-
+      
       ' Monitor each channel individually
       bits := 0
       repeat while (ch)
@@ -1828,8 +1828,10 @@ PRI UART_Scan_Autobaud | i, t, ch, ctr, bits, num, exit, PulseData[24 {g#MAX_CHA
              A full transition (low-high-low or high-low-high) is required before a time is reported.
              PulseData retains the last detected pulse and is not cleared if/when the data stops.  
           }
+          pulse.Stop   ' Stop pulse width detection cog
+          
           i := PulseData[1] <# PulseData[0]    ' Minimum measured pulse (in clock ticks)
-                                             
+                                                          
           if (i > 0)                           ' If we've measured a pulse, assume it represents the minimum bit width of a UART signal
             pst.Str(String(CR, LF, "L: "))
             pst.Dec(PulseData[0])
@@ -1854,13 +1856,18 @@ PRI UART_Scan_Autobaud | i, t, ch, ctr, bits, num, exit, PulseData[24 {g#MAX_CHA
               if (UART_Get_Display_Data(1, t))     ' Check for a response from the target and display data
                 num += 1                             ' Increment counter
                 xtxd := uTXD                         ' Keep track of most recent detection results
-                xbaud := uBaud      
-
-          pulse.Stop   ' Stop pulse width detection cog
-
+                xbaud := uBaud
+                      
         bits += 1      
         ch >>= 1   ' Shift to the next bit (channel) 
 
+  ' Progress indicator
+    ++ctr
+    Display_Progress(ctr, 20, 0)
+        
+    if (pst.RxEmpty == 0)
+      quit    
+      
   UART_Scan_Cleanup(num, xtxd, 0, xbaud)  ' RXD isn't used in this command
   pst.RxFlush
 
