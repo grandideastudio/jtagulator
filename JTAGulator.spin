@@ -1840,16 +1840,17 @@ PRI UART_Scan_Autobaud | i, t, ch, ctr, bits, num, exit, PulseData[24 {g#MAX_CHA
             uTXD := bits                         ' Store the current channel
             uBaud := UART_Best_Fit(t)            ' Locate best fit value for measured baud rate (if it exists, 0 otherwise)
 
-            pulse.Stop                           ' Stop pulse width detection cog
-            if (uBaud)            
-              UART.Start(|<uTXD, |<uRXD, uBaud)    ' Configure UART using best fit/standard baud rate
-            else
-              UART.Start(|<uTXD, |<uRXD, t)        ' Configure UART using non-standard baud rate
+            if !(uBaud == 0 and uBaudIgnore == 1)
+              pulse.Stop                           ' Stop pulse width detection cog
               
-            u.Pause(10)                          ' Delay for cog setup
-            UART.RxFlush                         ' Flush receive buffer
-
-            if !(uBaud == 0 and uBaudIgnore <> 0)            
+              if (uBaud)            
+                UART.Start(|<uTXD, |<uRXD, uBaud)    ' Configure UART using best fit/standard baud rate
+              else
+                UART.Start(|<uTXD, |<uRXD, t)        ' Configure UART using non-standard baud rate
+              
+              u.Pause(10)                          ' Delay for cog setup
+              UART.RxFlush                         ' Flush receive buffer
+                        
               if (UART_Get_Display_Data(1, t))     ' Check for a response from the target and display data
                 num += 1                             ' Increment counter
                 xtxd := uTXD                         ' Keep track of most recent detection results
