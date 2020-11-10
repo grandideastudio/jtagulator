@@ -1840,17 +1840,21 @@ PRI UART_Scan_Autobaud | i, t, ch, ctr, bits, num, exit, PulseData[24 {g#MAX_CHA
           i := PulseData[1] <# PulseData[0]    ' Minimum measured pulse (in clock ticks)
                                              
           if (i > 0)                           ' If we've measured a pulse, assume it represents the minimum bit width of a UART signal
-            {pst.Str(String(CR, LF, "L: "))
+            pst.Str(String(CR, LF, "L: "))
             pst.Dec(PulseData[0])
             pst.Str(String(" H: "))
-            pst.Dec(PulseData[1])}
+            pst.Dec(PulseData[1])
       
             t := clkfreq / i                     ' Temporarily store the measured baud rate (result is 0 if i = 0)                         
             uTXD := bits                         ' Store the current channel
             uBaud := UART_Best_Fit(t)            ' Locate best fit value for measured baud rate (if it exists, 0 otherwise)
 
-            pulse.Stop                           ' Stop pulse width detection cog            
-            UART.Start(|<uTXD, |<uRXD, uBaud)    ' Configure UART
+            pulse.Stop                           ' Stop pulse width detection cog
+            if (uBaud)            
+              UART.Start(|<uTXD, |<uRXD, uBaud)    ' Configure UART using best fit/standard baud rate
+            else
+              UART.Start(|<uTXD, |<uRXD, t)        ' Configure UART using non-standard baud rate
+              
             u.Pause(10)                          ' Delay for cog setup
             UART.RxFlush                         ' Flush receive buffer
 
