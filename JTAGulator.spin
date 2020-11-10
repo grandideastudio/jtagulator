@@ -103,8 +103,9 @@ VAR                   ' Globally accessible variables
   long uBaud
   byte uSTR[MAX_LEN_UART_TX + 1]    ' User input string buffer for UART_Scan + \0
   byte uHex           ' Is user input string ASCII (0) or hex (number of bytes)
-  long uPrintable      
-  long uBaudMin       ' Parameters for UART_Scan_TXD
+  long uPrintable
+  long uBaudIgnore    ' Parameters for UART_Scan_TXD 
+  long uBaudMin       
   long uBaudMax
   long uWaitPerBaud
   long uLoopPerChan
@@ -1399,6 +1400,7 @@ PRI UART_Init
 
   ' Set default parameters
   uPrintable := 1
+  uBaudIgnore := 1
   uHex := 0
   
   ' UART_Scan_TXD
@@ -1774,9 +1776,12 @@ PRI UART_Scan_Autobaud | i, t, ch, ctr, bits, num, exit, PulseData[24 {g#MAX_CHA
   if (Get_Channels(1) == -1)        ' Get the channel range to use
     return   
 
+  if (UART_Get_NonStandard == -1)   ' Ignore non-standard baud rates?
+    return
+    
   if (UART_Get_Printable == -1)     ' Ignore non-printable characters?
     return
-        
+
   pst.Str(@MsgPressSpacebarToBegin)
   if (pst.CharIn <> " ")
     pst.Str(@ErrUARTAborted)
@@ -1844,10 +1849,11 @@ PRI UART_Scan_Autobaud | i, t, ch, ctr, bits, num, exit, PulseData[24 {g#MAX_CHA
             u.Pause(10)                          ' Delay for cog setup
             UART.RxFlush                         ' Flush receive buffer
 
-            if (UART_Get_Display_Data(1, t))     ' Check for a response from the target and display data
-              num += 1                             ' Increment counter
-              xtxd := uTXD                         ' Keep track of most recent detection results
-              xbaud := uBaud      
+            if !(uBaud == 0 and uBaudIgnore <> 0)            
+              if (UART_Get_Display_Data(1, t))     ' Check for a response from the target and display data
+                num += 1                             ' Increment counter
+                xtxd := uTXD                         ' Keep track of most recent detection results
+                xbaud := uBaud      
 
           pulse.Stop   ' Stop pulse width detection cog
 
@@ -1863,7 +1869,7 @@ PRI UART_Scan_Autobaud | i, t, ch, ctr, bits, num, exit, PulseData[24 {g#MAX_CHA
 
 PRI UART_Get_Display_Data(txdOnly, mBaud) : display | i, value, data[MAX_LEN_UART_RX >> 2]   ' Check for a response from the target and display data (UART.Start must be called first)
   i := 0
-  
+              
   repeat while (i < MAX_LEN_UART_RX)    ' Check for a response from the target and grab up to MAX_LEN_UART_RX bytes
     value := UART.RxTime(UART_SCAN_DELAY)   ' Wait up to UART_SCAN_DELAY (in ms) to receive a byte from the target
     if (value < 0)                          ' If there's no data...
@@ -2076,7 +2082,29 @@ PRI UART_Get_Printable
     pst.Str(@ErrOutOfRange)
     return -1
 
+
+PRI UART_Get_NonStandard
+  pst.Str(String(CR, LF, LF, "Ignore non-standard baud rates? ["))
+  if (uBaudIgnore == 0)
+    pst.Str(String("y/N]: "))
+  else
+    pst.Str(String("Y/n]: "))  
+  pst.StrInMax(@vCmd,  MAX_LEN_CMD) ' Wait here to receive a carriage return terminated string or one of MAX_LEN_CMD bytes (the result is null terminated) 
+  if (strsize(@vCmd) =< 1)            ' We're only looking for a single character (or NULL, which will have a string size of 0)
+    case vCmd[0]                        ' Check the first character of the input string
+        0:                                ' The user only entered a CR, so keep the same value and pass through.
+        "N", "n":                      
+          uBaudIgnore := 0             ' Disable flag
+        "Y", "y":
+          uBaudIgnore := 1             ' Enable flag
+        other:
+          pst.Str(@ErrOutOfRange)
+          return -1
+  else
+    pst.Str(@ErrOutOfRange)
+    return -1
     
+   
 PRI Display_UART_Pins(txdOnly, mBaud)   ' Display UART pin configuration
 {
  txdOnly: 0 from UART_Scan or UART_Scan_TXD (fixed baud rate), 1 from UART_Scan_Autobaud
