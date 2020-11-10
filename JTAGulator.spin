@@ -1471,28 +1471,11 @@ PRI UART_Scan | baud_idx, i, j, ctr, num, xstr[MAX_LEN_UART_USER + 1], xtxd, xrx
       bytemove(@uSTR, @xstr, i)               ' Move the new string into the uSTR global 
       bytefill(@uSTR+i, 0, MAX_LEN_UART_TX-i) ' Fill the remainder of the string with NULL, in case it's shorter than the last 
                
-  if (Get_Channels(2) == -1)   ' Get the channel range to use
+  if (Get_Channels(2) == -1)        ' Get the channel range to use
     return 
   Display_Permutations((chEnd - chStart + 1), 2) ' TXD, RXD 
 
-  pst.Str(String(CR, LF, LF, "Ignore non-printable characters? ["))
-  if (uPrintable == 0)
-    pst.Str(String("y/N]: "))
-  else
-    pst.Str(String("Y/n]: "))  
-  pst.StrInMax(@vCmd,  MAX_LEN_CMD) ' Wait here to receive a carriage return terminated string or one of MAX_LEN_CMD bytes (the result is null terminated) 
-  if (strsize(@vCmd) =< 1)            ' We're only looking for a single character (or NULL, which will have a string size of 0)
-    case vCmd[0]                        ' Check the first character of the input string
-        0:                                ' The user only entered a CR, so keep the same value and pass through.
-        "N", "n":                      
-          uPrintable := 0                   ' Disable flag
-        "Y", "y":
-          uPrintable := 1                   ' Enable flag
-        other:
-          pst.Str(@ErrOutOfRange)
-          return
-  else
-    pst.Str(@ErrOutOfRange)
+  if (UART_Get_Printable == -1)     ' Ignore non-printable characters?
     return
     
   pst.Str(@MsgPressSpacebarToBegin)
@@ -1788,9 +1771,12 @@ PRI UART_Scan_TXD | value, baud_idx, i, t, num, display, data[MAX_LEN_UART_RX >>
 PRI UART_Scan_Autobaud | i, t, ch, ctr, bits, num, exit, PulseData[24 {g#MAX_CHAN} << 1], xtxd, xbaud    ' Identify UART pinout (Automatic baud rate detection)
   pst.Str(@MsgUARTPinout)
 
-  if (Get_Channels(1) == -1)   ' Get the channel range to use
+  if (Get_Channels(1) == -1)        ' Get the channel range to use
     return   
 
+  if (UART_Get_Printable == -1)     ' Ignore non-printable characters?
+    return
+        
   pst.Str(@MsgPressSpacebarToBegin)
   if (pst.CharIn <> " ")
     pst.Str(@ErrUARTAborted)
@@ -2069,6 +2055,28 @@ PRI UART_Scan_Cleanup(num, txd, rxd, baud)
     uBaud := 0       ' For a given UART interface, multiple baud rates could return potentially valid data. So, have the user decide which is the best/most likely choice for the given target. 
 
 
+PRI UART_Get_Printable
+  pst.Str(String(CR, LF, LF, "Ignore non-printable characters? ["))
+  if (uPrintable == 0)
+    pst.Str(String("y/N]: "))
+  else
+    pst.Str(String("Y/n]: "))  
+  pst.StrInMax(@vCmd,  MAX_LEN_CMD) ' Wait here to receive a carriage return terminated string or one of MAX_LEN_CMD bytes (the result is null terminated) 
+  if (strsize(@vCmd) =< 1)            ' We're only looking for a single character (or NULL, which will have a string size of 0)
+    case vCmd[0]                        ' Check the first character of the input string
+        0:                                ' The user only entered a CR, so keep the same value and pass through.
+        "N", "n":                      
+          uPrintable := 0                   ' Disable flag
+        "Y", "y":
+          uPrintable := 1                   ' Enable flag
+        other:
+          pst.Str(@ErrOutOfRange)
+          return -1
+  else
+    pst.Str(@ErrOutOfRange)
+    return -1
+
+    
 PRI Display_UART_Pins(txdOnly, mBaud)   ' Display UART pin configuration
 {
  txdOnly: 0 from UART_Scan or UART_Scan_TXD (fixed baud rate), 1 from UART_Scan_Autobaud
@@ -2096,6 +2104,7 @@ PRI Display_UART_Pins(txdOnly, mBaud)   ' Display UART pin configuration
         
   pst.Str(String(CR, LF))
   
+
 
 CON {{ GPIO METHODS }}
 
