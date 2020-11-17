@@ -60,6 +60,7 @@ CON
   MAX_LEN_UART_RX       = 16   ' Maximum number of bytes to receive from target
   UART_SCAN_DELAY       = 20   ' Time to receive a byte from the target (ms)
   UART_PULSE_DELAY      = 50   ' Time for pulse width detection cog to measure pulse (ms) 
+  UART_PULSE_COUNT      = 32   ' Number of samples to receive during pulse width detection
     
   ' Menu
   MENU_MAIN     = 0    ' Main/Top
@@ -132,7 +133,6 @@ OBJ
   pst           : "PropSerial"             ' Serial communication for user interface (modified version of built-in Parallax Serial Terminal)
   str           : "jm_strings"             ' String manipulation methods (JonnyMac)
   rr            : "RealRandom"             ' Random number generation (Chip Gracey, https://github.com/parallaxinc/propeller/tree/master/libraries/community/p1/All/Real%20Random) 
-  'pulse         : "MonitorPWM"             ' Measure pulse width on specified input pin
   pulse         : "PulseWidth"             ' Measure pulse width on specified input pin
   eeprom        : "Basic_I2C_Driver"       ' I2C protocol for boot EEPROM communication (Michael Green, https://github.com/parallaxinc/propeller/tree/master/libraries/community/p1/All/Basic%20I2C%20Driver)
   uart          : "JDCogSerial"            ' UART/Asynchronous Serial communication engine (Carl Jacobs, https://github.com/parallaxinc/propeller/tree/master/libraries/community/p1/All/JDCogSerial)
@@ -1772,7 +1772,7 @@ PRI UART_Scan_TXD | value, baud_idx, i, t, num, display, data[MAX_LEN_UART_RX >>
   pst.Str(@MsgScanComplete)
 
 
-PRI UART_Scan_Autobaud | i, t, ch, timer, ctr, bits, num, exit, xtxd, xbaud, tLprobe    ' Identify UART pinout (Automatic baud rate detection)
+PRI UART_Scan_Autobaud | i, t, ch, chmask, ctr, num, exit, xtxd, xbaud    ' Identify UART pinout (Automatic baud rate detection)
   pst.Str(@MsgUARTPinout)
 
   if (Get_Channels(1) == -1)        ' Get the channel range to use
@@ -1798,53 +1798,10 @@ PRI UART_Scan_Autobaud | i, t, ch, timer, ctr, bits, num, exit, xtxd, xbaud, tLp
               
   num := 0   ' Counter of possible pinouts
   xtxd := xbaud := 0
-  exit := 0
-  
-  bits := 5  ' temporary channel number for testing
-
-  pulse.Start(bits, @tLprobe)          ' Start pulse width detection cog (result is 0 if no pulse)         
-
-  i := 0
-  timer := cnt
+  exit := 0  
   repeat
-  '  repeat while i < 32 {(sump#MAX_SAMPLE_PERIODS >> 1)} and (cnt - timer) / (clkfreq / 1000) =< UART_PULSE_DELAY    ' Capture samples until buffer is full or for maximum UART_PULSE_DELAY (in ms)
-  '    vBuf[i++] := tLprobe           ' Store measured pulse widths into buffer
-
- ' pulse.Stop                     ' Stop pulse width detection cog
-            
-    'repeat t from 0 to i
-    repeat while i < 32
-      pst.Str(String(CR, LF))
-      pst.Dec(i++)
-      pst.Str(String(": "))
-      t := tLprobe
-      pst.Dec(t)    ' Minimum measured pulse (from falling edge to rising edge, in clock ticks)
-      pst.Str(String(" => "))
-      pst.Dec(UART_Best_Fit(clkfreq / t))
-
-    pulse.Stop                     ' Stop pulse width detection cog
- 
-    {repeat i from 0 to pulseCnt << 1
-      pst.Str(String(CR, LF))
-      pst.Dec(i)
-      pst.Str(String(": "))
-      pst.Hex(vBuf[i], 8)
-     } 
-     {{
-    'i := $7fffffff
-    repeat
-      pst.Str(String(CR, LF, "tH = "))
-      pst.Dec(tHprobe)
-      pst.Str(String(" tL = "))
-      pst.Dec(tLprobe)
-      pst.Str(String(" W = "))
-
-        if (tHprobe > 0 and tLprobe > 0)
-          i <#= tHprobe <# tLprobe    ' Minimum measured pulse (in clock ticks)
-        pst.Dec(i)
-        
-    i := ina[g#MAX_CHAN-1..0]                        ' Read current state of channels
-    repeat while (ch := ina[g#MAX_CHAN-1..0]) == i   ' Wait until there's a change on one or more channels
+    i := ina[chEnd..chStart]                             ' Read current state of channels
+    repeat while (chmask := ina[chEnd..chStart]) == i    ' Wait until there's a change on one or more channels
       ' Progress indicator
       ++ctr
       Display_Progress(ctr, $4000, 1)
@@ -1856,26 +1813,36 @@ PRI UART_Scan_Autobaud | i, t, ch, timer, ctr, bits, num, exit, xtxd, xbaud, tLp
     if (exit)
       quit
     else
-      ch ^= i                ' Isolate the bits that changed (will be set to 1)
-      ch &= $00FFFFFF        ' Mask bits representing CH23..0
+      chmask ^= i                ' Isolate the bits that changed (will be set to 1)
+      chmask &= $00FFFFFF        ' Mask bits representing CH23..0
               
       ' Monitor each channel individually
-      bits := 0
-      repeat while (ch)
-        if (ch & 1)
+      ch := 0      
+      repeat while (chmask)
+        if (chmask & 1)
+          i := UART_PULSE_COUNT
+          pulse.Start(ch, @i, @vBuf)           ' Start pulse width detection cog (number of detected negative-going pulses returned in i)
+          u.Pause(UART_PULSE_DELAY)            ' Delay for cog to capture pulses (if they exist on the current channel)
+          pulse.Stop                           ' Stop pulse width detection cog
 
-          
-        
-          {pulse.Start(bits, @i)          ' Start pulse width detection cog (result is 0 if no pulse)  
-          u.Pause(10 {UART_PULSE_DELAY})      ' Delay for cog to capture pulses (if they exist on the current channel)}
-          pulse.Stop                     ' Stop pulse width detection cog
+          if (i > 0)                           ' If we've measured pulse(s)
+            pst.Str(String(CR, LF, "CH"))
+            pst.Dec(ch)
+            pst.Str(String(":", CR, LF, "---"))              
 
-          pst.Str(String(CR, LF, "W: "))
-          pst.Dec(i)
+            repeat t from 0 to i - 1
+              pst.Str(String(CR, LF))
+              pst.Dec(t)
+              pst.Str(String(": "))
+              pst.Dec(vBuf[t])    ' Minimum measured pulse (from falling edge to rising edge, in clock ticks)
+              pst.Str(String(" => "))
+              pst.Dec(UART_Best_Fit(clkfreq / vBuf[t]))
+              
+            pst.Str(String(CR, LF, "***", CR, LF))
                                                         
-          if (i > 0)                           ' If we've measured a pulse, assume it represents the minimum bit width of a UART signal
+          {if (i > 0)                            ' Assume the narrowest average pulse (in clock ticks) represents the minimum bit width of a UART signal
             t := clkfreq / i                     ' Temporarily store the measured baud rate (result is 0 if i = 0)                         
-            uTXD := bits                         ' Store the current channel
+            uTXD := ch                           ' Store the current channel
             uBaud := UART_Best_Fit(t)            ' Locate best fit value for measured baud rate (if it exists, 0 otherwise)
 
             if !(uBaud == 0 and uBaudIgnore == 1)
@@ -1887,22 +1854,21 @@ PRI UART_Scan_Autobaud | i, t, ch, timer, ctr, bits, num, exit, xtxd, xbaud, tLp
               u.Pause(10)                          ' Delay for cog setup
               UART.RxFlush                         ' Flush receive buffer
 
-              pst.Str(String("***"))          
               if (UART_Get_Display_Data(1, t))     ' Check for a response from the target and display data
                 num += 1                             ' Increment counter
                 xtxd := uTXD                         ' Keep track of most recent detection results
                 xbaud := uBaud
-                      
-        bits += 1      
-        ch >>= 1   ' Shift to the next bit (channel) 
-            }}
+            }          
+        ch += 1        ' Increment current channel   
+        chmask >>= 1   ' Shift to the next bit in the channel mask 
+            
   ' Progress indicator
     ++ctr
     Display_Progress(ctr, 1000, 1)
         
     if (pst.RxEmpty == 0)
       quit    
-      
+  
   UART_Scan_Cleanup(num, xtxd, 0, xbaud)  ' RXD isn't used in this command
   pst.RxFlush
 
