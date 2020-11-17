@@ -1815,7 +1815,8 @@ PRI UART_Scan_Autobaud | i, t, ch, chmask, ctr, num, exit, xtxd, xbaud    ' Iden
     else
       chmask ^= i                ' Isolate the bits that changed (will be set to 1)
       chmask &= $00FFFFFF        ' Mask bits representing CH23..0
-              
+      chmask <<= chStart         ' Shift bits into the correct position based on channel range
+                   
       ' Monitor each channel individually
       ch := 0      
       repeat while (chmask)
