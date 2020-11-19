@@ -18,7 +18,7 @@ the binary protocol used by the Bus Pirate (http://dangerousprototypes.com/docs/
 and https://github.com/DangerousPrototypes/Bus_Pirate/blob/master/Firmware/OpenOCD.c)
 
 }}
-   
+          
    
 CON
   ' Serial terminal
@@ -31,7 +31,7 @@ CON
   
   MAX_RX_DELAY_MS               = 100    ' Wait time (in ms) for the each byte in commands to be sent before aborting
   
-  CMD_UNKNOWN                   = $00    ' unknown command
+  CMD_UNKNOWN                   = $00
   CMD_PORT_MODE                 = $01    ' port type
   CMD_FEATURE                   = $02    ' hardware-specific configuration
   CMD_READ_ADCS                 = $03    ' read A/Ds
@@ -90,7 +90,7 @@ PUB Go(tdi, tdo, tck, tms, bufPtr) | ctr
 
       'the 'short' commands follow; all are 1 byte, no parameters
 
-      CMD_UNKNOWN:       ' Exit binary mode (from buspirate_jtag_reset in OpenOCD buspirate.c)
+      CMD_UNKNOWN:       ' From buspirate_bbio_enable and buspirate_jtag_reset in OpenOCD buspirate.c
         u.LEDRed           ' Ensure LED turns back to red when OpenOCD is closed
         pst.Str(@BBIO)
         
