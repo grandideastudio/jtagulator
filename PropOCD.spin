@@ -90,7 +90,8 @@ PUB Go(tdi, tdo, tck, tms, bufPtr) | ctr
 
       'the 'short' commands follow; all are 1 byte, no parameters
 
-      CMD_UNKNOWN:
+      CMD_UNKNOWN:       ' Exit OCD1 mode (from buspirate_jtag_reset in OpenOCD buspirate.c)
+        u.LEDRed           ' Ensure LED turns back to red when OpenOCD is closed
         pst.Str(@BBIO)
         
       CMD_ENTER_OOCD:
