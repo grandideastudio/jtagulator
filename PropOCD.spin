@@ -37,7 +37,7 @@ CON
   CMD_READ_ADCS                 = $03    ' read A/Ds
   'CMD_TAP_SHIFT                 = $04    ' shift TAP (old protocol)
   CMD_TAP_SHIFT                 = $05    ' shift TAP
-  CMD_ENTER_OOCD                = $06    ' enter OCD mode
+  CMD_ENTER_OOCD                = $06    ' enter binary (OCD) mode
   CMD_UART_SPEED                = $07    ' UART speed select
   CMD_JTAG_SPEED                = $08    ' JTAG speed select
   CMD_RESET                     = $0F    ' reset (from buspirate_jtag_reset in OpenOCD buspirate.c)
@@ -90,7 +90,7 @@ PUB Go(tdi, tdo, tck, tms, bufPtr) | ctr
 
       'the 'short' commands follow; all are 1 byte, no parameters
 
-      CMD_UNKNOWN:       ' Exit OCD1 mode (from buspirate_jtag_reset in OpenOCD buspirate.c)
+      CMD_UNKNOWN:       ' Exit binary mode (from buspirate_jtag_reset in OpenOCD buspirate.c)
         u.LEDRed           ' Ensure LED turns back to red when OpenOCD is closed
         pst.Str(@BBIO)
         
