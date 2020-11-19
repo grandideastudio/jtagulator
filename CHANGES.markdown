@@ -10,7 +10,9 @@ Release date: **xx**
 
 * JTAG: Added RTCK Scan (`R`) for [adaptive clocking](https://developer.arm.com/documentation/dui0517/h/rvi-debug-unit-system-design-guidelines/using-adaptive-clocking-to-synchronize-the-jtag-port?lang=en) discovery. RTCK (return test clock) is implemented by synthesizable CPU cores that need to synchronize an external JTAG hardware adapter's test clock (TCK) with their own internal core clock (thanks to Bryan Angelo).
 
-* JTAG: Fixed JTAG Scan (`J`) to check for nTRST when TDI is connected to channel 0.
+* JTAG: Fixed JTAG Scan (`J`) to check for nTRST even if TDI is connected to channel 0.
+
+* JTAG: Fixed OpenOCD mode (`O`) to ensure the JTAGulator's LED turns back to RED when the OpenOCD software is closed.
  
 * General: Minor code modifications and cleanup.
 
