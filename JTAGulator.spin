@@ -59,9 +59,12 @@ CON
   MAX_LEN_UART_TX       = 16   ' Maximum number of bytes to transmit to target (based on user input string)
   MAX_LEN_UART_RX       = 16   ' Maximum number of bytes to receive from target
   UART_SCAN_DELAY       = 20   ' Time to receive a byte from the target (ms)
+  
   UART_PULSE_DELAY      = 50   ' Time for pulse width detection cog to measure pulse (ms) 
   UART_PULSE_COUNT      = 32   ' Number of samples to receive during pulse width detection
-    
+  UART_PULSE_ARRAY_L    = 8    ' Range within array of captured pulses to determine minimum width (must be within UART_PULSE_COUNT)
+  UART_PULSE_ARRAY_H    = 15
+  
   ' Menu
   MENU_MAIN     = 0    ' Main/Top
   MENU_JTAG     = 1    ' JTAG
@@ -134,6 +137,7 @@ OBJ
   str           : "jm_strings"             ' String manipulation methods (JonnyMac)
   rr            : "RealRandom"             ' Random number generation (Chip Gracey, https://github.com/parallaxinc/propeller/tree/master/libraries/community/p1/All/Real%20Random) 
   pulse         : "PulseWidth"             ' Measure pulse width on specified input pin
+  sort          : "sort_dec"               ' Sorting algorithms (Brandon Nimon, https://github.com/parallaxinc/propeller/tree/master/libraries/community/p1/All/Sorting%20Algorithms%20in%20SPIN%20or%20PASM)
   eeprom        : "Basic_I2C_Driver"       ' I2C protocol for boot EEPROM communication (Michael Green, https://github.com/parallaxinc/propeller/tree/master/libraries/community/p1/All/Basic%20I2C%20Driver)
   uart          : "JDCogSerial"            ' UART/Asynchronous Serial communication engine (Carl Jacobs, https://github.com/parallaxinc/propeller/tree/master/libraries/community/p1/All/JDCogSerial)
   pt_in         : "jm_rxserial"            ' UART/Asynchronous Serial receive driver for passthrough (JonnyMac, https://forums.parallax.com/discussion/114492/prop-baudrates)
@@ -1519,9 +1523,9 @@ PRI UART_Scan | baud_idx, i, j, ctr, num, xstr[MAX_LEN_UART_USER + 1], xtxd, xrx
           repeat uHex
             UART.tx(byte[@uSTR][i++])
 
-        if (UART_Get_Display_Data(0, 0))   ' Check for a response from the target and display data
-          num += 1                            ' Increment counter
-          xtxd := uTXD                        ' Keep track of most recent detection results
+        if (UART_Get_Display_Data)         ' Check for a response from the target and display data
+          num += 1                           ' Increment counter
+          xtxd := uTXD                       ' Keep track of most recent detection results
           xrxd := uRXD
           xbaud := uBaud
 
@@ -1780,9 +1784,6 @@ PRI UART_Scan_Autobaud | i, t, ch, chmask, ctr, num, exit, xtxd, xbaud    ' Iden
 
   if (UART_Get_NonStandard == -1)   ' Ignore non-standard baud rates?
     return
-    
-  if (UART_Get_Printable == -1)     ' Ignore non-printable characters?
-    return
 
   pst.Str(@MsgPressSpacebarToBegin)
   if (pst.CharIn <> " ")
@@ -1819,47 +1820,41 @@ PRI UART_Scan_Autobaud | i, t, ch, chmask, ctr, num, exit, xtxd, xbaud    ' Iden
                    
       ' Monitor each channel individually
       ch := 0      
-      repeat while (chmask)
-        if (chmask & 1)
-          i := UART_PULSE_COUNT
+      repeat while (ch < g#MAX_CHAN)
+        if (chmask & 1)          
+          i := UART_PULSE_COUNT                ' Number of pulses to measure
           pulse.Start(ch, @i, @vBuf)           ' Start pulse width detection cog (number of detected negative-going pulses returned in i)
           u.Pause(UART_PULSE_DELAY)            ' Delay for cog to capture pulses (if they exist on the current channel)
           pulse.Stop                           ' Stop pulse width detection cog
 
-          if (i > 0)                           ' If we've measured pulse(s)
-            pst.Str(String(CR, LF, "CH"))
-            pst.Dec(ch)
-            pst.Str(String(":", CR, LF, "---"))              
+          if (i == UART_PULSE_COUNT)           ' If we've measured a full array of pulse(s)
+            sort.pasmshellsort(@vBuf, i, sort#ASC)    ' Sort array of measured pulses (in clock ticks) from shortest [0] to largest
 
+            {pst.Str(String(CR, LF, "CH"))
+            pst.Dec(ch)
+            pst.Str(String(":"))
             repeat t from 0 to i - 1
               pst.Str(String(CR, LF))
               pst.Dec(t)
               pst.Str(String(": "))
-              pst.Dec(vBuf[t])    ' Minimum measured pulse (from falling edge to rising edge, in clock ticks)
-              pst.Str(String(" => "))
-              pst.Dec(UART_Best_Fit(clkfreq / vBuf[t]))
-              
-            pst.Str(String(CR, LF, "***", CR, LF))
+              pst.Dec(vBuf[t])}
+
+            i := $7FFFFFFF
+            repeat t from UART_PULSE_ARRAY_L to UART_PULSE_ARRAY_H   ' Look for the narrowest pulse within the specified range
+              i <#= vBuf[t]      ' Assume this represents the minimum bit width of a UART signal 
                                                         
-          {if (i > 0)                            ' Assume the narrowest average pulse (in clock ticks) represents the minimum bit width of a UART signal
-            t := clkfreq / i                     ' Temporarily store the measured baud rate (result is 0 if i = 0)                         
-            uTXD := ch                           ' Store the current channel
-            uBaud := UART_Best_Fit(t)            ' Locate best fit value for measured baud rate (if it exists, 0 otherwise)
+            if (i > 0)                            
+              t := clkfreq / i                     ' Temporarily store the measured baud rate (result is 0 if i = 0)                           
+              uTXD := ch                           ' Store the current channel
+              uBaud := UART_Best_Fit(t)            ' Locate best fit value for measured baud rate (if it exists, 0 otherwise)
 
-            if !(uBaud == 0 and uBaudIgnore == 1)
-              if (uBaud)            
-                UART.Start(|<uTXD, |<uRXD, uBaud)    ' Configure UART using best fit/standard baud rate
-              else
-                UART.Start(|<uTXD, |<uRXD, t)        ' Configure UART using non-standard baud rate
-              
-              u.Pause(10)                          ' Delay for cog setup
-              UART.RxFlush                         ' Flush receive buffer
-
-              if (UART_Get_Display_Data(1, t))     ' Check for a response from the target and display data
+              if !(uBaud == 0 and uBaudIgnore == 1) 
+                Display_UART_Pins(1, t)              ' Display current UART pinout
+                              
                 num += 1                             ' Increment counter
                 xtxd := uTXD                         ' Keep track of most recent detection results
                 xbaud := uBaud
-            }          
+              
         ch += 1        ' Increment current channel   
         chmask >>= 1   ' Shift to the next bit in the channel mask 
             
@@ -1877,7 +1872,7 @@ PRI UART_Scan_Autobaud | i, t, ch, chmask, ctr, num, exit, xtxd, xbaud    ' Iden
   pst.Str(@MsgScanComplete)
 
 
-PRI UART_Get_Display_Data(txdOnly, mBaud) : display | i, value, data[MAX_LEN_UART_RX >> 2]   ' Check for a response from the target and display data (UART.Start must be called first)
+PRI UART_Get_Display_Data : display | i, value, data[MAX_LEN_UART_RX >> 2]   ' Check for a response from the target and display data (UART.Start must be called first)
   i := 0
               
   repeat while (i < MAX_LEN_UART_RX)    ' Check for a response from the target and grab up to MAX_LEN_UART_RX bytes
@@ -1894,7 +1889,7 @@ PRI UART_Get_Display_Data(txdOnly, mBaud) : display | i, value, data[MAX_LEN_UAR
           display := 0                       ' Clear flag to skip the entire result
                 
     if (display == 1)
-      Display_UART_Pins(txdOnly, mBaud)    ' Display current UART pinout
+      Display_UART_Pins(0, 0)              ' Display current UART pinout
       pst.Str(String("Data: "))            ' Display the data in ASCII
       repeat value from 0 to (i-1)         ' For entire buffer         
         if (byte[@data][value] < $20) or (byte[@data][value] > $7E) ' If the byte is an unprintable character 
@@ -1911,10 +1906,6 @@ PRI UART_Get_Display_Data(txdOnly, mBaud) : display | i, value, data[MAX_LEN_UAR
                 
 PRI UART_Best_Fit(actual) : bestfit    ' Locate best fit value for measured baud rate (if it exists, return 0 otherwise)
   case actual                          ' +/- 5% tolerance unless otherwise noted
-    285..315         : bestfit := 300
-    570..630         : bestfit := 600
-    1140..1260       : bestfit := 1200
-    1710..1890       : bestfit := 1800
     2280..2520       : bestfit := 2400
     3420..3780       : bestfit := 3600
     4560..5040       : bestfit := 4800
@@ -1939,8 +1930,6 @@ PRI UART_Best_Fit(actual) : bestfit    ' Locate best fit value for measured baud
     988801..1050000  : bestfit := 1000000    ' - reduced
     1140000..1260000 : bestfit := 1200000
     1425000..1575000 : bestfit := 1500000
-    1900000..2100000 : bestfit := 2000000
-    2850000..3150000 : bestfit := 3000000
   
     
 PRI UART_Passthrough | ch, cog    ' UART/terminal passthrough
@@ -2141,8 +2130,7 @@ PRI Display_UART_Pins(txdOnly, mBaud)   ' Display UART pin configuration
       else
         pst.Dec(uBaud)
         
-  pst.Str(String(CR, LF))
-  
+  pst.Str(String(CR, LF))  
 
 
 CON {{ GPIO METHODS }}
