@@ -8,6 +8,12 @@ Visit the JTAGulator [GitHub repository](https://github.com/grandideastudio/jtag
 ---
 Release date: **xx**
 
+* UART: Upgraded `UART_Scan_TXD` to continuously monitor for target signals and automatically calculate their baud rates instead of iterating through a fixed set. This significantly decreases scan time, increases the detectable baud rate to > 1.5M, and can identify targets that implement non-standard or fluctuating baud rates, either intentionally or through unintentional timing errors (thanks kbembedded and BenGardiner).
+
+* UART: Added support during `UART_Scan` to accept known pins, if any. This can reduce search time, especially if `UART_Scan_TXD` was done first to identify TXD.
+
+* UART: Fixed bug that prevented `UART_Scan` from proceeding if a target was continually transmitting data. This fix may result in more responses for a given pin permutation.
+
 * JTAG: Added RTCK Scan (`R`) for [adaptive clocking](https://developer.arm.com/documentation/dui0517/h/rvi-debug-unit-system-design-guidelines/using-adaptive-clocking-to-synchronize-the-jtag-port?lang=en) discovery. RTCK (return test clock) is implemented by synthesizable CPU cores that need to synchronize an external JTAG hardware adapter's test clock (TCK) with their own internal core clock (thanks to Bryan Angelo).
 
 * JTAG: Fixed JTAG Scan (`J`) to check for nTRST when TDI is connected to channel 0.
