@@ -109,6 +109,7 @@ VAR                   ' Globally accessible variables
   byte uSTR[MAX_LEN_UART_TX + 1]    ' User input string buffer for UART_Scan + \0
   byte uHex           ' Is user input string ASCII (0) or hex (number of bytes)
   long uPrintable
+  long uPinsKnown     
   long uBaudIgnore    ' Parameter for UART_Scan_TXD 
   long uLocalEcho     ' Parameter for UART_Passthrough
 
@@ -648,29 +649,12 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
   tdiStart := tdoStart := tmsStart := tckStart := chStart   ' Set default start and end channels
   tdiEnd := tdoEnd := tmsEnd := tckEnd := chEnd
     
-  pst.Str(String(CR, LF, "Are any pins already known? ["))
-  if (jPinsKnown == 0)
-    pst.Str(String("y/N]: "))
-  else
-    pst.Str(String("Y/n]: "))  
-  pst.StrInMax(@vCmd,  MAX_LEN_CMD) ' Wait here to receive a carriage return terminated string or one of MAX_LEN_CMD bytes (the result is null terminated) 
-  if (strsize(@vCmd) =< 1)            ' We're only looking for a single character (or NULL, which will have a string size of 0)
-    case vCmd[0]                        ' Check the first character of the input string
-      0:                                ' The user only entered a CR, so keep the same value and pass through.
-      "N", "n":
-        jPinsKnown := 0                 ' Disable flag                
-      "Y", "y":                         ' If the user wants to use a partial pinout
-        jPinsKnown := 1                 ' Enable flag
-      other:                            ' Any other key causes an error
-        pst.Str(@ErrOutOfRange)
-        return
-  else
-    pst.Str(@ErrOutOfRange)
+  if (Get_Pins_Known(0) == -1)   ' Ask if any pins are known
     return
 
   if (jPinsKnown == 1)
-    pst.Str(String(CR, LF, "Enter X for any unknown pin."))
-    if (Set_JTAG_Partial == -1)       ' Ask user for any known JTAG pins
+    pst.Str(@MsgUnknownPin)
+    if (Set_JTAG_Partial == -1)
       return                            ' Abort if error
 
     ' If the user has entered a known pin, set it as both start and end to make it static during the scan
@@ -819,7 +803,7 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
   pst.Str(@MsgScanComplete)
 
   
-PRI RTCK_Scan | ctr, num, known, matches, xtck, xrtck, tckStart, tckEnd      '  Identify RTCK (Adaptive Clocking) 
+PRI RTCK_Scan : err | ctr, num, known, matches, xtck, xrtck, tckStart, tckEnd      '  Identify RTCK (Adaptive Clocking) 
   num := 2   ' Number of pins needed to locate (TCK, RTCK)
 
   if (Get_Channels(num) == -1)   ' Get the channel range to use
@@ -1395,6 +1379,7 @@ PRI UART_Init
 
   ' UART_Scan
   uHex := 0
+  uPinsKnown := 0
   uPrintable := 1
     
   ' UART_Scan_TXD
@@ -1404,7 +1389,7 @@ PRI UART_Init
   uLocalEcho := 0
   
 
-PRI UART_Scan | baud_idx, i, j, ctr, num, xstr[MAX_LEN_UART_USER + 1], xtxd, xrxd, xbaud    ' Identify UART pinout
+PRI UART_Scan | baud_idx, i, j, ctr, num, xstr[MAX_LEN_UART_USER + 1], xtxd, xrxd, xbaud, txdStart, txdEnd, rxdStart, rxdEnd     ' Identify UART pinout
   pst.Str(@MsgUARTPinout)
 
  ' Get user string to send during UART discovery
@@ -1462,10 +1447,37 @@ PRI UART_Scan | baud_idx, i, j, ctr, num, xstr[MAX_LEN_UART_USER + 1], xtxd, xrx
       uHex := 0
       bytemove(@uSTR, @xstr, i)               ' Move the new string into the uSTR global 
       bytefill(@uSTR+i, 0, MAX_LEN_UART_TX-i) ' Fill the remainder of the string with NULL, in case it's shorter than the last 
-               
-  if (Get_Channels(2) == -1)        ' Get the channel range to use
-    return 
-  Display_Permutations((chEnd - chStart + 1), 2) ' TXD, RXD 
+
+  num := 2   ' Number of pins needed to locate (TXD, RXD)
+      
+  if (Get_Channels(num) == -1)      ' Get the channel range to use
+    return
+
+  txdStart := rxdStart := chStart   ' Set default start and end channels
+  txdEnd := rxdEnd := chEnd
+    
+  if (Get_Pins_Known(1) == -1)      ' Ask if any pins are known
+    return
+
+  if (uPinsKnown == 1)
+    pst.Str(@MsgUnknownPin)
+    if (Set_UART(0) == -1)          
+      return                        ' Abort if error
+
+    ' If the user has entered a known pin, set it as both start and end to make it static during the scan
+    if (uTXD <> -2)
+      txdStart := txdEnd := uTXD
+      num -= 1
+    else
+      uTXD := 0   ' Reset pin
+          
+    if (uRXD <> -2)
+      rxdStart := rxdEnd := uRXD
+      num -= 1
+    else
+      uRXD := 0
+
+  Display_Permutations((chEnd - chStart + 1) - (2 - num), num)  ' calculate number of permutations, accounting for any known channels
 
   if (UART_Get_Printable == -1)     ' Ignore non-printable characters?
     return
@@ -1481,8 +1493,8 @@ PRI UART_Scan | baud_idx, i, j, ctr, num, xstr[MAX_LEN_UART_USER + 1], xtxd, xrx
   num := 0   ' Counter of possible pinouts
   ctr := 0
   xtxd := xrxd := xbaud := 0 
-  repeat uTXD from chStart to chEnd   ' For every possible pin permutation...
-    repeat uRXD from chStart to chEnd
+  repeat uTXD from txdStart to txdEnd   ' For every possible pin permutation...
+    repeat uRXD from rxdStart to rxdEnd
       if (uRXD == uTXD)
         next
 
@@ -1509,6 +1521,7 @@ PRI UART_Scan | baud_idx, i, j, ctr, num, xstr[MAX_LEN_UART_USER + 1], xtxd, xrx
 
         if (UART_Get_Display_Data)         ' Check for a response from the target and display data
           num += 1                           ' Increment counter
+          uPinsKnown := 1                    ' Enable known pins flag   
           xtxd := uTXD                       ' Keep track of most recent detection results
           xrxd := uRXD
           xbaud := uBaud
@@ -1519,7 +1532,8 @@ PRI UART_Scan | baud_idx, i, j, ctr, num, xstr[MAX_LEN_UART_USER + 1], xtxd, xrx
 
   if (num == 0)
     pst.Str(@ErrNoDeviceFound)
-    
+    uPinsKnown := 0
+                             
   UART_Scan_Cleanup(num, xtxd, xrxd, xbaud)
   
   pst.Str(String(CR, LF, "UART"))  
@@ -1594,6 +1608,7 @@ PRI UART_Scan_TXD | i, t, ch, chmask, ctr, ctr_in, num, exit, xtxd, xbaud    ' I
                 Display_UART_Pins(1, t)              ' Display current UART pinout
                               
                 num += 1                             ' Increment counter
+                uPinsKnown := 1                      ' Enable known pins flag                   
                 xtxd := uTXD                         ' Keep track of most recent detection results
                 xbaud := uBaud
 
@@ -1608,7 +1623,10 @@ PRI UART_Scan_TXD | i, t, ch, chmask, ctr, ctr_in, num, exit, xtxd, xbaud    ' I
         
     if (pst.RxEmpty == 0)
       quit    
-  
+
+  if (num == 0)
+    uPinsKnown := 0
+    
   UART_Scan_Cleanup(num, xtxd, 0, xbaud)  ' RXD isn't used in this command
   pst.RxFlush
 
@@ -1680,8 +1698,8 @@ PRI UART_Passthrough | ch, cog    ' UART/terminal passthrough
   pst.Str(@MsgUARTPinout)
 
   pst.Str(String(CR, LF, "Enter X to disable either pin, if desired."))
-  if (Set_UART == -1)     ' Ask user for the known UART configuration
-    return                ' Abort if error
+  if (Set_UART(1) == -1)     ' Ask user for the known UART configuration
+    return                     ' Abort if error
 
   ' If the user has selected to disable one of the pins, set it to a temporary pin so it doesn't interfere 
   if (uTXD == -2)
@@ -1752,7 +1770,7 @@ PUB RX_from_Target
     pst.Char(PT_In.rx)      ' Get data from target and send to the PC
         
 
-PRI Set_UART : err | xtxd, xrxd, xbaud            ' Set UART configuration to known values
+PRI Set_UART(askBaud) : err | xtxd, xrxd, xbaud            ' Set UART configuration to known values
   ' An "X" or "x" character may be sent by the user to disable the TXD or RXD pin. This will result in Get_Pin returning a -2 value.
   pst.Str(String(CR, LF, "Enter TXD pin ["))
   pst.Dec(uTXD)               ' Display current value
@@ -1778,21 +1796,24 @@ PRI Set_UART : err | xtxd, xrxd, xbaud            ' Set UART configuration to kn
   if (xtxd == xrxd)  ' If we have a collision
     pst.Str(@ErrPinCollision)
     return -1                 ' Then exit
-    
-  pst.Str(String(CR, LF, "Enter baud rate ["))
-  pst.Dec(uBaud)              ' Display current value
-  pst.Str(String("]: "))
-  xbaud := Get_Decimal_Pin    ' Get new value from user
-  if (xbaud == -1)            ' If carriage return was pressed...      
-    xbaud := uBaud              ' Keep current setting
-  if (xbaud < BaudRate[0]) or (xbaud > BaudRate[(constant(BaudRateEnd - BaudRate) >> 2) - 1])  ' If entered value is out of range, abort
-    pst.Str(@ErrOutOfRange)
-    return -1
 
   ' Update the globals with the new values
   uTXD := xtxd      
   uRXD := xrxd
-  uBaud := xbaud
+
+  if (askBaud)  
+    pst.Str(String(CR, LF, "Enter baud rate ["))
+    pst.Dec(uBaud)              ' Display current value
+    pst.Str(String("]: "))
+    xbaud := Get_Decimal_Pin    ' Get new value from user
+    if (xbaud == -1)            ' If carriage return was pressed...      
+      xbaud := uBaud              ' Keep current setting
+    if (xbaud < BaudRate[0]) or (xbaud > BaudRate[(constant(BaudRateEnd - BaudRate) >> 2) - 1])  ' If entered value is out of range, abort
+      pst.Str(@ErrOutOfRange)
+      return -1
+
+    ' Update the global with the new value
+    uBaud := xbaud
 
 
 PRI UART_Scan_Cleanup(num, txd, rxd, baud)
@@ -1806,7 +1827,7 @@ PRI UART_Scan_Cleanup(num, txd, rxd, baud)
     uBaud := baud
 
 
-PRI UART_Get_Printable
+PRI UART_Get_Printable : err
   pst.Str(String(CR, LF, LF, "Ignore non-printable characters? ["))
   if (uPrintable == 0)
     pst.Str(String("y/N]: "))
@@ -1828,7 +1849,7 @@ PRI UART_Get_Printable
     return -1
 
 
-PRI UART_Get_NonStandard
+PRI UART_Get_NonStandard : err
   pst.Str(String(CR, LF, LF, "Ignore non-standard baud rates? ["))
   if (uBaudIgnore == 0)
     pst.Str(String("y/N]: "))
@@ -2231,6 +2252,37 @@ PRI Set_Target_IO_Voltage | value
     pst.Str(String(CR, LF, "Warning: Ensure VADJ is NOT connected to target!"))
 
 
+PRI Get_Pins_Known(type) : err
+{
+  type: 0 if JTAG, 1 if UART
+}
+  pst.Str(String(CR, LF, "Are any pins already known? ["))
+  if (type == 0 and jPinsKnown == 0) or (type == 1 and uPinsKnown == 0)
+    pst.Str(String("y/N]: "))
+  else
+    pst.Str(String("Y/n]: "))  
+  pst.StrInMax(@vCmd,  MAX_LEN_CMD) ' Wait here to receive a carriage return terminated string or one of MAX_LEN_CMD bytes (the result is null terminated) 
+  if (strsize(@vCmd) =< 1)            ' We're only looking for a single character (or NULL, which will have a string size of 0)
+    case vCmd[0]                        ' Check the first character of the input string
+      0:                                ' The user only entered a CR, so keep the same value and pass through
+      "N", "n":
+        if (type == 0)
+          jPinsKnown := 0                 ' Disable flag
+        else
+          uPinsKnown := 0                  
+      "Y", "y":                         ' If the user wants to use a partial pinout
+        if (type == 0)
+          jPinsKnown := 1                 ' Enable flag
+        else
+          uPinsKnown := 1
+      other:                            ' Any other key causes an error
+        pst.Str(@ErrOutOfRange)
+        return -1
+  else
+    pst.Str(@ErrOutOfRange)
+    return -1
+      
+
 PRI Get_Settings : err | value     ' Get user-configurable settings used in IDCODE and BYPASS Scans
   pst.Str(String(CR, LF, LF, "Bring channels LOW between each permutation? ["))
   if (jPinsLow == 0)
@@ -2513,6 +2565,7 @@ CharProgress  byte "-", 0   ' Character used for progress indicator
 MsgPressSpacebarToBegin     byte CR, LF, "Press spacebar to begin (any other key to abort)...", 0 
 MsgJTAGulating              byte CR, LF, "JTAGulating! Press any key to abort...", CR, LF, 0
 MsgDevicesDetected          byte "Number of devices detected: ", 0
+MsgUnknownPin               byte CR, LF, "Enter X for any unknown pin.", 0
 
 MsgScanComplete             byte " scan complete.", 0
 MsgIDCODEDisplayComplete    byte CR, LF, "IDCODE listing complete.", 0
