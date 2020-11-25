@@ -1709,14 +1709,15 @@ PRI UART_Passthrough | ch, cog    ' UART/terminal passthrough
     pst.Str(@ErrOutOfRange)
     return
 
+  pst.Str(String(CR, LF, "Entering UART passthrough! Press Ctrl-X to abort...", CR, LF))
+
   ' Based on Serial_Pass_Through.spin from Chapter 4 of
   ' https://www.parallax.com/sites/default/files/downloads/122-32450-XBeeTutorial-v1.0.1.pdf
   u.TXSEnable                               ' Enable level shifter outputs
   PT_In.Init(uTXD, uBaud)                   ' Start serial port, receive only from target
   PT_Out.Init(uRXD, uBaud)                  ' Start serial port, transmit only to target 
-  cog := cognew(RX_from_Target, @vBuf) + 1  ' Start cog for target -> PC communication
   u.Pause(50)                               ' Delay for cog setup
-  pst.Str(String(CR, LF, "Entering UART passthrough! Press Ctrl-X to abort...", CR, LF))
+  cog := cognew(RX_from_Target, @vBuf) + 1  ' Start cog for target -> PC communication
   
   pst.RxFlush
   PT_Out.flush
