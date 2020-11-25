@@ -1406,7 +1406,7 @@ PRI UART_Init
 
   ' Set default parameters
   uPrintable := 1
-  uBaudIgnore := 1
+  uBaudIgnore := 0
   uHex := 0
   
   ' UART_Scan_TXD
@@ -1829,7 +1829,7 @@ PRI UART_Scan_Autobaud | i, t, ch, chmask, ctr, ctr_in, num, exit, xtxd, xbaud  
           pulse.Stop                           ' Stop pulse width detection cog
 
           if (i == UART_PULSE_COUNT)           ' If we've measured a full array of pulses
-            sort.pasmshellsort(@vBuf, i, sort#ASC)    ' Sort array of measured pulses (in clock ticks) from shortest [0] to largest
+            sort.pasmshellsort(@vBuf, i, sort#ASC)    ' Sort the pulses (in clock ticks) from shortest [0] to largest
 
             i := $7FFFFFFF
             repeat t from UART_PULSE_ARRAY_L to UART_PULSE_ARRAY_H   ' Look for the narrowest pulse within the specified range
