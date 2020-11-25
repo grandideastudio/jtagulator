@@ -1776,7 +1776,7 @@ PRI UART_Scan_TXD | value, baud_idx, i, t, num, display, data[MAX_LEN_UART_RX >>
   pst.Str(@MsgScanComplete)
 
 
-PRI UART_Scan_Autobaud | i, t, ch, chmask, ctr, num, exit, xtxd, xbaud    ' Identify UART pinout (Automatic baud rate detection)
+PRI UART_Scan_Autobaud | i, t, ch, chmask, ctr, ctr_in, num, exit, xtxd, xbaud    ' Identify UART pinout (Automatic baud rate detection)
   pst.Str(@MsgUARTPinout)
 
   if (Get_Channels(1) == -1)        ' Get the channel range to use
@@ -1811,7 +1811,7 @@ PRI UART_Scan_Autobaud | i, t, ch, chmask, ctr, num, exit, xtxd, xbaud    ' Iden
       if (pst.RxEmpty == 0)
         exit := 1
         quit
-
+      
     if (exit)
       quit
     else
@@ -1828,7 +1828,7 @@ PRI UART_Scan_Autobaud | i, t, ch, chmask, ctr, num, exit, xtxd, xbaud    ' Iden
           u.Pause(UART_PULSE_DELAY)            ' Delay for cog to capture pulses (if they exist on the current channel)
           pulse.Stop                           ' Stop pulse width detection cog
 
-          if (i == UART_PULSE_COUNT)           ' If we've measured a full array of pulse(s)
+          if (i == UART_PULSE_COUNT)           ' If we've measured a full array of pulses
             sort.pasmshellsort(@vBuf, i, sort#ASC)    ' Sort array of measured pulses (in clock ticks) from shortest [0] to largest
 
             {pst.Str(String(CR, LF, "CH"))
@@ -1855,13 +1855,15 @@ PRI UART_Scan_Autobaud | i, t, ch, chmask, ctr, num, exit, xtxd, xbaud    ' Iden
                 num += 1                             ' Increment counter
                 xtxd := uTXD                         ' Keep track of most recent detection results
                 xbaud := uBaud
+
+                !outa[g#LED_G]                       ' Toggle LED between red and yellow
+              else                                   ' If we receive pulses, but are ignoring them
+                ' Progress indicator
+                ++ctr_in
+                Display_Progress(ctr_in, 30, 1)              
               
         ch += 1        ' Increment current channel   
         chmask >>= 1   ' Shift to the next bit in the channel mask 
-            
-  ' Progress indicator
-    ++ctr
-    Display_Progress(ctr, 1000, 1)
         
     if (pst.RxEmpty == 0)
       quit    
