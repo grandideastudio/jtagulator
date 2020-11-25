@@ -1831,15 +1831,6 @@ PRI UART_Scan_Autobaud | i, t, ch, chmask, ctr, ctr_in, num, exit, xtxd, xbaud  
           if (i == UART_PULSE_COUNT)           ' If we've measured a full array of pulses
             sort.pasmshellsort(@vBuf, i, sort#ASC)    ' Sort array of measured pulses (in clock ticks) from shortest [0] to largest
 
-            {pst.Str(String(CR, LF, "CH"))
-            pst.Dec(ch)
-            pst.Str(String(":"))
-            repeat t from 0 to i - 1
-              pst.Str(String(CR, LF))
-              pst.Dec(t)
-              pst.Str(String(": "))
-              pst.Dec(vBuf[t])}
-
             i := $7FFFFFFF
             repeat t from UART_PULSE_ARRAY_L to UART_PULSE_ARRAY_H   ' Look for the narrowest pulse within the specified range
               i <#= vBuf[t]      ' Assume this represents the minimum bit width of a UART signal 
