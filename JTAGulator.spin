@@ -1794,6 +1794,7 @@ PRI UART_Scan_Autobaud | i, t, ch, chmask, ctr, num, exit, xtxd, xbaud    ' Iden
   
   u.TXSEnable                       ' Enable level shifter outputs
   u.Set_Pins_Input(chStart, chEnd)  ' Set current channel range to input
+  u.Pause(25)                       ' Delay for pins to settle
               
   uRXD := g#PROP_SDA  ' RXD isn't used in this command, so set it to a temporary pin so it doesn't interfere with enumeration
               
