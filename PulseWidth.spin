@@ -84,6 +84,7 @@ Measure
                         mov      phsa, #0
                         waitpeq  rx_mask, rx_mask              ' wait for pin high
                         mov      phsa, phsa
+                        add      phsa, #9                      ' offset to account for mov
                         wrlong   phsa, buf_ptr                 ' store pulse width into the buffer
                         add      buf_ptr, #4                   ' increment buffer index
                         add      t2, #1                        ' increment sample counter
