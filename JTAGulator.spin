@@ -109,12 +109,7 @@ VAR                   ' Globally accessible variables
   byte uSTR[MAX_LEN_UART_TX + 1]    ' User input string buffer for UART_Scan + \0
   byte uHex           ' Is user input string ASCII (0) or hex (number of bytes)
   long uPrintable
-  long uBaudIgnore    ' Parameters for UART_Scan_TXD 
-  long uBaudMin       
-  long uBaudMax
-  long uWaitPerBaud
-  long uLoopPerChan
-  long uLoopPause
+  long uBaudIgnore    ' Parameter for UART_Scan_TXD 
   long uLocalEcho     ' Parameter for UART_Passthrough
 
   long gWriteValue    ' Parameter for Write_IO_Pins
@@ -322,17 +317,11 @@ PRI Do_UART_Menu(cmd)
       else
         UART_Scan
         
-    "T", "t":                 ' Identify UART pinout (TXD only, user configurable)
+    "T", "t":                 ' Identify UART pinout (TXD only, continuous automatic baud rate detection)
       if (vTargetIO == -1)
         pst.Str(@ErrTargetIOVoltage)
       else
         UART_Scan_TXD
-
-    "A", "a":                 ' Identify UART pinout (Automatic baud rate detection)
-      if (vTargetIO == -1)
-        pst.Str(@ErrTargetIOVoltage)
-      else
-        UART_Scan_Autobaud
         
     "P", "p":                 ' UART passthrough
       if (vTargetIO == -1)
@@ -1404,18 +1393,13 @@ CON {{ UART METHODS }}
 PRI UART_Init
   bytefill (@uSTR, 0, MAX_LEN_UART_TX + 1)  ' Clear user input string buffer
 
-  ' Set default parameters
-  uPrintable := 1
-  uBaudIgnore := 0
+  ' UART_Scan
   uHex := 0
-  
+  uPrintable := 1
+    
   ' UART_Scan_TXD
-  uBaudMin := BaudRate[0]
-  uBaudMax := BaudRate[(constant(BaudRateEnd - BaudRate) >> 2) - 1]
-  uWaitPerBaud := 1000
-  uLoopPerChan := 5
-  uLoopPause := 1
-
+  uBaudIgnore := 0
+  
   ' UART_Passthrough
   uLocalEcho := 0
   
@@ -1541,242 +1525,8 @@ PRI UART_Scan | baud_idx, i, j, ctr, num, xstr[MAX_LEN_UART_USER + 1], xtxd, xrx
   pst.Str(String(CR, LF, "UART"))  
   pst.Str(@MsgScanComplete)
 
-  
-PRI UART_Scan_TXD | value, baud_idx, i, t, num, display, data[MAX_LEN_UART_RX >> 2], xtxd, xbaud, loopquit, loopnum, numbaud, skip    ' Identify UART pinout (TXD only, user configurable)
-  pst.Str(@MsgUARTPinout)
 
-  if (Get_Channels(1) == -1)   ' Get the channel range to use
-    return 
-  
-  pst.Str(String(CR, LF, "Enter minimum baud rate ("))
-  pst.Dec(BaudRate[0])
-  pst.Str(String(" - "))
-  pst.Dec(BaudRate[(constant(BaudRateEnd - BaudRate) >> 2) - 1])
-  pst.Str(String(") ["))
-  pst.Dec(uBaudMin)
-  pst.Str(String("]: "))
-  value := Get_Decimal_Pin      ' Get new value from user
-  if (value <> -1)              ' If carriage return was not pressed, do input string checking...
-    t := 0
-    repeat i from 0 to ((constant(BaudRateEnd - BaudRate) >> 2) - 1)
-      if (value == BaudRate[i])  ' If entered value is an acceptable baud rate
-        t := 1
-    if (t == 0)  ' Otherwise, abort
-      pst.Str(@ErrOutOfRange)
-      return    
-    uBaudMin := value
-                 
-  pst.Str(String(CR, LF, "Enter maximum baud rate ("))
-  pst.Dec(uBaudMin)
-  pst.Str(String(" - "))
-  pst.Dec(BaudRate[(constant(BaudRateEnd - BaudRate) >> 2) - 1])
-  pst.Str(String(") ["))
-  pst.Dec(uBaudMax)
-  pst.Str(String("]: "))
-  value := Get_Decimal_Pin      ' Get new value from user
-  if (value <> -1)              ' If carriage return was not pressed, do input string checking... 
-    t := 0                      
-    repeat i from 0 to ((constant(BaudRateEnd - BaudRate) >> 2) - 1)
-      if (value == BaudRate[i])  ' If entered value is an acceptable baud rate
-        t := 1
-    if (t == 0)  ' Otherwise, abort
-      pst.Str(@ErrOutOfRange)
-      return
-    uBaudMax := value
-
-  ' Calculate the number of baud rates we'll be trying
-  numbaud := 0
-  repeat baud_idx from 0 to (constant(BaudRateEnd - BaudRate) >> 2) - 1
-    if(BaudRate[baud_idx] => uBaudMin and BaudRate[baud_idx] =< uBaudMax)
-      numbaud++
-  if(numbaud == 0)
-    pst.Str(@ErrOutOfRange)
-    return
-                  
-  pst.Str(String(CR, LF, "Enter maximum wait time for data per baud rate (in ms, 10 - 10000) ["))
-  pst.Dec(uWaitPerBaud)         ' Display current value
-  pst.Str(String("]: "))
-  value := Get_Decimal_Pin      ' Get new value from user
-  if (value <> -1)              ' If carriage return was not pressed...    
-    if (value < 10) or (value > 10000)  ' If entered value is out of range, abort
-      pst.Str(@ErrOutOfRange)
-      return
-    uWaitPerBaud := value
-
-  pst.Str(String(CR, LF, "Enter number of loops per channel (1 - 1000) ["))
-  pst.Dec(uLoopPerChan)         ' Display current value
-  pst.Str(String("]: "))
-  value := Get_Decimal_Pin      ' Get new value from user
-  if (value <> -1)              ' If carriage return was pressed...
-    if (value < 1) or (value > 1000)  ' If entered value is out of range, abort
-      pst.Str(@ErrOutOfRange)
-      return
-    uLoopPerChan := value
-  
-  pst.Str(String(CR, LF, "Approximate time per channel: "))
-  value := numbaud * uWaitPerBaud * uLoopPerChan
-  if (value < 1000)                      ' Display time in milliseconds
-    pst.Dec(value)
-    pst.Str(String(" ms"))
-  elseif ((value := value / 1000) < 60)  ' Display time in seconds
-    pst.Dec(value)
-    pst.Str(String(" sec"))
-  elseif ((t := value / 60) < 60)        ' Display time in minutes/seconds
-    pst.Dec(t)
-    pst.Str(String(" min"))
-    if ((t := value // 60) <> 0)
-      pst.Str(String(", "))
-      pst.Dec(t)
-      pst.Str(String(" sec"))
-  else                                   ' Display time in hours/minutes
-    pst.Dec(t := value / 3600)
-    pst.Str(String(" hr"))
-    if ((t := (value // 3600) / 60) <> 0)
-      pst.Str(String(", "))
-      pst.Dec(t)
-      pst.Str(String(" min")) 
-      
-  if(chEnd - chStart <> 0)   ' If we will be searching more than one channel...
-    pst.Str(String(CR, LF, LF, "Pause after each channel? ["))
-    if (uLoopPause == 0)
-      pst.Str(String("y/N]: "))
-    else
-      pst.Str(String("Y/n]: "))  
-    pst.StrInMax(@vCmd,  MAX_LEN_CMD) ' Wait here to receive a carriage return terminated string or one of MAX_LEN_CMD bytes (the result is null terminated) 
-    if (strsize(@vCmd) =< 1)            ' We're only looking for a single character (or NULL, which will have a string size of 0)
-      case vCmd[0]                        ' Check the first character of the input string
-          0:                                ' The user only entered a CR, so keep the same value and pass through.
-          "N", "n":                         
-            uLoopPause := 0                 ' Disable flag
-          "Y", "y":
-            uLoopPause := 1                 ' Enable flag
-          other:
-            pst.Str(@ErrOutOfRange)
-            return
-    else
-      pst.Str(@ErrOutOfRange)
-      return
-
-  pst.Str(String(CR, LF, LF, "Ignore non-printable characters? ["))
-  if (uPrintable == 0)
-    pst.Str(String("y/N]: "))
-  else
-    pst.Str(String("Y/n]: "))  
-  pst.StrInMax(@vCmd,  MAX_LEN_CMD) ' Wait here to receive a carriage return terminated string or one of MAX_LEN_CMD bytes (the result is null terminated) 
-  if (strsize(@vCmd) =< 1)            ' We're only looking for a single character (or NULL, which will have a string size of 0)
-    case vCmd[0]                        ' Check the first character of the input string
-        0:                                ' The user only entered a CR, so keep the same value and pass through.
-        "N", "n":                      
-          uPrintable := 0                   ' Disable flag
-        "Y", "y":
-          uPrintable := 1                   ' Enable flag
-        other:
-          pst.Str(@ErrOutOfRange)
-          return
-  else
-    pst.Str(@ErrOutOfRange)
-    return
-    
-  pst.Str(@MsgPressSpacebarToBegin)
-  if (pst.CharIn <> " ")
-    pst.Str(@ErrUARTAborted)
-    return
-
-  pst.Str(String(CR, LF, "JTAGulating! Press spacebar to skip channel (any other key to abort)..."))
-  u.TXSEnable   ' Enable level shifter outputs
-
-  uRXD := g#PROP_SDA  ' RXD isn't used in this command, so set it to a temporary pin so it doesn't interfere with enumeration
-  
-  num := 0   ' Counter of possible pinouts
-  xtxd := xbaud := 0  
-  repeat uTXD from chStart to chEnd  ' For every possible pin permutation...
-    loopnum := 0
-    loopquit := 0
-    skip := 0
-    pst.Str(string(CR, LF, "Scanning channel: "))
-    pst.Dec(uTXD)
-    pst.Str(string(CR, LF))
-    
-    repeat until (loopquit == 1)
-      repeat baud_idx from 0 to (constant(BaudRateEnd - BaudRate) >> 2) - 1   ' For every possible baud rate in BaudRate table...
-        if((BaudRate[baud_idx] < uBaudMin) or (BaudRate[baud_idx] > uBaudMax))   ' Only use the baud rates within range defined by the user
-          next
-
-        if (skip == 0)
-          uBaud := BaudRate[baud_idx]        ' Store current baud rate into uBaud variable
-          UART.Start(|<uTXD, |<uRXD, uBaud)  ' Configure UART
-          u.Pause(10)                        ' Delay for cog setup
-          UART.RxFlush                       ' Flush receive buffer
-         
-          i := 0
-          t := cnt
-          repeat while (i < MAX_LEN_UART_RX) and ((cnt - t) / (clkfreq / 1000) =< uWaitPerBaud)    ' Check for a response from the target and grab up to MAX_LEN_UART_RX bytes
-            value := UART.RxCheck                ' Check if a byte is received from the target
-            if (value => 0)              
-              byte[@data][i++] := value            ' Store the byte in our array and try for more!
-         
-            if (pst.RxEmpty == 0)                  ' Abort scan if any key is pressed (except for spacebar)
-              if (pst.RxCheck <> " ")
-                UART_Scan_Cleanup(num, xtxd, 0, xbaud)    ' RXD isn't used in this command
-                pst.RxFlush
-                pst.Str(@ErrUARTAborted)
-                return
-              else
-                skip := 1     ' Skip to the next channel
-                quit
-         
-          ' Progress indicator
-          Display_Progress(1, 1, 1)  ' Change after each baud rate attempt
-
-          if (i > 0)                           ' If we've received any data...
-            display := 1                         ' Set flag to display all data by default
-            if (uPrintable == 1)                 ' If user only wants to see printable characters
-              repeat value from 0 to (i-1)         ' For entire buffer
-                if (byte[@data][value] < $20 or byte[@data][value] > $7E) and (byte[@data][value] <> CR and byte[@data][value] <> LF) ' If any byte is unprintable (except for CR or LF)
-                  display := 0                                                ' Clear flag to skip the entire result
-
-            if (display == 1)    
-              Display_UART_Pins(0, 0)              ' Display current UART pinout (TXD only)
-              pst.Str(String("Data: "))            ' Display the data in ASCII
-              repeat value from 0 to (i-1)         ' For entire receive buffer         
-                if (byte[@data][value] < $20) or (byte[@data][value] > $7E) ' If the byte is an unprintable character... 
-                  pst.Char(".")                                               ' Print a . instead
-                else
-                  pst.Char(byte[@data][value])
-         
-              pst.Str(String(" [ "))
-              repeat value from 0 to (i-1)         ' Display the data in hexadecimal
-                pst.Hex(byte[@data][value], 2)
-                pst.Char(" ")
-              pst.Str(String("]", CR, LF))
-            
-              num += 1                             ' Increment counter
-              xtxd := uTXD                         ' Keep track of most recent detection results
-              xbaud := uBaud
-         
-        loopnum++
-        if(loopnum => uLoopPerChan)
-          loopquit := 1
-      
-    if (uLoopPause == 1) and (uTXD < chEnd)
-      skip := 0
-      pst.Str(string(CR, LF, "Press spacebar to scan next channel (any other key to abort)..."))
-      if (pst.CharIn <> " ")
-        UART_Scan_Cleanup(num, xtxd, 0, xbaud)  ' RXD isn't used in this command
-        pst.RxFlush
-        pst.Str(@ErrUARTAborted)
-        return
-        
-  if (num == 0)
-    pst.Str(@ErrNoDeviceFound)
-    
-  UART_Scan_Cleanup(num, xtxd, 0, xbaud)  ' RXD isn't used in this command
-
-  pst.Str(String(CR, LF, "UART TXD"))
-  pst.Str(@MsgScanComplete)
-
-
-PRI UART_Scan_Autobaud | i, t, ch, chmask, ctr, ctr_in, num, exit, xtxd, xbaud    ' Identify UART pinout (Automatic baud rate detection)
+PRI UART_Scan_TXD | i, t, ch, chmask, ctr, ctr_in, num, exit, xtxd, xbaud    ' Identify UART pinout (TXD only, continuous automatic baud rate detection)
   pst.Str(@MsgUARTPinout)
 
   if (Get_Channels(1) == -1)        ' Get the channel range to use
@@ -2101,8 +1851,8 @@ PRI UART_Get_NonStandard
    
 PRI Display_UART_Pins(txdOnly, mBaud)   ' Display UART pin configuration
 {
- txdOnly: 0 from UART_Scan or UART_Scan_TXD (fixed baud rate), 1 from UART_Scan_Autobaud
- mBaud: measured potential baud rate from UART_Scan_Autobaud (ignored if txdOnly = 0)
+ txdOnly: 0 from UART_Scan (fixed baud rate), 1 from UART_Scan_TXD (auto baud rate detection)
+ mBaud: measured potential baud rate from UART_Scan_TXD (ignored if txdOnly = 0)
 }
   pst.Str(String(CR, LF, "TXD: "))
   pst.Dec(uTXD)
@@ -2738,8 +2488,7 @@ MenuJTAG      byte CR, LF, "JTAG Commands:", CR, LF
 
 MenuUART      byte CR, LF, "UART Commands:", CR, LF
               byte "U   Identify UART pinout", CR, LF
-              byte "T   Identify UART pinout (TXD only)", CR, LF
-              byte "A   Identify UART pinout (TXD only, autobaud)", CR, LF
+              byte "T   Identify UART pinout (TXD only, continuous)", CR, LF
               byte "P   UART passthrough", 0
 
 MenuGPIO      byte CR, LF, "GPIO Commands:", CR, LF     
