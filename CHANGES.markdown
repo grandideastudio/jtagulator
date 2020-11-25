@@ -8,7 +8,7 @@ Visit the JTAGulator [GitHub repository](https://github.com/grandideastudio/jtag
 ---
 Release date: **xx**
 
-* UART: Upgraded `UART_Scan_TXD` to continuously monitor for target signals and automatically calculate their baud rates instead of iterating through a fixed set. This significantly decreases scan time, increases the detectable baud rate to > 1.5M, and can identify targets that implement non-standard or fluctuating baud rates, either intentionally or through unintentional timing errors (thanks kbembedded and BenGardiner).
+* UART: Upgraded `UART_Scan_TXD` to continuously monitor for target signals and automatically calculate their baud rates instead of iterating through a fixed set. This significantly decreases scan time, increases the detectable baud rate to > 1.5M, and can identify targets that implement non-standard or fluctuating baud rates, either intentionally or through unintentional timing errors (thanks to kbembedded and BenGardiner).
 
 * UART: Added support during `UART_Scan` to accept known pins, if any. This can reduce search time, especially if `UART_Scan_TXD` was done first to identify TXD.
 
