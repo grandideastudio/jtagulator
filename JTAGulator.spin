@@ -2052,7 +2052,7 @@ PRI UART_Scan_Cleanup(num, txd, rxd, baud)
   else             ' Update globals with the most recent detection results
     uTXD := txd
     uRXD := rxd
-    uBaud := 0       ' For a given UART interface, multiple baud rates could return potentially valid data. So, have the user decide which is the best/most likely choice for the given target. 
+    uBaud := baud
 
 
 PRI UART_Get_Printable
