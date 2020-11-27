@@ -1319,6 +1319,8 @@ PRI Display_Device_ID(value, num, details)
     
 
 PRI JTAG_OpenOCD(first_time) | ackbit   ' OpenOCD interface
+  pst.Str(@MsgModeWarning)
+    
   if (first_time == 1)
     u.LEDRed
 
@@ -1337,7 +1339,7 @@ PRI JTAG_OpenOCD(first_time) | ackbit   ' OpenOCD interface
       pst.Str(@ErrEEPROMNotResponding)
       return
           
-    pst.Str(String(CR, LF, "Entering OpenOCD mode! Press Ctrl-X to abort..."))
+    pst.Str(String(CR, LF, "Entering OpenOCD mode! Press Ctrl-X to exit..."))
     pst.Str(@MsgOCDNote)
     u.Pause(100)      ' Delay to finish sending messages
     pst.Stop          ' Stop serial communications (this will be restarted from within the sump object)
@@ -1727,7 +1729,7 @@ PRI UART_Passthrough | ch, cog    ' UART/terminal passthrough
     pst.Str(@ErrOutOfRange)
     return
 
-  pst.Str(String(CR, LF, "Entering UART passthrough! Press Ctrl-X to abort...", CR, LF))
+  pst.Str(String(CR, LF, "Entering UART passthrough! Press Ctrl-X to exit...", CR, LF))
 
   ' Based on Serial_Pass_Through.spin from Chapter 4 of
   ' https://www.parallax.com/sites/default/files/downloads/122-32450-XBeeTutorial-v1.0.1.pdf
@@ -1984,6 +1986,8 @@ PRI Display_IO_Pins(value) | count
 
 
 PRI GPIO_Logic(first_time) | ackbit   ' Logic analyzer (OLS/SUMP)
+  pst.Str(@MsgModeWarning)
+    
   if (first_time == 1)
     u.LEDRed
   
@@ -1995,7 +1999,7 @@ PRI GPIO_Logic(first_time) | ackbit   ' Logic analyzer (OLS/SUMP)
       pst.Str(@ErrEEPROMNotResponding)
       return
 
-    pst.Str(String(CR, LF, "Entering logic analyzer mode! Press Ctrl-X to abort..."))
+    pst.Str(String(CR, LF, "Entering logic analyzer mode! Press Ctrl-X to exit..."))
     pst.Str(@MsgSUMPNote)
     u.Pause(100)      ' Delay to finish sending messages
     pst.Stop          ' Stop serial communications (this will be restarted from within the sump object)
@@ -2573,6 +2577,9 @@ MsgUARTPinout               byte CR, LF, "UART pin naming is from the target's p
 
 MsgSWDWarning               byte CR, LF, "Warning: JTAGulator HW Rev. B and earlier have compatibility issues w/"
                             byte CR, LF, "many SWD-based target devices. Detection results may be affected.", CR, LF, 0
+
+MsgModeWarning              byte CR, LF, "Warning: This mode persists through JTAGulator resets, power cycles,"
+                            byte CR, LF, "and firmware updates. It can only be exited manually by the user.", CR, LF, 0
 
 MsgSUMPNote                 byte CR, LF, LF, "Note: Switch to analyzer software and use Openbench Logic Sniffer driver @ 115.2kbps", CR, LF, 0
 
