@@ -4,7 +4,7 @@ JTAGulator Change Log
 Visit the JTAGulator [GitHub repository](https://github.com/grandideastudio/jtagulator/commits/master) for full commit comments.
 
 
-1.10
+<a id="1-10"></a>1.10
 ---
 Release date: **xx**
 
@@ -23,7 +23,7 @@ Release date: **xx**
 * General: Minor code modifications and cleanup.
 
 
-1.9
+<a id="1-9"></a>1.9
 ---
 Release date: **October 21, 2020**
 
@@ -38,7 +38,7 @@ Release date: **October 21, 2020**
 * General: Minor code cleanup and optimizations.
 
 
-1.8
+<a id="1-8"></a>1.8
 ---
 Release date: **October 6, 2020**
 
@@ -49,7 +49,7 @@ Release date: **October 6, 2020**
 * General: Minor code cleanup and optimizations.
 
 
-1.7
+<a id="1-7"></a>1.7
 ---
 Release date: **June 17, 2020**
 
@@ -70,7 +70,7 @@ Release date: **June 17, 2020**
 * General: Minor code optimizations.
 
 
-1.6
+<a id="1-6"></a>1.6
 ---
 Release date: **August 9, 2018**
 
@@ -87,7 +87,7 @@ Release date: **August 9, 2018**
 * Release for [Black Hat USA 2018 Tools Arsenal](https://www.blackhat.com/us-18/arsenal.html).
 
 
-1.5
+<a id="1-5"></a>1.5
 ---
 Release date: **March 12, 2018**
 
@@ -108,7 +108,7 @@ Release date: **March 12, 2018**
 * General: Added .travis.yml script for use with Travis CI, which provides continuous integration/build of the JTAGulator code base using PropellerIDE and openspin (thanks to stephengroat).
 
 
-1.4
+<a id="1-4"></a>1.4
 ---
 Release date: **November 3, 2016**
 
@@ -137,7 +137,7 @@ Release date: **November 3, 2016**
 * Release for [Black Hat Europe 2016 Tools Arsenal](https://www.blackhat.com/eu-16/arsenal.html).
 
 
-1.3
+<a id="1-3"></a>1.3
 ---
 Release date: **December 25, 2015**
 
@@ -162,14 +162,14 @@ Release date: **December 25, 2015**
 * General: Minor code cleanup and text updates.
 
 
-1.2.2
+<a id="1-2-2"></a>1.2.2
 -----
 Release date: **September 20, 2014**
 
 * Modified `Set_Target_IO_Voltage` to print a confirmation of the newly set voltage (thanks to Crypt) and to print a warning that the user should NOT connect VADJ to the target (VADJ is used for level-shifting JTAGulator's I/O to match the target's I/O, NOT to externally power the target).
 
 
-1.2.1
+<a id="1-2-1"></a>1.2.1
 -----
 Release date: **September 8, 2014**
 
@@ -178,7 +178,7 @@ Release date: **September 8, 2014**
 * Minor code cleanup.
 
 
-1.2
+<a id="1-2"></a>1.2
 ---
 Release date: **August 7, 2014**
 
@@ -205,14 +205,14 @@ Release date: **August 7, 2014**
 * Release for [Black Hat USA 2014 Tools Arsenal](https://www.blackhat.com/us-14/arsenal.html).
 
 
-1.1.1
+<a id="1-1-1"></a>1.1.1
 -----
 Release date: **August 6, 2013**
 
 * Modifed `UART_Scan` and `UART_Passthrough` to stop the UART cog (`jdcogserial`) at the end of their functions. This prevents the cog from maintaining control of the pins, which would prevent subsequent, non-UART commands from working.
 
 
-1.1
+<a id="1-1"></a>1.1
 ---
 Release date: **August 1, 2013**
 
@@ -227,7 +227,7 @@ Release date: **August 1, 2013**
 * Release for [Black Hat USA 2013](https://www.blackhat.com/us-13/).
 
 
-1.0.1
+<a id="1-0-1"></a>1.0.1
 -----
 Release date: **June 11, 2013**
 
@@ -236,7 +236,7 @@ Release date: **June 11, 2013**
 * Minor code cleanup.
 
 
-1.0
+<a id="1-0"></a>1.0
 ---
 Release date: **April 24, 2013**
 
