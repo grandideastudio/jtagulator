@@ -3,23 +3,29 @@ JTAGulator
 
 An open source hardware hacking tool that assists in identifying on-chip debug (OCD) interfaces from test points, vias, component pads, or connectors of an electronic device.
 
-Refer to the project page for complete details:
 
-[http://www.jtagulator.com](http://www.jtagulator.com)
+Usage
+-----
 
-Refer to the wiki for documentation:
+Main project page: [http://www.jtagulator.com](http://www.jtagulator.com)
 
-[https://github.com/grandideastudio/jtagulator/wiki](https://github.com/grandideastudio/jtagulator/wiki)
+Documentation: [https://github.com/grandideastudio/jtagulator/wiki](https://github.com/grandideastudio/jtagulator/wiki)
 
-Direct link to video demonstrating the firmware update process:
 
-[https://www.youtube.com/watch?v=xlXwy-weG1M](https://www.youtube.com/watch?v=xlXwy-weG1M)
+Firmware
+--------
 
-*Note: This is a development repository. Interim commits may be unstable. Only [official releases](https://github.com/grandideastudio/jtagulator/releases) will be supported.*
+The JTAGulator firmware is built with the [Parallax Propeller Tool version 1.3.2](https://www1.parallax.com/downloads/propeller-tool-software-windows-spin-assembly) for Windows. If you wish to compile code or contribute to the project, we recommend using this software. Alternative [development environments](https://www.parallax.com/downloads/propeller-1-software/) are untested and unsupported.
+
+Official releases: [https://github.com/grandideastudio/jtagulator/releases](https://github.com/grandideastudio/jtagulator/releases)
+
+Demonstration of the firmware update process: [https://www.youtube.com/watch?v=xlXwy-weG1M](https://www.youtube.com/watch?v=xlXwy-weG1M)
+
+*Note: This is a development repository. Interim commits may be unstable.*
 
 
 Author
--------
+------
 Created by Joe Grand of [Grand Idea Studio](http://www.grandideastudio.com). 
 
 
