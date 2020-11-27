@@ -27,7 +27,7 @@ Release date: **xx**
 ---
 Release date: **October 21, 2020**
 
-* JTAG: Added support (`O`) to interface directly with [OpenOCD](http://openocd.org/), a cross-platform, open source software tool that provides on-chip debugging, in-system programming, and boundary-scan testing for embedded target devices. The JTAGulator emulates the binary protocol used by the [Bus Pirate](http://dangerousprototypes.com/docs/Bus_Pirate#JTAG). See operational details on the [Wiki](https://github.com/grandideastudio/jtagulator/wiki/OpenOCD) (thanks to BenGardiner)
+* JTAG: Added support (`O`) to interface directly with [OpenOCD](http://openocd.org/), a cross-platform, open source software tool that provides on-chip debugging, in-system programming, and boundary-scan testing for embedded target devices. The JTAGulator emulates the binary protocol used by the [Bus Pirate](http://dangerousprototypes.com/docs/Bus_Pirate#JTAG). This mode persists through JTAGulator resets, power cycles, and firmware updates. It can only be exited manually by the user. See operational details on the [Wiki](https://github.com/grandideastudio/jtagulator/wiki/OpenOCD) (thanks to BenGardiner).
 
 * JTAG: Fixed low-level JTAG routines (`PropJTAG`) to sample TDO after TCK rising edge (not before) to properly conform to the IEEE 1149.1 specification.
 
@@ -44,7 +44,7 @@ Release date: **October 6, 2020**
 
 * JTAG: Added JTAG Scan (`J`), which combines IDCODE Scan and BYPASS Scan functionality into a single command. If a valid IDCODE is received during enumeration, the remaining channels will be checked for TDI. This can greatly reduce search time and will return all required JTAG pins for the detected target.
 
-* GPIO: Added logic analyzer support (`L`) for use with [sigrok](https://sigrok.org), a cross-platform, open source signal analysis software suite. The JTAGulator emulates an Open Logic Sniffer (OLS) [SUMP-compatible](http://dangerousprototypes.com/docs/The_Logic_Sniffer%27s_extended_SUMP_protocol) device and provides a 1024 x 24-channel sample buffer, 1.2MHz maximum sampling rate, and logic level triggering. See operational details on the [Wiki](https://github.com/grandideastudio/jtagulator/wiki/Logic-Analyzer) (thanks to BenGardiner)
+* GPIO: Added logic analyzer support (`L`) for use with [sigrok](https://sigrok.org), a cross-platform, open source signal analysis software suite. The JTAGulator emulates an Open Logic Sniffer (OLS) [SUMP-compatible](http://dangerousprototypes.com/docs/The_Logic_Sniffer%27s_extended_SUMP_protocol) device and provides a 1024 x 24-channel sample buffer, 1.2MHz maximum sampling rate, and logic level triggering. This mode persists through JTAGulator resets, power cycles, and firmware updates. It can only be exited manually by the user. See operational details on the [Wiki](https://github.com/grandideastudio/jtagulator/wiki/Logic-Analyzer) (thanks to BenGardiner).
 
 * General: Minor code cleanup and optimizations.
 
