@@ -11,6 +11,7 @@ Main project page: [http://www.jtagulator.com](http://www.jtagulator.com)
 
 Documentation: [https://github.com/grandideastudio/jtagulator/wiki](https://github.com/grandideastudio/jtagulator/wiki)
 
+Videos: [YouTube playlist](https://www.youtube.com/playlist?list=PLsyTdiI7kVn8H848lMSKljkUwPnZfke9k)
 
 Firmware
 --------
