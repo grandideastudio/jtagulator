@@ -12,6 +12,8 @@ Release date: **xx**
 
 * UART: Added support during `UART_Scan` to accept known pins, if any. This can reduce search time, especially if `UART_Scan_TXD` was done first to identify TXD.
 
+* UART: Added support during `UART_Scan` for a user-configurable delay between sending the text string and checking for a response from the target.
+
 * UART: Fixed bug that prevented `UART_Scan` from proceeding if a target was continually transmitting data. This fix may result in more responses for a given pin permutation.
 
 * JTAG: Added RTCK Scan (`R`) for [adaptive clocking](https://developer.arm.com/documentation/dui0517/h/rvi-debug-unit-system-design-guidelines/using-adaptive-clocking-to-synchronize-the-jtag-port?lang=en) discovery. RTCK (return test clock) is implemented by synthesizable CPU cores that need to synchronize an external JTAG hardware adapter's test clock (TCK) with their own internal core clock (thanks to Bryan Angelo).
