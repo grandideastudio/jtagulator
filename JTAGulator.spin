@@ -1483,12 +1483,12 @@ PRI UART_Scan | baud_idx, i, j, ctr, num, xstr[MAX_LEN_UART_USER + 1], xtxd, xrx
       bytemove(@uSTR, @xstr, i)               ' Move the new string into the uSTR global 
       bytefill(@uSTR+i, 0, MAX_LEN_UART_TX-i) ' Fill the remainder of the string with NULL, in case it's shorter than the last 
 
-  pst.Str(String(CR, LF, "Enter delay before checking for target response (in ms, 10 - 1000) ["))
+  pst.Str(String(CR, LF, "Enter delay before checking for target response (in ms, 0 - 1000) ["))
   pst.Dec(uWaitDelay)         ' Display current value
   pst.Str(String("]: "))
   num := Get_Decimal_Pin      ' Get new value from user
   if (num <> -1)              ' If carriage return was not pressed...    
-    if (num < 10) or (num > 1000)  ' If entered value is out of range, abort
+    if (num < 0) or (num > 1000)  ' If entered value is out of range, abort
       pst.Str(@ErrOutOfRange)
       return
     uWaitDelay := num
@@ -1533,7 +1533,9 @@ PRI UART_Scan | baud_idx, i, j, ctr, num, xstr[MAX_LEN_UART_USER + 1], xtxd, xrx
           repeat uHex
             UART.tx(byte[@uSTR][i++])
 
-        u.Pause(uWaitDelay)                ' Delay before checking for response from the target
+        if (uWaitDelay > 0)                ' Delay before checking for response from the target
+          u.Pause(uWaitDelay)                
+          
         if (UART_Get_Display_Data)         ' Check for a response from the target and display data
           num += 1                           ' Increment counter
           uPinsKnown := 1                    ' Enable known pins flag   
