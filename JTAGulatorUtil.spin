@@ -20,8 +20,13 @@ methods for the JTAGulator.
 }}
 
 
+CON
+  TXS_ENABLE_DELAY  = 10   ' Settling time (ms) after enabling level translators
+                           ' (must wait > 200nS for TXS0108E one-shot circuitry to become operational)
+
+
 OBJ
-  g             : "JTAGulatorCon"     ' JTAGulator global constants
+  g                 : "JTAGulatorCon"     ' JTAGulator global constants
 
     
 PUB LedOff
@@ -45,9 +50,9 @@ PUB LedYellow
 
 
 PUB TXSEnable      ' Enable level shifter outputs
-  dira[g#MAX_CHAN-1..0]~            ' Set all channels as inputs to avoid contention when driver is enabled. Pin directions will be configured by other methods as needed.
+  dira[g#MAX_CHAN-1..0]~      ' Set all channels as inputs to avoid contention when driver is enabled. Pin directions will be configured by other methods as needed.
   outa[g#TXS_OE] := 1
-  waitcnt(clkfreq / 100_000 + cnt)  ' 10uS delay (must wait > 200nS for TXS0108E one-shot circuitry to become operational)
+  Pause(TXS_ENABLE_DELAY) 
 
 
 PUB TXSDisable     ' Disable level shifter outputs (high impedance)
