@@ -109,7 +109,8 @@ VAR                   ' Globally accessible variables
   byte uSTR[MAX_LEN_UART_TX + 1]    ' User input string buffer for UART_Scan + \0
   byte uHex           ' Is user input string ASCII (0) or hex (number of bytes)
   long uPrintable
-  long uPinsKnown     
+  long uPinsKnown
+  long uWaitDelay     ' Time to wait before checking for a response from the target (ms)   
   long uBaudIgnore    ' Parameter for UART_Scan_TXD 
   long uLocalEcho     ' Parameter for UART_Passthrough
 
@@ -1382,7 +1383,8 @@ PRI UART_Init
   ' UART_Scan
   uHex := 0
   uPinsKnown := 0
-  uPrintable := 1
+  uPrintable := 0
+  uWaitDelay := 10
     
   ' UART_Scan_TXD
   uBaudIgnore := 0
@@ -1393,6 +1395,37 @@ PRI UART_Init
 
 PRI UART_Scan | baud_idx, i, j, ctr, num, xstr[MAX_LEN_UART_USER + 1], xtxd, xrxd, xbaud, txdStart, txdEnd, rxdStart, rxdEnd     ' Identify UART pinout
   pst.Str(@MsgUARTPinout)
+
+  num := 2   ' Number of pins needed to locate (TXD, RXD)
+      
+  if (Get_Channels(num) == -1)      ' Get the channel range to use
+    return
+
+  txdStart := rxdStart := chStart   ' Set default start and end channels
+  txdEnd := rxdEnd := chEnd
+    
+  if (Get_Pins_Known(1) == -1)      ' Ask if any pins are known
+    return
+
+  if (uPinsKnown == 1)
+    pst.Str(@MsgUnknownPin)
+    if (Set_UART(0) == -1)          
+      return                        ' Abort if error
+
+    ' If the user has entered a known pin, set it as both start and end to make it static during the scan
+    if (uTXD <> -2)
+      txdStart := txdEnd := uTXD
+      num -= 1
+    else
+      uTXD := 0   ' Reset pin
+          
+    if (uRXD <> -2)
+      rxdStart := rxdEnd := uRXD
+      num -= 1
+    else
+      uRXD := 0
+
+  Display_Permutations((chEnd - chStart + 1) - (2 - num), num)  ' calculate number of permutations, accounting for any known channels
 
  ' Get user string to send during UART discovery
   pst.Str(String(CR, LF, "Enter text string to output (prefix with \x for hex) ["))
@@ -1450,38 +1483,17 @@ PRI UART_Scan | baud_idx, i, j, ctr, num, xstr[MAX_LEN_UART_USER + 1], xtxd, xrx
       bytemove(@uSTR, @xstr, i)               ' Move the new string into the uSTR global 
       bytefill(@uSTR+i, 0, MAX_LEN_UART_TX-i) ' Fill the remainder of the string with NULL, in case it's shorter than the last 
 
-  num := 2   ' Number of pins needed to locate (TXD, RXD)
-      
-  if (Get_Channels(num) == -1)      ' Get the channel range to use
-    return
-
-  txdStart := rxdStart := chStart   ' Set default start and end channels
-  txdEnd := rxdEnd := chEnd
+  pst.Str(String(CR, LF, "Enter delay before checking for target response (in ms, 10 - 1000) ["))
+  pst.Dec(uWaitDelay)         ' Display current value
+  pst.Str(String("]: "))
+  num := Get_Decimal_Pin      ' Get new value from user
+  if (num <> -1)              ' If carriage return was not pressed...    
+    if (num < 10) or (num > 1000)  ' If entered value is out of range, abort
+      pst.Str(@ErrOutOfRange)
+      return
+    uWaitDelay := num
     
-  if (Get_Pins_Known(1) == -1)      ' Ask if any pins are known
-    return
-
-  if (uPinsKnown == 1)
-    pst.Str(@MsgUnknownPin)
-    if (Set_UART(0) == -1)          
-      return                        ' Abort if error
-
-    ' If the user has entered a known pin, set it as both start and end to make it static during the scan
-    if (uTXD <> -2)
-      txdStart := txdEnd := uTXD
-      num -= 1
-    else
-      uTXD := 0   ' Reset pin
-          
-    if (uRXD <> -2)
-      rxdStart := rxdEnd := uRXD
-      num -= 1
-    else
-      uRXD := 0
-
-  Display_Permutations((chEnd - chStart + 1) - (2 - num), num)  ' calculate number of permutations, accounting for any known channels
-
-  if (UART_Get_Printable == -1)     ' Ignore non-printable characters?
+  if (UART_Get_Printable == -1)    ' Ignore non-printable characters?
     return
     
   pst.Str(@MsgPressSpacebarToBegin)
@@ -1491,7 +1503,7 @@ PRI UART_Scan | baud_idx, i, j, ctr, num, xstr[MAX_LEN_UART_USER + 1], xtxd, xrx
         
   pst.Str(@MsgJTAGulating)
   u.TXSEnable   ' Enable level shifter outputs
-
+  
   num := 0   ' Counter of possible pinouts
   ctr := 0
   xtxd := xrxd := xbaud := 0 
@@ -1521,6 +1533,7 @@ PRI UART_Scan | baud_idx, i, j, ctr, num, xstr[MAX_LEN_UART_USER + 1], xtxd, xrx
           repeat uHex
             UART.tx(byte[@uSTR][i++])
 
+        u.Pause(uWaitDelay)                ' Delay before checking for response from the target
         if (UART_Get_Display_Data)         ' Check for a response from the target and display data
           num += 1                           ' Increment counter
           uPinsKnown := 1                    ' Enable known pins flag   
