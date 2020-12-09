@@ -6,7 +6,7 @@ Visit the JTAGulator [GitHub repository](https://github.com/grandideastudio/jtag
 
 <a id="v1_10"></a>1.10
 ----
-Release date: **xx**
+Release date: **December 8, 2020**
 
 * UART: Upgraded `UART_Scan_TXD` to continuously monitor for target signals and automatically calculate their baud rates instead of iterating through a fixed set. This significantly decreases scan time, increases the detectable baud rate to > 1.5M, and can identify targets that implement non-standard or fluctuating baud rates, either intentionally or through unintentional timing errors (thanks to kbembedded and BenGardiner).
 
@@ -23,6 +23,8 @@ Release date: **xx**
 * JTAG: Fixed OpenOCD mode (`O`) to ensure the JTAGulator's LED turns back to RED when the OpenOCD software is closed.
  
 * General: Minor code modifications and cleanup.
+
+* Release for [Black Hat Europe 2020 Tools Arsenal](https://www.blackhat.com/eu-20/arsenal/schedule/index.html).
 
 
 <a id="v1_9"></a>1.9
