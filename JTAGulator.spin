@@ -480,7 +480,10 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
     
   pst.Str(@MsgPressSpacebarToBegin)
   if (pst.CharIn <> " ")
-    pst.Str(@ErrIDCODEAborted)
+    if (type == 0)
+      pst.Str(@ErrIDCODEAborted)
+    else
+      pst.Str(@ErrJTAGAborted)
     return
 
   pst.Str(@MsgJTAGulating)
