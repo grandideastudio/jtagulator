@@ -524,14 +524,14 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
         jtag.Config(jTDI, jTDO, jTCK, jTMS)   ' Configure JTAG
         jtag.Get_Device_IDs(1, @value)        ' Try to get the 1st Device ID in the chain (if it exists) by reading the DR      
         if (value <> -1) and (value & 1)      ' Ignore if received Device ID is 0xFFFFFFFF or if bit 0 != 1
-          xtdo := jTDO                        ' Keep track of most recent detection results
-          xtck := jTCK
-          xtms := jTMS
-     
           if (type == 0)    ' IDCODE Scan
-            num += 1                          ' Increment counter
-            jPinsKnown := 1                   ' Enable known pins flag   
             Display_JTAG_Pins                 ' Display current JTAG pinout
+            num += 1                          ' Increment counter
+            xtdo := jTDO                      ' Keep track of most recent detection results
+            xtck := jTCK
+            xtms := jTMS
+            jPinsKnown := 1                   ' Enable known pins flag   
+            
           ' Since we might not know how many devices are in the chain, try the maximum allowable number and verify the results afterwards
             jtag.Get_Device_IDs(jtag#MAX_DEVICES_LEN, @id)   ' We assume the IDCODE is the default DR after reset                          
             repeat i from 0 to (jtag#MAX_DEVICES_LEN-1)      ' For each device in the chain...
@@ -558,10 +558,14 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
               data_out := jtag.Bypass_Test(value, data_in)     ' Run the BYPASS instruction
               
               if (data_in == data_out)   ' If match, then we've found a JTAG interface on this current pinout
-                num += 1                          ' Increment counter
-                jPinsKnown := 1                   ' Enable known pins flag
-                xtdi := jTDI                      ' Keep track of most recent detection result
                 Display_JTAG_Pins                 ' Display current JTAG pinout
+                num += 1                          ' Increment counter
+                xtdi := jTDI                      ' Keep track of most recent detection results
+                xtdo := jTDO
+                xtck := jTCK
+                xtms := jTMS
+                jPinsKnown := 1                   ' Enable known pins flag
+                
                 jtag.Get_Device_IDs(value, @id)   ' We assume the IDCODE is the default DR after reset
                 repeat i from 0 to (value-1)      ' For each device in the chain...
                   Display_Device_ID(id[i], i + 1, 0)       ' Display Device ID of current device (without details)
@@ -737,12 +741,11 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
             if (data_in == data_out)   ' If match, then continue with this current pinout  
               Display_JTAG_Pins          ' Display pinout
               num += 1                   ' Increment counter
-              jPinsKnown := 1            ' Enable known pins flag   
-
               xtdi := jTDI               ' Keep track of most recent detection results
               xtdo := jTDO                        
               xtck := jTCK
               xtms := jTMS 
+              jPinsKnown := 1            ' Enable known pins flag   
 
               if (jPinsLow == 1)
                 u.Set_Pins_Low(chStart, chEnd)  ' Set current channel range to output LOW
