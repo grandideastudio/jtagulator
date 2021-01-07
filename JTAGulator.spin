@@ -465,7 +465,7 @@ PRI JTAG_Init
   jIgnoreReg := 1
 
 
-PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}], i, data_in, data_out, xtdi, xtdo, xtck, xtms    ' Identify JTAG pinout (IDCODE Scan or Combined Scan)
+PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}], i, match, data_in, data_out, xtdi, xtdo, xtck, xtms    ' Identify JTAG pinout (IDCODE Scan or Combined Scan)
   if (type == 0)    ' IDCODE Scan only
     if (Get_Channels(3) == -1)   ' Get the channel range to use
       return
@@ -565,13 +565,14 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
                 xtck := jTCK
                 xtms := jTMS
                 jPinsKnown := 1                   ' Enable known pins flag
+                match := 1                        ' Set flag to enable subsequent TRST# search
                 
                 jtag.Get_Device_IDs(value, @id)   ' We assume the IDCODE is the default DR after reset
                 repeat i from 0 to (value-1)      ' For each device in the chain...
                   Display_Device_ID(id[i], i + 1, 0)       ' Display Device ID of current device (without details)
                 quit                              ' Break out of the search for TDI and continue... 
               else
-                xtdi := -1
+                match := 0
                   
               ' Progress indicator
               ++ctr
@@ -582,7 +583,7 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
                 u.Set_Pins_Low(chStart, chEnd)  ' Set current channel range to output LOW
                 u.Pause(jPinsLowDelay)          ' Delay to stay asserted
 
-          if (type == 0) or (type == 1 and xtdi <> -1)     
+          if (type == 0) or (type == 1 and match <> 0)     
             ' Now try to determine if the TRST# pin is being used on the target
             repeat jTRST from chStart to chEnd     ' For every remaining channel...
               if (jTRST == jTMS) or (jTRST == jTCK) or (jTRST == jTDO) or (jTRST == jTDI)
