@@ -498,6 +498,7 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
   ' Pin enumeration logic based on JTAGenum (http://deadhacker.com/2010/02/03/jtag-enumeration/)
   num := 0      ' Counter of possible pinouts
   ctr := 0
+  match := 0
   xtdi := xtdo := xtck := xtms := 0  
   repeat jTDO from chStart to chEnd   ' For every possible pin permutation (except TDI and TRST)...
     repeat jTCK from chStart to chEnd
