@@ -97,9 +97,6 @@ VAR                   ' Globally accessible variables
   long jTCK
   long jTMS
   long jTRST
-  long jPinsLow       ' Parameters for IDCODE_Scan, BYPASS_Scan
-  long jPinsLowDelay
-  long jPinsHighDelay
   long jPinsKnown     ' Parameter for BYPASS_Scan
   long jIgnoreReg     ' Parameter for OPCODE_Discovery
   
@@ -123,6 +120,10 @@ VAR                   ' Globally accessible variables
    
   long chStart        ' Channel range for the current scan (specified by the user)
   long chEnd
+
+  long pinsLow        ' Bring channels LOW before each permutation attempt (used in scan methods)
+  long pinsLowDelay
+  long pinsHighDelay
   
   long idMenu         ' Menu ID of currently active menu 
   
@@ -453,11 +454,6 @@ PRI JTAG_Init
   rr.start         ' Start RealRandom cog (used during BYPASS Scan and Test BYPASS)
 
   ' Set default parameters
-  ' IDCODE_Scan, BYPASS_Scan
-  jPinsLow := 0
-  jPinsLowDelay := 100
-  jPinsHighDelay := 100
-  
   ' BYPASS_Scan, RTCK_Scan
   jPinsKnown := 0
 
@@ -488,9 +484,6 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
 
   pst.Str(@MsgJTAGulating)
   u.TXSEnable   ' Enable level shifter outputs
-  if (jPinsLow == 1)
-    u.Set_Pins_Low(chStart, chEnd)  ' Set current channel range to output LOW
-    u.Pause(jPinsLowDelay)          ' Delay to stay asserted
 
   jTDI := g#PROP_SDA    ' TDI isn't used when we're just shifting data from the DR. Set TDI to a temporary pin so it doesn't interfere with enumeration.
 
@@ -518,9 +511,13 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
             pst.Str(@ErrJTAGAborted)
           return
 
-        u.Set_Pins_High(chStart, chEnd)       ' Set current channel range to output HIGH (in case there are active low signals that may affect operation, like TRST# or SRST#)  
-        if (jPinsLow == 1)
-          u.Pause(jPinsHighDelay)               ' Delay after deassertion before proceeding 
+        u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH (in case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#)
+        
+        if (pinsLow == 1)     ' Pulse channels LOW if requested by the user
+          u.Set_Pins_Low(chStart, chEnd)      ' Set current channel range to output LOW
+          u.Pause(pinsLowDelay)               ' Delay to stay asserted
+          u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH  
+          u.Pause(pinsHighDelay)              ' Delay after deassertion before proceeding 
 
         jtag.Config(jTDI, jTDO, jTCK, jTMS)   ' Configure JTAG
         jtag.Get_Device_IDs(1, @value)        ' Try to get the 1st Device ID in the chain (if it exists) by reading the DR      
@@ -532,7 +529,7 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
             xtck := jTCK
             xtms := jTMS
             jPinsKnown := 1                   ' Enable known pins flag   
-            
+                            
           ' Since we might not know how many devices are in the chain, try the maximum allowable number and verify the results afterwards
             jtag.Get_Device_IDs(jtag#MAX_DEVICES_LEN, @id)   ' We assume the IDCODE is the default DR after reset                          
             repeat i from 0 to (jtag#MAX_DEVICES_LEN-1)      ' For each device in the chain...
@@ -549,9 +546,13 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
                 pst.Str(@ErrJTAGAborted)
                 return
 
-              u.Set_Pins_High(chStart, chEnd)       ' Set current channel range to output HIGH (in case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#)
-              if (jPinsLow == 1)
-                u.Pause(jPinsHighDelay)               ' Delay after deassertion before proceeding
+              u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH (in case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#)
+        
+              if (pinsLow == 1)     ' Pulse channels LOW if requested by the user
+                u.Set_Pins_Low(chStart, chEnd)      ' Set current channel range to output LOW
+                u.Pause(pinsLowDelay)               ' Delay to stay asserted
+                u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH  
+                u.Pause(pinsHighDelay)              ' Delay after deassertion before proceeding
             
               jtag.Config(jTDI, jTDO, jTCK, jTMS)              ' Re-configure JTAG
               value := jtag.Detect_Devices                     ' Get number of devices in the chain (if any)
@@ -567,7 +568,7 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
                 xtms := jTMS
                 jPinsKnown := 1                   ' Enable known pins flag
                 match := 1                        ' Set flag to enable subsequent TRST# search
-                
+                                
                 jtag.Get_Device_IDs(value, @id)   ' We assume the IDCODE is the default DR after reset
                 repeat i from 0 to (value-1)      ' For each device in the chain...
                   Display_Device_ID(id[i], i + 1, 0)       ' Display Device ID of current device (without details)
@@ -577,12 +578,10 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
                   
               ' Progress indicator
               ++ctr
-              if (jPinsLow == 0)
+              if (pinsLow == 0)
                 Display_Progress(ctr, 100, 1)
               else
                 Display_Progress(ctr, 1, 1) 
-                u.Set_Pins_Low(chStart, chEnd)  ' Set current channel range to output LOW
-                u.Pause(jPinsLowDelay)          ' Delay to stay asserted
 
           if (type == 0) or (type == 1 and match <> 0)     
             ' Now try to determine if the TRST# pin is being used on the target
@@ -600,9 +599,13 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
                   pst.Str(@ErrJTAGAborted)
                 return
 
-              u.Set_Pins_High(chStart, chEnd)       ' Set current channel range to output HIGH (in case there are active low signals that may affect operation, like SRST#)  
-              if (jPinsLow == 1)
-                u.Pause(jPinsHighDelay)               ' Delay after deassertion before proceeding
+              u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH (in case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#)
+        
+              if (pinsLow == 1)     ' Pulse channels LOW if requested by the user
+                u.Set_Pins_Low(chStart, chEnd)      ' Set current channel range to output LOW
+                u.Pause(pinsLowDelay)               ' Delay to stay asserted
+                u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH  
+                u.Pause(pinsHighDelay)              ' Delay after deassertion before proceeding
               
               jtag.Config(jTDI, jTDO, jTCK, jTMS)   ' Re-configure JTAG
               
@@ -618,23 +621,19 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
 
               ' Progress indicator
               ++ctr
-              if (jPinsLow == 0)
+              if (pinsLow == 0)
                 Display_Progress(ctr, 100, 0)
               else
                 Display_Progress(ctr, 1, 0) 
-                u.Set_Pins_Low(chStart, chEnd)  ' Set current channel range to output LOW
-                u.Pause(jPinsLowDelay)          ' Delay to stay asserted
                       
             pst.Str(String(CR, LF))
 
         ' Progress indicator
         ++ctr
-        if (jPinsLow == 0)
+        if (pinsLow == 0)
           Display_Progress(ctr, 100, 1)
         else
           Display_Progress(ctr, 1, 1) 
-          u.Set_Pins_Low(chStart, chEnd)  ' Set current channel range to output LOW
-          u.Pause(jPinsLowDelay)          ' Delay to stay asserted
 
   if (num == 0)
     pst.Str(@ErrNoDeviceFound)
@@ -692,7 +691,7 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
     else
       jTCK := 0
 
-  Display_Permutations((chEnd - chStart + 1) - (4 - num), num)  ' calculate number of permutations, accounting for any known channels
+  Display_Permutations((chEnd - chStart + 1) - (4 - num), num)  ' Calculate number of permutations, accounting for any known channels
 
   if (Get_Settings == -1)      ' Get configurable scan settings
     return
@@ -704,9 +703,6 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
 
   pst.Str(@MsgJTAGulating)
   u.TXSEnable   ' Enable level shifter outputs
-  if (jPinsLow == 1)
-    u.Set_Pins_Low(chStart, chEnd)  ' Set current channel range to output LOW
-    u.Pause(jPinsLowDelay)          ' Delay to stay asserted
     
   num := 0  ' Counter of possible pinouts
   ctr := 0
@@ -728,9 +724,13 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
             pst.Str(@ErrBYPASSAborted)
             return
 
-          u.Set_Pins_High(chStart, chEnd)       ' Set current channel range to output HIGH (in case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#)
-          if (jPinsLow == 1)
-            u.Pause(jPinsHighDelay)               ' Delay after deassertion before proceeding
+          u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH (in case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#)
+        
+          if (pinsLow == 1)     ' Pulse channels LOW if requested by the user
+            u.Set_Pins_Low(chStart, chEnd)      ' Set current channel range to output LOW
+            u.Pause(pinsLowDelay)               ' Delay to stay asserted
+            u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH  
+            u.Pause(pinsHighDelay)              ' Delay after deassertion before proceeding
           
           jtag.Config(jTDI, jTDO, jTCK, jTMS)     ' Configure JTAG
           value := jtag.Detect_Devices
@@ -747,11 +747,7 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
               xtdo := jTDO                        
               xtck := jTCK
               xtms := jTMS 
-              jPinsKnown := 1            ' Enable known pins flag   
-
-              if (jPinsLow == 1)
-                u.Set_Pins_Low(chStart, chEnd)  ' Set current channel range to output LOW
-                u.Pause(jPinsLowDelay)          ' Delay to stay asserted
+              jPinsKnown := 1            ' Enable known pins flag
                  
               ' Now try to determine if the TRST# pin is being used on the target
               repeat jTRST from chStart to chEnd     ' For every remaining channel...
@@ -764,9 +760,13 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
                   pst.Str(@ErrBYPASSAborted)
                   return
 
-                u.Set_Pins_High(chStart, chEnd)       ' Set current channel range to output HIGH (in case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#)
-                if (jPinsLow == 1)
-                  u.Pause(jPinsHighDelay)               ' Delay after deassertion before proceeding
+                u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH (in case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#)
+        
+                if (pinsLow == 1)     ' Pulse channels LOW if requested by the user
+                  u.Set_Pins_Low(chStart, chEnd)      ' Set current channel range to output LOW
+                  u.Pause(pinsLowDelay)               ' Delay to stay asserted
+                  u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH  
+                  u.Pause(pinsHighDelay)              ' Delay after deassertion before proceeding
           
                 jtag.Config(jTDI, jTDO, jTCK, jTMS)     ' Re-configure JTAG
                          
@@ -782,12 +782,10 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
                      
                 ' Progress indicator
                 ++ctr
-                if (jPinsLow == 0)
+                if (pinsLow == 0)
                   Display_Progress(ctr, 10, 0)
                 else
                   Display_Progress(ctr, 1, 0) 
-                  u.Set_Pins_Low(chStart, chEnd)  ' Set current channel range to output LOW
-                  u.Pause(jPinsLowDelay)          ' Delay to stay asserted
             
               pst.Str(@MsgDevicesDetected)
               pst.Dec(value)
@@ -795,12 +793,10 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
                   
         ' Progress indicator
           ++ctr
-          if (jPinsLow == 0)
+          if (pinsLow == 0)
             Display_Progress(ctr, 10, 1)
           else
             Display_Progress(ctr, 1, 1) 
-            u.Set_Pins_Low(chStart, chEnd)  ' Set current channel range to output LOW
-            u.Pause(jPinsLowDelay)          ' Delay to stay asserted
           
   if (num == 0)
     pst.Str(@ErrNoDeviceFound)
@@ -858,7 +854,7 @@ PRI RTCK_Scan : err | ctr, num, known, matches, xtck, xrtck, tckStart, tckEnd   
       tckStart := tckEnd := xtck
       num -= 1
 
-  Display_Permutations((chEnd - chStart + 1) - (2 - num), num)  ' calculate number of permutations, accounting for any known channels
+  Display_Permutations((chEnd - chStart + 1) - (2 - num), num)  ' Calculate number of permutations, accounting for any known channels
   
   if (Get_Settings == -1)      ' Get configurable scan settings
     return
@@ -870,9 +866,6 @@ PRI RTCK_Scan : err | ctr, num, known, matches, xtck, xrtck, tckStart, tckEnd   
 
   pst.Str(@MsgJTAGulating)
   u.TXSEnable   ' Enable level shifter outputs
-  if (jPinsLow == 1)
-    u.Set_Pins_Low(chStart, chEnd)  ' Set current channel range to output LOW
-    u.Pause(jPinsLowDelay)          ' Delay to stay asserted
          
   num := 0      ' Counter of possibly good pinouts
   ctr := 0      ' Counter of total loop iterations
@@ -886,9 +879,13 @@ PRI RTCK_Scan : err | ctr, num, known, matches, xtck, xrtck, tckStart, tckEnd   
         pst.Str(@ErrRTCKAborted)
         return
 
-      u.Set_Pins_High(chStart, chEnd)       ' Set current channel range to output HIGH (in case there are active low signals that may affect operation, like SRST#)  
-      if (jPinsLow == 1)
-        u.Pause(jPinsHighDelay)               ' Delay after deassertion before proceeding
+      u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH (in case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#)
+        
+      if (pinsLow == 1)     ' Pulse channels LOW if requested by the user
+        u.Set_Pins_Low(chStart, chEnd)      ' Set current channel range to output LOW
+        u.Pause(pinsLowDelay)               ' Delay to stay asserted
+        u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH  
+        u.Pause(pinsHighDelay)              ' Delay after deassertion before proceeding
          
 {{
 
@@ -920,15 +917,13 @@ RTCK (from target to JTAGulator):     ___|______|/            \__________
         pst.Dec(xrtck)
   
         pst.Str(String(CR, LF))
-          
+              
       ' Progress indicator
       ++ctr
-      if (jPinsLow == 0)
+      if (pinsLow == 0)
         Display_Progress(ctr, 10, 1)
       else
         Display_Progress(ctr, 1, 1) 
-        u.Set_Pins_Low(chStart, chEnd)  ' Set current channel range to output LOW
-        u.Pause(jPinsLowDelay)          ' Delay to stay asserted
 
   if (num == 0)
     pst.Str(@ErrNoDeviceFound)
@@ -1433,7 +1428,7 @@ PRI UART_Scan | baud_idx, i, j, ctr, num, xstr[MAX_LEN_UART_USER + 1], xtxd, xrx
     else
       uRXD := 0
 
-  Display_Permutations((chEnd - chStart + 1) - (2 - num), num)  ' calculate number of permutations, accounting for any known channels
+  Display_Permutations((chEnd - chStart + 1) - (2 - num), num)  ' Calculate number of permutations, accounting for any known channels
 
  ' Get user string to send during UART discovery
   pst.Str(String(CR, LF, "Enter text string to output (prefix with \x for hex) ["))
@@ -1503,7 +1498,7 @@ PRI UART_Scan | baud_idx, i, j, ctr, num, xstr[MAX_LEN_UART_USER + 1], xtxd, xrx
     
   if (UART_Get_Printable == -1)    ' Ignore non-printable characters?
     return
-    
+        
   pst.Str(@MsgPressSpacebarToBegin)
   if (pst.CharIn <> " ")
     pst.Str(@ErrUARTAborted)
@@ -1519,7 +1514,7 @@ PRI UART_Scan | baud_idx, i, j, ctr, num, xstr[MAX_LEN_UART_USER + 1], xtxd, xrx
     repeat uRXD from rxdStart to rxdEnd
       if (uRXD == uTXD)
         next
-
+        
       repeat baud_idx from 0 to (constant(BaudRateEnd - BaudRate) >> 2) - 1   ' For every possible baud rate in BaudRate table...
         if (pst.RxEmpty == 0)        ' Abort scan if any key is pressed
           UART_Scan_Cleanup(num, xtxd, xrxd, xbaud)
@@ -1528,7 +1523,7 @@ PRI UART_Scan | baud_idx, i, j, ctr, num, xstr[MAX_LEN_UART_USER + 1], xtxd, xrx
           return
 
         uBaud := BaudRate[baud_idx]        ' Store current baud rate into uBaud variable
-                
+                       
         UART.Start(|<uTXD, |<uRXD, uBaud)  ' Configure UART
         u.Pause(10)                        ' Delay for cog setup
         UART.RxFlush                       ' Flush receive buffer
@@ -2072,9 +2067,6 @@ PRI SWD_IDCODE_Scan | response, idcode, ctr, num, xclk, xio     ' Identify SWD p
 
   pst.Str(@MsgJTAGulating)
   u.TXSEnable   ' Enable level shifter outputs
-  if (jPinsLow == 1)
-    u.Set_Pins_Low(chStart, chEnd)  ' Set current channel range to output LOW
-    u.Pause(jPinsLowDelay)          ' Delay to stay asserted
          
   swd.init      ' Initialize SWD host module
   num := 0      ' Counter of possibly good pinouts
@@ -2091,9 +2083,13 @@ PRI SWD_IDCODE_Scan | response, idcode, ctr, num, xclk, xio     ' Identify SWD p
         pst.Str(@ErrIDCODEAborted)
         return
 
-      u.Set_Pins_High(chStart, chEnd)       ' Set current channel range to output HIGH (in case there are active low signals that may affect operation, like SRST#)  
-      if (jPinsLow == 1)
-        u.Pause(jPinsHighDelay)               ' Delay after deassertion before proceeding 
+      u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH (in case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#)
+        
+      if (pinsLow == 1)     ' Pulse channels LOW if requested by the user
+        u.Set_Pins_Low(chStart, chEnd)      ' Set current channel range to output LOW
+        u.Pause(pinsLowDelay)               ' Delay to stay asserted
+        u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH  
+        u.Pause(pinsHighDelay)              ' Delay after deassertion before proceeding 
 
       ' Use this pin mapping with the SWD module to attempt line resetting the device
       ' and reading out the IDCODE register.
@@ -2111,15 +2107,13 @@ PRI SWD_IDCODE_Scan | response, idcode, ctr, num, xclk, xio     ' Identify SWD p
         xio := swdIo
         Display_Device_ID(idcode, 1, 0)     ' SWD doesn't support device chaining, so there will only be a single device per pin permutation
         pst.Str(String(CR, LF))
-          
+            
       ' Progress indicator
       ++ctr
-      if (jPinsLow == 0)
+      if (pinsLow == 0)
         Display_Progress(ctr, 30, 1)
       else
         Display_Progress(ctr, 1, 1) 
-        u.Set_Pins_Low(chStart, chEnd)  ' Set current channel range to output LOW
-        u.Pause(jPinsLowDelay)          ' Delay to stay asserted
 
   if (num == 0)
     pst.Str(@ErrNoDeviceFound)
@@ -2136,8 +2130,7 @@ PRI SWD_IDCODE_Known | response, idcode   ' Get SWD Device ID (Pinout already kn
   if (Set_SWD == -1)  ' Ask user for the known SWD pinout
     return              ' Abort if error
    
-  u.TXSEnable                                      ' Enable level shifter outputs
-  u.Set_Pins_High(0, g#MAX_CHAN)                   ' In case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#
+  u.TXSEnable         ' Enable level shifter outputs
 
   swd.init      ' Initialize SWD host module
   
@@ -2239,6 +2232,11 @@ PRI System_Init
   dira[g#DAC_OUT] := 1          ' Set pin as output
   DACOutput(0)                  ' DAC output off 
 
+  ' Set default values
+  pinsLow := 0
+  pinsLowDelay := 100
+  pinsHighDelay := 100
+  
   idMenu := MENU_MAIN           ' Set default menu
 
   eeprom.Initialize(eeprom#BootPin)    ' Setup I2C
@@ -2250,7 +2248,7 @@ PRI Set_Config_Defaults    ' Set configuration globals to default values
   vMode := MODE_NORMAL                ' Operating mode
   vTargetIO := -1                     ' Target I/O voltage (undefined)
   jTDI := jTDO := jTCK := jTMS := 0   ' JTAG pins
-    
+
     
 PRI Set_Target_IO_Voltage | value
   pst.Str(String(CR, LF, "Current target I/O voltage: "))
@@ -2310,9 +2308,9 @@ PRI Get_Pins_Known(type) : err
     return -1
       
 
-PRI Get_Settings : err | value     ' Get user-configurable settings used in IDCODE and BYPASS Scans
-  pst.Str(String(CR, LF, LF, "Bring channels LOW between each permutation? ["))
-  if (jPinsLow == 0)
+PRI Get_Settings : err | value     ' Get user-configurable settings
+  pst.Str(String(CR, LF, LF, "Bring channels LOW before each permutation? ["))
+  if (pinsLow == 0)
     pst.Str(String("y/N]: "))
   else
     pst.Str(String("Y/n]: "))  
@@ -2321,9 +2319,9 @@ PRI Get_Settings : err | value     ' Get user-configurable settings used in IDCO
     case vCmd[0]                        ' Check the first character of the input string
       0:                                ' The user only entered a CR, so keep the same value and pass through.
       "N", "n":                      
-        jPinsLow := 0                     ' Disable flag
+        pinsLow := 0                     ' Disable flag
       "Y", "y":
-        jPinsLow := 1                     ' Enable flag
+        pinsLow := 1                     ' Enable flag
       other:
         pst.Str(@ErrOutOfRange)
         return -1
@@ -2331,26 +2329,26 @@ PRI Get_Settings : err | value     ' Get user-configurable settings used in IDCO
     pst.Str(@ErrOutOfRange)
     return -1
 
-  if (jPinsLow == 1)
+  if (pinsLow == 1)
     pst.Str(String(CR, LF, "Enter length of time for channels to remain LOW (in ms, 1 - 1000) ["))
-    pst.Dec(jPinsLowDelay)        ' Display current value
+    pst.Dec(pinsLowDelay)        ' Display current value
     pst.Str(String("]: "))
     value := Get_Decimal_Pin      ' Get new value from user
     if (value <> -1)              ' If carriage return was not pressed...    
       if (value < 1) or (value > 1000)  ' If entered value is out of range, abort
         pst.Str(@ErrOutOfRange)
         return -1
-      jPinsLowDelay := value
+      pinsLowDelay := value
 
     pst.Str(String(CR, LF, "Enter length of time after channels return HIGH before proceeding (in ms, 1 - 1000) ["))
-    pst.Dec(jPinsHighDelay)        ' Display current value
+    pst.Dec(pinsHighDelay)        ' Display current value
     pst.Str(String("]: "))
     value := Get_Decimal_Pin      ' Get new value from user
     if (value <> -1)              ' If carriage return was not pressed...    
       if (value < 1) or (value > 1000)  ' If entered value is out of range, abort
         pst.Str(@ErrOutOfRange)
         return -1
-      jPinsHighDelay := value
+      pinsHighDelay := value
   
 
 PRI Get_Channels(min_chan) : err | xstart, xend
