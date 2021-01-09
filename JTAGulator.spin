@@ -1498,6 +1498,9 @@ PRI UART_Scan | baud_idx, i, j, ctr, num, xstr[MAX_LEN_UART_USER + 1], xtxd, xrx
     
   if (UART_Get_Printable == -1)    ' Ignore non-printable characters?
     return
+
+  if (Get_Settings == -1)          ' Get configurable scan settings
+    return
         
   pst.Str(@MsgPressSpacebarToBegin)
   if (pst.CharIn <> " ")
@@ -1514,6 +1517,14 @@ PRI UART_Scan | baud_idx, i, j, ctr, num, xstr[MAX_LEN_UART_USER + 1], xtxd, xrx
     repeat uRXD from rxdStart to rxdEnd
       if (uRXD == uTXD)
         next
+
+      u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH (in case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#)
+        
+      if (pinsLow == 1)     ' Pulse channels LOW if requested by the user
+        u.Set_Pins_Low(chStart, chEnd)      ' Set current channel range to output LOW
+        u.Pause(pinsLowDelay)               ' Delay to stay asserted
+        u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH  
+        u.Pause(pinsHighDelay)              ' Delay after deassertion before proceeding
         
       repeat baud_idx from 0 to (constant(BaudRateEnd - BaudRate) >> 2) - 1   ' For every possible baud rate in BaudRate table...
         if (pst.RxEmpty == 0)        ' Abort scan if any key is pressed
@@ -1523,8 +1534,10 @@ PRI UART_Scan | baud_idx, i, j, ctr, num, xstr[MAX_LEN_UART_USER + 1], xtxd, xrx
           return
 
         uBaud := BaudRate[baud_idx]        ' Store current baud rate into uBaud variable
-                       
-        UART.Start(|<uTXD, |<uRXD, uBaud)  ' Configure UART
+
+        dira[uTXD] := 0                    ' Set current pins as inputs (UART cog will configure as needed)
+        dira[uRXD] := 0                                    
+        UART.Start(|<uTXD, |<uRXD, uBaud)  ' Start UART cog
         u.Pause(10)                        ' Delay for cog setup
         UART.RxFlush                       ' Flush receive buffer
           
