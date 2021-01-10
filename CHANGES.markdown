@@ -4,6 +4,17 @@ JTAGulator Change Log
 Visit the JTAGulator [GitHub repository](https://github.com/grandideastudio/jtagulator/commits/master) for full commit comments.
 
 
+<a id="v1_11"></a>1.11
+----
+Release date: **xx**
+
+* UART: Added option into `UART_Scan` to bring channels low before each permutation. The length of the low pulse and the delay before continuing after the signal returns high are both adjustable.
+
+* General: Optimized behavior of bringing channels low before each permutation (originally implemented in FW [1.6](#v1_6)).
+
+* General: Minor code modifications and cleanup.
+
+
 <a id="v1_10"></a>1.10
 ----
 Release date: **December 8, 2020**
