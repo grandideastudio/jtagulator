@@ -254,6 +254,10 @@ PUB Bypass_Test(num, bPattern) : value
                bPattern = 32-bit value to shift into TDI
   Returns    : 32-bit value received from TDO
 }
+
+  if (num =< 0 or num > MAX_DEVICES_LEN)   ' Limit maximum possible number of devices in the chain
+    return
+    
   Restore_Idle                ' Reset TAP to Run-Test-Idle
   Enter_Shift_IR              ' Enter Shift IR state
 
