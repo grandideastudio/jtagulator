@@ -482,9 +482,11 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
       pst.Str(@ErrJTAGAborted)
     return
 
+  longfill(@id, 0, jtag#MAX_DEVICES_LEN)           ' Clear IDCODE buffer
+
   pst.Str(@MsgJTAGulating)
   u.TXSEnable   ' Enable level shifter outputs
-
+  
   jTDI := g#PROP_SDA    ' TDI isn't used when we're just shifting data from the DR. Set TDI to a temporary pin so it doesn't interfere with enumeration.
 
   ' We assume the IDCODE is the default DR after reset
@@ -520,7 +522,7 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
           u.Pause(pinsHighDelay)              ' Delay after deassertion before proceeding 
 
         jtag.Config(jTDI, jTDO, jTCK, jTMS)   ' Configure JTAG
-        jtag.Get_Device_IDs(1, @value)        ' Try to get the 1st Device ID in the chain (if it exists) by reading the DR      
+        jtag.Get_Device_IDs(1, @value)        ' Try to get a single Device ID (if it exists) by reading the DR
         if (value <> -1) and (value & 1)      ' Ignore if received Device ID is 0xFFFFFFFF or if bit 0 != 1
           if (type == 0)    ' IDCODE Scan
             Display_JTAG_Pins                 ' Display current JTAG pinout
@@ -529,8 +531,8 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
             xtck := jTCK
             xtms := jTMS
             jPinsKnown := 1                   ' Enable known pins flag   
-                            
-          ' Since we might not know how many devices are in the chain, try the maximum allowable number and verify the results afterwards
+              
+            ' Since we might not know how many devices are in the chain, try the maximum allowable number and verify the results afterwards
             jtag.Get_Device_IDs(jtag#MAX_DEVICES_LEN, @id)   ' We assume the IDCODE is the default DR after reset                          
             repeat i from 0 to (jtag#MAX_DEVICES_LEN-1)      ' For each device in the chain...
               Display_Device_ID(id[i], i + 1, 0)               ' Display Device ID of current device (without details)              
@@ -539,7 +541,7 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
             repeat jTDI from chStart to chEnd     ' For every remaining channel...
               if (jTDI == jTMS) or (jTDI == jTCK) or (jTDI == jTDO)
                 next
-
+            
               if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
                 pst.RxFlush
                 JTAG_Scan_Cleanup(num, xtdi, xtdo, xtck, xtms)
@@ -553,12 +555,14 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
                 u.Pause(pinsLowDelay)               ' Delay to stay asserted
                 u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH  
                 u.Pause(pinsHighDelay)              ' Delay after deassertion before proceeding
-            
+
               jtag.Config(jTDI, jTDO, jTCK, jTMS)              ' Re-configure JTAG
-              value := jtag.Detect_Devices                     ' Get number of devices in the chain (if any)
+              value := jtag.Detect_Devices                     ' Get number of devices in the chain (if any) 
+
+              ' Run a BYPASS test to ensure TDO is actually passing TDI
               data_in := rr.random                             ' Get 32-bit random number to use as the BYPASS pattern
               data_out := jtag.Bypass_Test(value, data_in)     ' Run the BYPASS instruction
-              
+
               if (data_in == data_out)   ' If match, then we've found a JTAG interface on this current pinout
                 Display_JTAG_Pins                 ' Display current JTAG pinout
                 num += 1                          ' Increment counter
@@ -568,10 +572,21 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
                 xtms := jTMS
                 jPinsKnown := 1                   ' Enable known pins flag
                 match := 1                        ' Set flag to enable subsequent TRST# search
-                                
+
+                u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH (in case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#)
+        
+                if (pinsLow == 1)     ' Pulse channels LOW if requested by the user
+                  u.Set_Pins_Low(chStart, chEnd)      ' Set current channel range to output LOW
+                  u.Pause(pinsLowDelay)               ' Delay to stay asserted
+                  u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH  
+                  u.Pause(pinsHighDelay)              ' Delay after deassertion before proceeding
+
+                jtag.Config(jTDI, jTDO, jTCK, jTMS)              ' Re-configure JTAG
+               
                 jtag.Get_Device_IDs(value, @id)   ' We assume the IDCODE is the default DR after reset
                 repeat i from 0 to (value-1)      ' For each device in the chain...
                   Display_Device_ID(id[i], i + 1, 0)       ' Display Device ID of current device (without details)
+
                 quit                              ' Break out of the search for TDI and continue... 
               else
                 match := 0
@@ -613,12 +628,12 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
               outa[jTRST] := 0  ' Output LOW
               u.Pause(100)      ' Give target time to react
 
-              jtag.Get_Device_IDs(1, @value_new)  ' Try to get Device ID again by reading the DR (1st in the chain)
+              jtag.Get_Device_IDs(1, @value_new)  ' Try to get a single Device ID again by reading the DR
               if (value_new <> id[0])             ' If the new value doesn't match what we already have, then the current pin may be a reset line.
                 pst.Str(String("TRST#: "))          ' Display the pin number
                 pst.Dec(jTRST)
-                pst.Str(String(CR, LF))                        
-
+                pst.Str(String(CR, LF))
+                  
               ' Progress indicator
               ++ctr
               if (pinsLow == 0)
@@ -735,61 +750,60 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
           jtag.Config(jTDI, jTDO, jTCK, jTMS)     ' Configure JTAG
           value := jtag.Detect_Devices
   
-          if (value > 0 and value =< jtag#MAX_DEVICES_LEN)  ' Limit maximum possible number of devices in the chain
-            ' Run a BYPASS test to ensure TDO is actually passing TDI
-            data_in := rr.random                          ' Get 32-bit random number to use as the BYPASS pattern
-            data_out := jtag.Bypass_Test(value, data_in)  ' Run the BYPASS instruction
+          ' Run a BYPASS test to ensure TDO is actually passing TDI
+          data_in := rr.random                          ' Get 32-bit random number to use as the BYPASS pattern
+          data_out := jtag.Bypass_Test(value, data_in)  ' Run the BYPASS instruction
 
-            if (data_in == data_out)   ' If match, then continue with this current pinout  
-              Display_JTAG_Pins          ' Display pinout
-              num += 1                   ' Increment counter
-              xtdi := jTDI               ' Keep track of most recent detection results
-              xtdo := jTDO                        
-              xtck := jTCK
-              xtms := jTMS 
-              jPinsKnown := 1            ' Enable known pins flag
+          if (data_in == data_out)   ' If match, then continue with this current pinout  
+            Display_JTAG_Pins          ' Display pinout
+            num += 1                   ' Increment counter
+            xtdi := jTDI               ' Keep track of most recent detection results
+            xtdo := jTDO                        
+            xtck := jTCK
+            xtms := jTMS 
+            jPinsKnown := 1            ' Enable known pins flag
                  
-              ' Now try to determine if the TRST# pin is being used on the target
-              repeat jTRST from chStart to chEnd     ' For every remaining channel...
-                if (jTRST == jTMS) or (jTRST == jTCK) or (jTRST == jTDO) or (jTRST == jTDI)
-                  next
+            ' Now try to determine if the TRST# pin is being used on the target
+            repeat jTRST from chStart to chEnd     ' For every remaining channel...
+              if (jTRST == jTMS) or (jTRST == jTCK) or (jTRST == jTDO) or (jTRST == jTDI)
+                next
 
-                if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
-                  JTAG_Scan_Cleanup(num, xtdi, xtdo, xtck, xtms)
-                  pst.RxFlush
-                  pst.Str(@ErrBYPASSAborted)
-                  return
+              if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
+                JTAG_Scan_Cleanup(num, xtdi, xtdo, xtck, xtms)
+                pst.RxFlush
+                pst.Str(@ErrBYPASSAborted)
+                return
 
-                u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH (in case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#)
-        
-                if (pinsLow == 1)     ' Pulse channels LOW if requested by the user
-                  u.Set_Pins_Low(chStart, chEnd)      ' Set current channel range to output LOW
-                  u.Pause(pinsLowDelay)               ' Delay to stay asserted
-                  u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH  
-                  u.Pause(pinsHighDelay)              ' Delay after deassertion before proceeding
+              u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH (in case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#)
+
+              if (pinsLow == 1)     ' Pulse channels LOW if requested by the user
+                u.Set_Pins_Low(chStart, chEnd)      ' Set current channel range to output LOW
+                u.Pause(pinsLowDelay)               ' Delay to stay asserted
+                u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH  
+                u.Pause(pinsHighDelay)              ' Delay after deassertion before proceeding
           
-                jtag.Config(jTDI, jTDO, jTCK, jTMS)     ' Re-configure JTAG
+              jtag.Config(jTDI, jTDO, jTCK, jTMS)     ' Re-configure JTAG
                          
-                dira[jTRST] := 1  ' Set current pin to output
-                outa[jTRST] := 0  ' Output LOW
-                u.Pause(100)      ' Give target time to react
+              dira[jTRST] := 1  ' Set current pin to output
+              outa[jTRST] := 0  ' Output LOW
+              u.Pause(100)      ' Give target time to react
                 
-                value_new := jtag.Detect_Devices
-                if (value_new <> value) and (value_new =< jtag#MAX_DEVICES_LEN)    ' If the new value doesn't match what we already have, then the current pin may be a reset line.
-                  pst.Str(String("TRST#: "))    ' Display the pin number
-                  pst.Dec(jTRST)
-                  pst.Str(String(CR, LF))
+              value_new := jtag.Detect_Devices
+              if (value_new <> value) and (value_new =< jtag#MAX_DEVICES_LEN)    ' If the new value doesn't match what we already have, then the current pin may be a reset line.
+                pst.Str(String("TRST#: "))    ' Display the pin number
+                pst.Dec(jTRST)
+                pst.Str(String(CR, LF))
                      
-                ' Progress indicator
-                ++ctr
-                if (pinsLow == 0)
-                  Display_Progress(ctr, 10, 0)
-                else
-                  Display_Progress(ctr, 1, 0) 
+              ' Progress indicator
+              ++ctr
+              if (pinsLow == 0)
+                Display_Progress(ctr, 10, 0)
+              else
+                Display_Progress(ctr, 1, 0) 
             
-              pst.Str(@MsgDevicesDetected)
-              pst.Dec(value)
-              pst.Str(String(CR, LF))
+            pst.Str(@MsgDevicesDetected)
+            pst.Dec(value)
+            pst.Str(String(CR, LF))
                   
         ' Progress indicator
           ++ctr
