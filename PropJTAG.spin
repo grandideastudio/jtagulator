@@ -277,7 +277,7 @@ PUB Bypass_Test(num, bPattern) : value
   value ><= 32     ' Bitwise reverse since LSB came in first (we want MSB to be first)
 
 
-PUB Get_Device_IDs(num, idptr) | data, i
+PUB Get_Device_IDs(num, idptr) | data, i, bits
 {
   Retrieves the JTAG device ID from each device in the chain. 
   Leaves the TAP in the Run-Test-Idle state.
@@ -301,21 +301,17 @@ PUB Get_Device_IDs(num, idptr) | data, i
   Enter_Shift_DR                    ' Go to Shift DR
 
   TDI_High         ' TDI is ignored when shifting IDCODE, but we need to set a default state
-
-  repeat i from 0 to (num - 1)      ' For each device in the chain...
-    data := Shift_Array(0, 32)       ' Receive 32-bit value from DR (should be IDCODE if exists), leaves the TAP in Exit1 DR
-    data ><= 32                      ' Bitwise reverse since LSB came in first (we want MSB to be first)
-    long[idptr][i] := data           ' Store it in hub memory
-    
-    TMS_Low
-    TCK_Pulse       ' Go to Pause DR
+  TMS_Low          ' Ensure we remain in Shift DR
   
-    TMS_High
-    TCK_Pulse       ' Go to Exit2 DR
-
-    TMS_Low
-    TCK_Pulse       ' Go to Shift DR
-
+  repeat i from 0 to (num - 1)      ' For each device in the chain...
+    data := 0
+    repeat bits from 0 to 31          ' For each bit in the 32-bit IDCODE
+      data <<= 1
+      data |= TDO_Read                  ' Receive data from DR (should be IDCODE if exists)
+      
+    data ><= 32                       ' Bitwise reverse since LSB came in first (we want MSB to be first)
+    long[idptr][i] := data            ' Store it in hub memory
+  
   Restore_Idle                      ' Reset TAP to Run-Test-Idle
 
 
@@ -398,7 +394,7 @@ PRI Shift_Array(array, num_bits) : ret_value | i
     This method is called when the TAP state machine is in the Shift_DR or Shift_IR state.
 }
   ret_value := 0
-    
+  
   repeat i from 1 to num_bits
     if (i == num_bits)        ' If at final bit...
       TMS_High     ' Go to Exit1
