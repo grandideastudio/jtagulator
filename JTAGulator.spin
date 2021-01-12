@@ -955,7 +955,7 @@ PRI IDCODE_Known | id[32 {jtag#MAX_DEVICES_LEN}], i, xtdi   ' Get JTAG Device ID
   longfill(@id, 0, jtag#MAX_DEVICES_LEN)           ' Clear IDCODE buffer
     
   u.TXSEnable                                      ' Enable level shifter outputs
-  u.Set_Pins_High(0, g#MAX_CHAN)                   ' In case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#
+  u.Set_Pins_High(0, g#MAX_CHAN-1)                 ' In case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#
   jtag.Config(jTDI, jTDO, jTCK, jTMS)              ' Configure JTAG
 
   ' Since we might not know how many devices are in the chain, try the maximum allowable number and verify the results afterwards
@@ -976,11 +976,11 @@ PRI BYPASS_Known | num, dataIn, dataOut   ' Test BYPASS (TDI to TDO) (Pinout alr
   if (Set_JTAG(1) == -1)  ' Ask user for the known JTAG pinout
     return                  ' Abort if error
 
-  u.TXSEnable                                 ' Enable level shifter outputs
-  u.Set_Pins_High(0, g#MAX_CHAN)              ' In case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#
+  u.TXSEnable                                 ' Enable level shifter outputs 
+  u.Set_Pins_High(0, g#MAX_CHAN-1)            ' In case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#
   jtag.Config(jTDI, jTDO, jTCK, jTMS)         ' Configure JTAG
 
-  num := jtag.Detect_Devices                 ' Get number of devices in the chain
+  num := jtag.Detect_Devices                  ' Get number of devices in the chain
   pst.Str(String(CR, LF))
   pst.Str(@MsgDevicesDetected)
   pst.Dec(num)
@@ -1030,7 +1030,7 @@ PRI OPCODE_Discovery | num, ctr, irLen, drLen, opcode_max, opcodeH, opcodeL, opc
     return
     
   u.TXSEnable                                 ' Enable level shifter outputs
-  u.Set_Pins_High(0, g#MAX_CHAN)              ' In case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#
+  u.Set_Pins_High(0, g#MAX_CHAN-1)            ' In case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#
   jtag.Config(jTDI, jTDO, jTCK, jTMS)         ' Configure JTAG
 
   num := jtag.Detect_Devices                  ' Get number of devices in the chain
