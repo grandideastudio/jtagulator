@@ -8,6 +8,8 @@ Visit the JTAGulator [GitHub repository](https://github.com/grandideastudio/jtag
 ----
 Release date: **xx**
 
+* JTAG: Revised `Get_Device_IDs` to prevent reading multiple Device IDs from certain targets when only one actual Device ID exists.
+
 * UART: Added option into `UART_Scan` to bring channels low before each permutation. The length of the low pulse and the delay before continuing after the signal returns high are both adjustable.
 
 * General: Optimized behavior of bringing channels low before each permutation (originally implemented in FW [1.6](#v1_6)).
