@@ -302,6 +302,12 @@ PRI Do_JTAG_Menu(cmd)
       else
         OPCODE_Discovery
 
+    "P", "p":                 ' Pin Mapper (EXTEST Scan) (Pinout already known, requires single device in the chain)
+      if (vTargetIO == -1)
+        pst.Str(@ErrTargetIOVoltage)
+      else
+        EXTEST_Scan
+        
     "O", "o":                 ' OpenOCD interface (Pinout already known) 
       if (vTargetIO == -1)
         pst.Str(@ErrTargetIOVoltage)
@@ -1091,7 +1097,65 @@ PRI OPCODE_Discovery | num, ctr, irLen, drLen, opcode_max, opcodeH, opcodeL, opc
   jtag.Restore_Idle   ' Reset JTAG TAP to Run-Test-Idle state
   pst.Str(String(CR, LF, "IR/DR discovery complete."))
 
-  
+
+PRI EXTEST_Scan | num, ctr, irLen, drLen   ' Pin Mapper (EXTEST Scan) (Pinout already known, requires single device in the chain) 
+  if (Set_JTAG(1) == -1)  ' Ask user for the known JTAG pinout
+    return                  ' Abort if error
+
+  u.TXSEnable                                 ' Enable level shifter outputs
+  u.Set_Pins_High(0, g#MAX_CHAN-1)            ' In case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#
+  jtag.Config(jTDI, jTDO, jTCK, jTMS)         ' Configure JTAG
+
+  ' Get number of devices in the chain
+  num := jtag.Detect_Devices         
+  if (num == 0)
+    pst.Str(@ErrNoDeviceFound)
+    jPinsKnown := 0
+    return
+  elseif (num > 1)
+    pst.Str(String(CR, LF, "Too many devices in the chain!"))
+    return
+   
+  ' Get instruction register length
+  irLen := jtag.Detect_IR_Length 
+  pst.Str(String(CR, LF, "Instruction Register (IR) length: "))
+  if (irLen == 0)
+    pst.Str(String("N/A"))
+    pst.Str(@ErrOutOfRange)
+    return
+  else
+    pst.Dec(irLen)
+
+  ' Get data register length (boundary scan)
+  drLen := jtag.Detect_DR_Length($00000000)  
+  pst.Str(String(CR, LF, "Boundary Scan Register length: "))
+  if (irLen == 0)
+    pst.Str(String("N/A"))
+    pst.Str(@ErrOutOfRange)
+    return
+  else
+    pst.Dec(drLen)
+    
+  pst.Str(@MsgPressSpacebarToBegin)
+  if (pst.CharIn <> " ")
+    pst.Str(@ErrEXTESTAborted)
+    return
+
+  pst.Str(@MsgJTAGulating)          
+
+  repeat
+    ' Progress indicator
+    ++ctr
+    Display_Progress(ctr, $4000, 1)
+    
+    if (pst.RxEmpty == 0)
+      quit
+
+
+  jtag.Restore_Idle   ' Reset JTAG TAP to Run-Test-Idle state
+  pst.Str(String(CR, LF, "Pin mapper complete."))
+
+
 PRI Set_JTAG(getTDI) : err | xtdi, xtdo, xtck, xtms, buf, c     ' Set JTAG configuration to known values
   if (getTDI == 1)          
     pst.Str(String(CR, LF, "Enter TDI pin ["))
@@ -2589,6 +2653,7 @@ MenuJTAG      byte CR, LF, "JTAG Commands:", CR, LF
               byte "D   Get Device ID(s)", CR, LF
               byte "T   Test BYPASS (TDI to TDO)", CR, LF
               byte "Y   Instruction/Data Register (IR/DR) discovery", CR, LF
+              byte "P   Pin Mapper (EXTEST Scan)", CR, LF
               byte "O   OpenOCD interface", 0
 
 MenuUART      byte CR, LF, "UART Commands:", CR, LF
@@ -2639,13 +2704,16 @@ ErrTargetIOVoltage          byte CR, LF, "Target I/O voltage must be defined!", 
 ErrOutOfRange               byte CR, LF, "Value out of range!", 0
 ErrPinCollision             byte CR, LF, "Pin numbers must be unique!", 0
 ErrNoDeviceFound            byte CR, LF, "No target device(s) found!", 0
+
 ErrJTAGAborted              byte CR, LF, "JTAG scan aborted!", 0
 ErrIDCODEAborted            byte CR, LF, "IDCODE scan aborted!", 0
 ErrBYPASSAborted            byte CR, LF, "BYPASS scan aborted!", 0
 ErrRTCKAborted              byte CR, LF, "RTCK scan aborted!", 0
 ErrUARTAborted              byte CR, LF, "UART scan aborted!", 0
+ErrEXTESTAborted            byte CR, LF, "Pin mapper aborted!", 0
 ErrDiscoveryAborted         byte CR, LF, "IR/DR discovery aborted!", 0
-         
+
+        
 ' Look-up table to correlate actual I/O voltage to DAC value
 ' Full DAC range is 0 to 3.3V @ 256 steps = 12.89mV/step
 ' TXS0108E level translator is limited from 1.4V to 3.3V per data sheet table 6.3
