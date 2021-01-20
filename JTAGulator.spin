@@ -99,6 +99,7 @@ VAR                   ' Globally accessible variables
   long jTRST
   long jPinsKnown     ' Parameter for BYPASS_Scan
   long jIgnoreReg     ' Parameter for OPCODE_Discovery
+  long jProbe         ' Parameter for EXTEST_Scan
   
   long uTXD           ' UART pins (as seen from the target) (must stay in this order)
   long uRXD
@@ -465,6 +466,9 @@ PRI JTAG_Init
 
   ' OPCODE_Discovery
   jIgnoreReg := 1
+
+  ' EXTEST_Scan
+  jProbe := 0
 
 
 PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}], i, match, data_in, data_out, xtdi, xtdo, xtck, xtms    ' Identify JTAG pinout (IDCODE Scan or Combined Scan)
@@ -1098,7 +1102,7 @@ PRI OPCODE_Discovery | num, ctr, irLen, drLen, opcode_max, opcodeH, opcodeL, opc
   pst.Str(String(CR, LF, "IR/DR discovery complete."))
 
 
-PRI EXTEST_Scan | num, ctr, irLen, drLen   ' Pin Mapper (EXTEST Scan) (Pinout already known, requires single device in the chain) 
+PRI EXTEST_Scan | num, ctr, irLen, drLen, xprobe   ' Pin Mapper (EXTEST Scan) (Pinout already known, requires single device in the chain) 
   if (Set_JTAG(1) == -1)  ' Ask user for the known JTAG pinout
     return                  ' Abort if error
 
@@ -1129,13 +1133,29 @@ PRI EXTEST_Scan | num, ctr, irLen, drLen   ' Pin Mapper (EXTEST Scan) (Pinout al
   ' Get data register length (boundary scan)
   drLen := jtag.Detect_DR_Length($00000000)  
   pst.Str(String(CR, LF, "Boundary Scan Register length: "))
-  if (irLen == 0)
+  if (drLen == 0)
     pst.Str(String("N/A"))
     pst.Str(@ErrOutOfRange)
     return
   else
     pst.Dec(drLen)
-    
+
+  pst.Str(String(CR, LF, LF, "Enter probe pin ["))
+  pst.Dec(jProbe)               ' Display current value
+  pst.Str(String("]: "))
+  xprobe := Get_Decimal_Pin     ' Get new value from user
+  if (xprobe == -1)             ' If carriage return was pressed...      
+    xprobe := jProbe                ' Keep current setting
+  if (xprobe < 0) or (xprobe > g#MAX_CHAN-1)  ' If entered value is out of range, abort
+    pst.Str(@ErrOutOfRange)
+    return -1
+  elseif (xprobe == jTDI) or (xprobe == jTDO) or (xprobe == jTCK) or (xprobe == jTMS)  ' If entered value uses one of the existing JTAG pins, abort
+    pst.Str(@ErrPinCollision)
+    return -1
+
+  dira[xprobe] := 0  ' Set pin as input
+  
+  pst.Str(@MsgEXTESTNote)         
   pst.Str(@MsgPressSpacebarToBegin)
   if (pst.CharIn <> " ")
     pst.Str(@ErrEXTESTAborted)
@@ -1143,15 +1163,67 @@ PRI EXTEST_Scan | num, ctr, irLen, drLen   ' Pin Mapper (EXTEST Scan) (Pinout al
 
   pst.Str(@MsgJTAGulating)          
 
-  repeat
+  ' Enter EXTEST/boundary scan mode
+  'jtag.Send_Instruction($00000000, irLen)   ' Send instruction/opcode
+  jtag.Enter_Shift_DR                       ' Go to Shift DR
+    
+  'repeat
     ' Progress indicator
     ++ctr
-    Display_Progress(ctr, $4000, 1)
+    Display_Progress(ctr, 30, 1)
     
-    if (pst.RxEmpty == 0)
-      quit
+    'if (pst.RxEmpty == 0)
+    '  quit
+
+    ' Flush the Boundary Scan Register
+    {jtag.TDI_Low              
+    repeat drLen
+      jtag.TCK_Pulse}
 
 
+    jtag.TDI_Low
+    jtag.TCK_Pulse
+              
+    jtag.TDI_High              
+    repeat drLen - 2
+      jtag.TCK_Pulse
+
+        
+    ' The DR is currently filled with 1s from the jtag.Detect_DR_Length command above
+    ' Shift a 0 through the Boundary Scan Register and see if it gets measured by the specific probe channel
+    {repeat num from 0 to drLen - 1
+      if (num == 0)       
+        jtag.TDI_High 
+      else 
+        jtag.TDI_Low
+      jtag.TCK_Pulse}
+
+    jtag.TMS_High       
+    jtag.TCK_Pulse        ' Go to Exit1 DR
+
+    jtag.TMS_High       
+    jtag.TCK_Pulse        ' Go to Update DR, new data in effect
+
+    jtag.TMS_Low
+    jtag.TCK_Pulse        ' Go to Run-Test-Idle
+          
+      {if (ina[xprobe] == 0)
+        pst.Str(String(CR, LF, "Detected: CH"))
+        pst.Dec(num)
+        'quit
+              
+      jtag.TMS_High       
+      jtag.TCK_Pulse        ' Go to Select DR Scan
+    
+      jtag.TMS_Low        
+      jtag.TCK_Pulse        ' Go to Capture DR Scan
+
+      jtag.TMS_Low        
+      jtag.TCK_Pulse        ' Go to Shift DR Scan
+       }
+  repeat
+  
+  jProbe := xprobe
   jtag.Restore_Idle   ' Reset JTAG TAP to Run-Test-Idle state
   pst.Str(String(CR, LF, "Pin mapper complete."))
 
@@ -2653,7 +2725,7 @@ MenuJTAG      byte CR, LF, "JTAG Commands:", CR, LF
               byte "D   Get Device ID(s)", CR, LF
               byte "T   Test BYPASS (TDI to TDO)", CR, LF
               byte "Y   Instruction/Data Register (IR/DR) discovery", CR, LF
-              byte "P   Pin Mapper (EXTEST Scan)", CR, LF
+              byte "P   Pin mapper (EXTEST Scan)", CR, LF
               byte "O   OpenOCD interface", 0
 
 MenuUART      byte CR, LF, "UART Commands:", CR, LF
@@ -2698,6 +2770,8 @@ MsgSUMPNote                 byte CR, LF, LF, "Note: Switch to analyzer software 
 
 MsgOCDNote                  byte CR, LF, LF, "Example: openocd -f interface/buspirate.cfg -c ", QUOTE
                             byte "transport select jtag; buspirate_port /dev/ttyUSB0", QUOTE, CR, LF, 0
+
+MsgEXTESTNote               byte CR, LF, "Note: Hold probe onto desired target pin.", 0
 
 ErrEEPROMNotResponding      byte CR, LF, "EEPROM not responding!", 0                            
 ErrTargetIOVoltage          byte CR, LF, "Target I/O voltage must be defined!", 0
