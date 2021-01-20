@@ -414,7 +414,7 @@ PRI Shift_Array(array, num_bits) : ret_value | i
     ret_value |= TDO_Read     ' Receive data, shift order depends on target
 
        
-PRI Enter_Shift_DR      ' 
+PUB Enter_Shift_DR      ' 
 {
     Move TAP to the Shift-DR state.
     TAP must be in Run-Test-Idle state before being called.
@@ -429,7 +429,7 @@ PRI Enter_Shift_DR      '
   TCK_Pulse        ' Go to Shift DR
   
 
-PRI Enter_Shift_IR  
+PUB Enter_Shift_IR  
 {
     Move TAP to the Shift-IR state.
     TAP must be in Run-Test-Idle state before being called.
