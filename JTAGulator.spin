@@ -1102,7 +1102,7 @@ PRI OPCODE_Discovery | num, ctr, irLen, drLen, opcode_max, opcodeH, opcodeL, opc
   pst.Str(String(CR, LF, "IR/DR discovery complete."))
 
 
-PRI EXTEST_Scan | num, ctr, irLen, drLen, xprobe   ' Pin Mapper (EXTEST Scan) (Pinout already known, requires single device in the chain) 
+PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xprobe   ' Pin Mapper (EXTEST Scan) (Pinout already known, requires single device in the chain) 
   if (Set_JTAG(1) == -1)  ' Ask user for the known JTAG pinout
     return                  ' Abort if error
 
@@ -1163,8 +1163,8 @@ PRI EXTEST_Scan | num, ctr, irLen, drLen, xprobe   ' Pin Mapper (EXTEST Scan) (P
 
   pst.Str(@MsgJTAGulating)          
 
-  jtag.Enter_Shift_DR                       ' Go to Shift DR
-    
+  jtag.Enter_Shift_DR       ' Go to Shift DR
+  num := 0
   repeat
     ' Progress indicator
     ++ctr
@@ -1172,31 +1172,41 @@ PRI EXTEST_Scan | num, ctr, irLen, drLen, xprobe   ' Pin Mapper (EXTEST Scan) (P
     
     if (pst.RxEmpty == 0)
       quit
+       
+    if (num == 0)
+      num := drLen-1
 
-    ' Flush the Boundary Scan Register with 1s
-    jtag.TDI_High              
-    repeat drLen
+  ' Fill the Boundary Scan Register (MSB, higest numbered register value, first)
+  ' All 1s with shifted 0
+    repeat i from drLen-1 to 0
+      if (i == num)
+        jtag.TDI_Low        
+      else
+        jtag.TDI_High              
+
+      if (i == 0)  ' If at final bit...
+        jtag.TMS_High       ' Go to Exit1
+
       jtag.TCK_Pulse
 
-    ' Shift a 0 through the Boundary Scan Register and see if it gets measured by the probe channel
-    ' Start with MSB (highest numbered register value)
-    repeat num from drLen - 2 to 0
-      if (num == drLen - 2)       
-        jtag.TDI_Low 
-      else 
-        jtag.TDI_High
-      jtag.TCK_Pulse
+    ' Shift a 0 through the Boundary Scan Register
+    ' Start with MSB (highest numbered register value)   
+    {if (num == drLen-1)    ' For the first bit only...
+      jtag.TDI_Low 
+    else 
+      jtag.TDI_High}
 
-    jtag.TMS_High       
-    jtag.TCK_Pulse        ' Go to Exit1 DR
+    'jtag.TMS_High       
+    'jtag.TCK_Pulse        ' Go to Exit1 DR
 
     jtag.TMS_High       
     jtag.TCK_Pulse        ' Go to Update DR, new data in effect
 
+    ' Check if the bit gets measured by the probe channel
     if (ina[xprobe] == 0)
       pst.Str(String(CR, LF, "Detected! Register number: "))
       pst.Dec(num)
-        'quit
+      'quit
               
     jtag.TMS_High       
     jtag.TCK_Pulse        ' Go to Select DR Scan
@@ -1205,7 +1215,9 @@ PRI EXTEST_Scan | num, ctr, irLen, drLen, xprobe   ' Pin Mapper (EXTEST Scan) (P
     jtag.TCK_Pulse        ' Go to Capture DR Scan
 
     jtag.TMS_Low        
-    jtag.TCK_Pulse        ' Go to Shift DR Scan 
+    jtag.TCK_Pulse        ' Go to Shift DR Scan
+
+    num -= 1              ' Right shift 0 bit on next iteration  
 
   
   jProbe := xprobe
