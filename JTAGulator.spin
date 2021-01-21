@@ -1104,7 +1104,7 @@ PRI OPCODE_Discovery | num, ctr, irLen, drLen, opcode_max, opcodeH, opcodeL, opc
   pst.Str(String(CR, LF, "IR/DR discovery complete."))
 
 
-PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xprobe, exit   ' Pin Mapper (EXTEST Scan) (Pinout already known, requires single device in the chain) 
+PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xprobe, exit, toggle   ' Pin Mapper (EXTEST Scan) (Pinout already known, requires single device in the chain) 
   if (Set_JTAG(1) == -1)  ' Ask user for the known JTAG pinout
     return                  ' Abort if error
 
@@ -1185,38 +1185,45 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xprobe, exit   ' Pin Mapper (EXTEST
 
   dira[xprobe] := 0       ' Set probe pin as input
   jtag.Enter_Shift_DR     ' Go to Shift DR
-
+  
   exit := 0
+  toggle := 0
   repeat
     if (exit)
       quit
+
     repeat num from 0 to drLen-1
-      ' Progress indicator
-      ++ctr
-      Display_Progress(ctr, 30, 1)
-    
       if (pst.RxEmpty == 0)
         exit := 1      
         quit
       
-    ' Fill the Boundary Scan Register (MSB, higest numbered register value, first)
-    ' All 1s with walking 0
+    ' Fill the Boundary Scan Register
       repeat i from 0 to drLen-1
-        if (i == num)
-          jtag.TDI_Low        
-        else
-          jtag.TDI_High              
-
+        if (toggle == 0)   ' All 1s with walking 0
+          if (i == num)          
+            jtag.TDI_Low        
+          else
+            jtag.TDI_High              
+        else               ' All 0s with walking 1
+          if (i == num)          
+            jtag.TDI_High        
+          else
+            jtag.TDI_Low              
+          
         if (i == drLen-1)  ' If at final bit...
           jtag.TMS_High       ' Go to Exit1
 
         jtag.TCK_Pulse
 
+        ' Progress indicator
+        ++ctr
+        Display_Progress(ctr, $3000, 1)
+
       jtag.TMS_High       
       jtag.TCK_Pulse        ' Go to Update DR, new data in effect
 
       ' Check if the bit gets measured by the probe channel
-      if (ina[xprobe] == 0)
+      if (toggle == 0 and ina[xprobe] == 0) or (toggle == 1 and ina[xprobe] == 1)
         pst.Str(String(CR, LF, "Detected! Register location: "))
         pst.Dec(num)
         pst.Str(String(CR, LF))
@@ -1237,7 +1244,10 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xprobe, exit   ' Pin Mapper (EXTEST
 
       jtag.TMS_Low        
       jtag.TCK_Pulse        ' Go to Shift DR Scan
-    
+
+    !toggle
+    pst.Dec(toggle)
+
   jProbe := xprobe
   jtag.Restore_Idle   ' Reset JTAG TAP to Run-Test-Idle state
   pst.Str(String(CR, LF, "Pin mapper complete."))
@@ -2789,7 +2799,7 @@ MsgOCDNote                  byte CR, LF, LF, "Example: openocd -f interface/busp
                             byte "transport select jtag; buspirate_port /dev/ttyUSB0", QUOTE, CR, LF, 0
 
 MsgEXTESTNote               byte CR, LF, "Note: Hold probe onto desired target pin. This scan will not detect"
-                            byte CR, LF, "dedicated input pins nor pins that are tied to a fixed voltage level.", 0
+                            byte CR, LF, "dedicated input pins nor pins that are tied to a fixed voltage level.", CR, LF, 0
 
 ErrEEPROMNotResponding      byte CR, LF, "EEPROM not responding!", 0                            
 ErrTargetIOVoltage          byte CR, LF, "Target I/O voltage must be defined!", 0
