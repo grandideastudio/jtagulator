@@ -1102,7 +1102,7 @@ PRI OPCODE_Discovery | num, ctr, irLen, drLen, opcode_max, opcodeH, opcodeL, opc
   pst.Str(String(CR, LF, "IR/DR discovery complete."))
 
 
-PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xprobe   ' Pin Mapper (EXTEST Scan) (Pinout already known, requires single device in the chain) 
+PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xprobe, exit   ' Pin Mapper (EXTEST Scan) (Pinout already known, requires single device in the chain) 
   if (Set_JTAG(1) == -1)  ' Ask user for the known JTAG pinout
     return                  ' Abort if error
 
@@ -1164,62 +1164,52 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xprobe   ' Pin Mapper (EXTEST Scan)
   pst.Str(@MsgJTAGulating)          
 
   jtag.Enter_Shift_DR       ' Go to Shift DR
-  num := 0
+
+  exit := 0
   repeat
-    ' Progress indicator
-    ++ctr
-    Display_Progress(ctr, 30, 1)
-    
-    if (pst.RxEmpty == 0)
+    if (exit)
       quit
-       
-    if (num == 0)
-      num := drLen-1
+    repeat num from 0 to drLen-1
+      ' Progress indicator
+      ++ctr
+      Display_Progress(ctr, 30, 1)
+    
+      if (pst.RxEmpty == 0)
+        exit := 1      
+        quit
+      
+    ' Fill the Boundary Scan Register (MSB, higest numbered register value, first)
+    ' All 1s with walking 0
+      repeat i from 0 to drLen-1
+        if (i == num)
+          jtag.TDI_Low        
+        else
+          jtag.TDI_High              
 
-  ' Fill the Boundary Scan Register (MSB, higest numbered register value, first)
-  ' All 1s with shifted 0
-    repeat i from drLen-1 to 0
-      if (i == num)
-        jtag.TDI_Low        
-      else
-        jtag.TDI_High              
+        if (i == drLen-1)  ' If at final bit...
+          jtag.TMS_High       ' Go to Exit1
 
-      if (i == 0)  ' If at final bit...
-        jtag.TMS_High       ' Go to Exit1
+        jtag.TCK_Pulse
 
-      jtag.TCK_Pulse
+      jtag.TMS_High       
+      jtag.TCK_Pulse        ' Go to Update DR, new data in effect
 
-    ' Shift a 0 through the Boundary Scan Register
-    ' Start with MSB (highest numbered register value)   
-    {if (num == drLen-1)    ' For the first bit only...
-      jtag.TDI_Low 
-    else 
-      jtag.TDI_High}
-
-    'jtag.TMS_High       
-    'jtag.TCK_Pulse        ' Go to Exit1 DR
-
-    jtag.TMS_High       
-    jtag.TCK_Pulse        ' Go to Update DR, new data in effect
-
-    ' Check if the bit gets measured by the probe channel
-    if (ina[xprobe] == 0)
-      pst.Str(String(CR, LF, "Detected! Register number: "))
-      pst.Dec(num)
-      'quit
+      ' Check if the bit gets measured by the probe channel
+      if (ina[xprobe] == 0)
+        pst.Str(String(CR, LF, "Detected! Register location: "))
+        pst.Dec(num)
+        pst.Str(String(CR, LF))
               
-    jtag.TMS_High       
-    jtag.TCK_Pulse        ' Go to Select DR Scan
+      jtag.TMS_High       
+      jtag.TCK_Pulse        ' Go to Select DR Scan
 
-    jtag.TMS_Low        
-    jtag.TCK_Pulse        ' Go to Capture DR Scan
+      jtag.TMS_Low        
+      jtag.TCK_Pulse        ' Go to Capture DR Scan
 
-    jtag.TMS_Low        
-    jtag.TCK_Pulse        ' Go to Shift DR Scan
+      jtag.TMS_Low        
+      jtag.TCK_Pulse        ' Go to Shift DR Scan
 
-    num -= 1              ' Right shift 0 bit on next iteration  
-
-  
+    
   jProbe := xprobe
   jtag.Restore_Idle   ' Reset JTAG TAP to Run-Test-Idle state
   pst.Str(String(CR, LF, "Pin mapper complete."))
@@ -2768,7 +2758,8 @@ MsgSUMPNote                 byte CR, LF, LF, "Note: Switch to analyzer software 
 MsgOCDNote                  byte CR, LF, LF, "Example: openocd -f interface/buspirate.cfg -c ", QUOTE
                             byte "transport select jtag; buspirate_port /dev/ttyUSB0", QUOTE, CR, LF, 0
 
-MsgEXTESTNote               byte CR, LF, "Note: Hold probe onto desired target pin.", 0
+MsgEXTESTNote               byte CR, LF, "Note: Hold probe onto desired target pin. This scan will not detect"
+                            byte CR, LF, "dedicated input pins nor pins that are tied to a fixed voltage level.", 0
 
 ErrEEPROMNotResponding      byte CR, LF, "EEPROM not responding!", 0                            
 ErrTargetIOVoltage          byte CR, LF, "Target I/O voltage must be defined!", 0
