@@ -77,7 +77,7 @@ CON
   MAX_IR_LEN           =  32       ' Maximum length of instruction register
   MAX_IR_CHAIN_LEN     =  MAX_DEVICES_LEN * MAX_IR_LEN  ' Maximum total length of JTAG chain w/ IR selected
   
-  MAX_DR_LEN           =  1024      ' Maximum length of data register
+  MAX_DR_LEN           =  4096     ' Maximum length of data register
 
   
 VAR
