@@ -1163,40 +1163,29 @@ PRI EXTEST_Scan | num, ctr, irLen, drLen, xprobe   ' Pin Mapper (EXTEST Scan) (P
 
   pst.Str(@MsgJTAGulating)          
 
-  ' Enter EXTEST/boundary scan mode
-  'jtag.Send_Instruction($00000000, irLen)   ' Send instruction/opcode
   jtag.Enter_Shift_DR                       ' Go to Shift DR
     
-  'repeat
+  repeat
     ' Progress indicator
     ++ctr
     Display_Progress(ctr, 30, 1)
     
-    'if (pst.RxEmpty == 0)
-    '  quit
+    if (pst.RxEmpty == 0)
+      quit
 
-    ' Flush the Boundary Scan Register
-    {jtag.TDI_Low              
-    repeat drLen
-      jtag.TCK_Pulse}
-
-
-    jtag.TDI_Low
-    jtag.TCK_Pulse
-              
+    ' Flush the Boundary Scan Register with 1s
     jtag.TDI_High              
-    repeat drLen - 2
+    repeat drLen
       jtag.TCK_Pulse
 
-        
-    ' The DR is currently filled with 1s from the jtag.Detect_DR_Length command above
-    ' Shift a 0 through the Boundary Scan Register and see if it gets measured by the specific probe channel
-    {repeat num from 0 to drLen - 1
-      if (num == 0)       
-        jtag.TDI_High 
+    ' Shift a 0 through the Boundary Scan Register and see if it gets measured by the probe channel
+    ' Start with MSB (highest numbered register value)
+    repeat num from drLen - 2 to 0
+      if (num == drLen - 2)       
+        jtag.TDI_Low 
       else 
-        jtag.TDI_Low
-      jtag.TCK_Pulse}
+        jtag.TDI_High
+      jtag.TCK_Pulse
 
     jtag.TMS_High       
     jtag.TCK_Pulse        ' Go to Exit1 DR
@@ -1204,24 +1193,20 @@ PRI EXTEST_Scan | num, ctr, irLen, drLen, xprobe   ' Pin Mapper (EXTEST Scan) (P
     jtag.TMS_High       
     jtag.TCK_Pulse        ' Go to Update DR, new data in effect
 
-    jtag.TMS_Low
-    jtag.TCK_Pulse        ' Go to Run-Test-Idle
-          
-      {if (ina[xprobe] == 0)
-        pst.Str(String(CR, LF, "Detected: CH"))
-        pst.Dec(num)
+    if (ina[xprobe] == 0)
+      pst.Str(String(CR, LF, "Detected! Register number: "))
+      pst.Dec(num)
         'quit
               
-      jtag.TMS_High       
-      jtag.TCK_Pulse        ' Go to Select DR Scan
-    
-      jtag.TMS_Low        
-      jtag.TCK_Pulse        ' Go to Capture DR Scan
+    jtag.TMS_High       
+    jtag.TCK_Pulse        ' Go to Select DR Scan
 
-      jtag.TMS_Low        
-      jtag.TCK_Pulse        ' Go to Shift DR Scan
-       }
-  repeat
+    jtag.TMS_Low        
+    jtag.TCK_Pulse        ' Go to Capture DR Scan
+
+    jtag.TMS_Low        
+    jtag.TCK_Pulse        ' Go to Shift DR Scan 
+
   
   jProbe := xprobe
   jtag.Restore_Idle   ' Reset JTAG TAP to Run-Test-Idle state
