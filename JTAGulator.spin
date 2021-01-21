@@ -99,7 +99,8 @@ VAR                   ' Globally accessible variables
   long jTRST
   long jPinsKnown     ' Parameter for BYPASS_Scan
   long jIgnoreReg     ' Parameter for OPCODE_Discovery
-  long jProbe         ' Parameter for EXTEST_Scan
+  long jProbe         ' Parameters for EXTEST_Scan
+  long jLoopPause
   
   long uTXD           ' UART pins (as seen from the target) (must stay in this order)
   long uRXD
@@ -469,6 +470,7 @@ PRI JTAG_Init
 
   ' EXTEST_Scan
   jProbe := 0
+  jLoopPause := 1
 
 
 PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}], i, match, data_in, data_out, xtdi, xtdo, xtck, xtms    ' Identify JTAG pinout (IDCODE Scan or Combined Scan)
@@ -1153,7 +1155,25 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xprobe, exit   ' Pin Mapper (EXTEST
     pst.Str(@ErrPinCollision)
     return -1
 
-  dira[xprobe] := 0  ' Set pin as input
+  pst.Str(String(CR, LF, LF, "Pause after successful detection? ["))
+  if (jLoopPause == 0)
+    pst.Str(String("y/N]: "))
+  else
+    pst.Str(String("Y/n]: "))  
+  pst.StrInMax(@vCmd,  MAX_LEN_CMD) ' Wait here to receive a carriage return terminated string or one of MAX_LEN_CMD bytes (the result is null terminated) 
+  if (strsize(@vCmd) =< 1)            ' We're only looking for a single character (or NULL, which will have a string size of 0)
+    case vCmd[0]                        ' Check the first character of the input string
+        0:                                ' The user only entered a CR, so keep the same value and pass through.
+        "N", "n":                         
+          jLoopPause := 0                 ' Disable flag
+        "Y", "y":
+          jLoopPause := 1                 ' Enable flag
+        other:
+          pst.Str(@ErrOutOfRange)
+          return
+  else
+    pst.Str(@ErrOutOfRange)
+    return
   
   pst.Str(@MsgEXTESTNote)         
   pst.Str(@MsgPressSpacebarToBegin)
@@ -1163,7 +1183,8 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xprobe, exit   ' Pin Mapper (EXTEST
 
   pst.Str(@MsgJTAGulating)          
 
-  jtag.Enter_Shift_DR       ' Go to Shift DR
+  dira[xprobe] := 0       ' Set probe pin as input
+  jtag.Enter_Shift_DR     ' Go to Shift DR
 
   exit := 0
   repeat
@@ -1199,6 +1220,14 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xprobe, exit   ' Pin Mapper (EXTEST
         pst.Str(String(CR, LF, "Detected! Register location: "))
         pst.Dec(num)
         pst.Str(String(CR, LF))
+
+        if (jLoopPause == 1)
+          pst.Str(@MsgPressSpacebarToContinue)
+          if (pst.CharIn <> " ")
+            exit := 1      
+            quit
+          else
+            pst.Str(String(CR, LF))
               
       jtag.TMS_High       
       jtag.TCK_Pulse        ' Go to Select DR Scan
@@ -1208,7 +1237,6 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xprobe, exit   ' Pin Mapper (EXTEST
 
       jtag.TMS_Low        
       jtag.TCK_Pulse        ' Go to Shift DR Scan
-
     
   jProbe := xprobe
   jtag.Restore_Idle   ' Reset JTAG TAP to Run-Test-Idle state
@@ -2738,7 +2766,9 @@ MenuShared    byte CR, LF, LF, "General Commands:", CR, LF
 CharProgress  byte "-", 0   ' Character used for progress indicator
 
 ' Any messages repeated more than once are placed here to save space
-MsgPressSpacebarToBegin     byte CR, LF, "Press spacebar to begin (any other key to abort)...", 0 
+MsgPressSpacebarToBegin     byte CR, LF, "Press spacebar to begin (any other key to abort)...", 0
+MsgPressSpacebarToContinue  byte "Press spacebar to continue (any other key to abort)...", 0
+ 
 MsgJTAGulating              byte CR, LF, "JTAGulating! Press any key to abort...", CR, LF, 0
 MsgDevicesDetected          byte "Number of devices detected: ", 0
 MsgUnknownPin               byte CR, LF, "Enter X for any unknown pin.", 0
