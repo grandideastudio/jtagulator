@@ -1161,12 +1161,15 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, xprobe, exit, toggle   ' Pin M
   ' Get data register length based on user provided instruction (should hopefully be Boundary Scan)
   drLen := jtag.Detect_DR_Length(xir)
   pst.Str(String(CR, LF, "Boundary Scan Register length: "))
-  if (drLen =< 1)
+  if (drLen == 0)
     pst.Str(String("N/A"))
     pst.Str(@ErrOutOfRange)
     return
   else
     pst.Dec(drLen)
+  if (drLen == 1)
+    pst.Str(@ErrOutOfRange)
+    return
 
   pst.Str(String(CR, LF, LF, "Fill Boundary Scan Register with HIGH or LOW? ["))
   if (jFlush == 0)
