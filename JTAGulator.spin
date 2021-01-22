@@ -1237,14 +1237,12 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, xprobe, exit, toggle   ' Pin M
 
   dira[xprobe] := 0       ' Set probe pin as input
   jtag.Enter_Shift_DR     ' Go to Shift DR
-
-  'drLen := 4096
   
   exit := 0
   repeat
     if (exit)
       quit
-
+      
     repeat num from 0 to drLen-1
       if (pst.RxEmpty == 0)
         exit := 1      
@@ -1270,7 +1268,7 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, xprobe, exit, toggle   ' Pin M
 
         ' Progress indicator
         ++ctr
-        Display_Progress(ctr, $2000, 1)
+        Display_Progress(ctr, drLen-1, 1)     ' Indicate each time the Boundary Scan Register is filled
 
       jtag.TMS_High       
       jtag.TCK_Pulse        ' Go to Update DR, new data in effect
@@ -1297,6 +1295,8 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, xprobe, exit, toggle   ' Pin M
 
       jtag.TMS_Low        
       jtag.TCK_Pulse        ' Go to Shift DR Scan
+
+    pst.Char("|")   ' Indicate each time a bit has walked all the way through the Boundary Scan Register
 
   jProbe := xprobe
   jtag.Restore_Idle   ' Reset JTAG TAP to Run-Test-Idle state
