@@ -100,7 +100,6 @@ VAR                   ' Globally accessible variables
   long jPinsKnown     ' Parameter for BYPASS_Scan
   long jIgnoreReg     ' Parameter for OPCODE_Discovery
   long jIR            ' Parameters for EXTEST_Scan
-  long jProbe         
   long jLoopPause
   long jFlush
   
@@ -472,7 +471,6 @@ PRI JTAG_Init
 
   ' EXTEST_Scan
   jIR := $00
-  jProbe := 0
   jLoopPause := 0
   jFlush := 1
 
@@ -1108,14 +1106,14 @@ PRI OPCODE_Discovery | num, ctr, irLen, drLen, opcode_max, opcodeH, opcodeL, opc
   pst.Str(String(CR, LF, "IR/DR discovery complete."))
 
 
-PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, xprobe, exit, toggle   ' Pin Mapper (EXTEST Scan) (Pinout already known, requires single device in the chain) 
+PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chmask, exit, toggle   ' Pin Mapper (EXTEST Scan) (Pinout already known, requires single device in the chain) 
   if (Set_JTAG(1) == -1)  ' Ask user for the known JTAG pinout
     return                  ' Abort if error
 
   u.TXSEnable                                 ' Enable level shifter outputs
   u.Set_Pins_High(0, g#MAX_CHAN-1)            ' In case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#
   jtag.Config(jTDI, jTDO, jTCK, jTMS)         ' Configure JTAG
-
+    
   ' Get number of devices in the chain
   num := jtag.Detect_Devices         
   if (num == 0)
@@ -1190,19 +1188,6 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, xprobe, exit, toggle   ' Pin M
   else
     pst.Str(@ErrOutOfRange)
     return
-        
-  pst.Str(String(CR, LF, LF, "Enter probe pin ["))
-  pst.Dec(jProbe)               ' Display current value
-  pst.Str(String("]: "))
-  xprobe := Get_Decimal_Pin     ' Get new value from user
-  if (xprobe == -1)             ' If carriage return was pressed...      
-    xprobe := jProbe                ' Keep current setting
-  if (xprobe < 0) or (xprobe > g#MAX_CHAN-1)  ' If entered value is out of range, abort
-    pst.Str(@ErrOutOfRange)
-    return -1
-  elseif (xprobe == jTDI) or (xprobe == jTDO) or (xprobe == jTCK) or (xprobe == jTMS)  ' If entered value uses one of the existing JTAG pins, abort
-    pst.Str(@ErrPinCollision)
-    return -1
 
   pst.Str(String(CR, LF, LF, "Pause after successful detection? ["))
   if (jLoopPause == 0)
@@ -1238,7 +1223,14 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, xprobe, exit, toggle   ' Pin M
 
   pst.Str(@MsgJTAGulating)          
 
-  dira[xprobe] := 0       ' Set probe pin as input
+  ' Calculate probe mask based on available channels
+  u.Set_Pins_Input(0, g#MAX_CHAN-1)               ' Set all channels to inputs
+  jtag.Config(jTDI, jTDO, jTCK, jTMS)             ' Re-configure JTAG
+    
+  chmask := !(|<jTDI | |<jTDO | |<jTCK | |<jTMS)  ' Set bits for channels used for JTAG
+  chmask &= $00FFFFFF                             ' Mask bits representing CH23..0
+  ch_start := ina & chmask                        ' Read current state of pins
+
   jtag.Enter_Shift_DR     ' Go to Shift DR
   
   exit := 0
@@ -1276,19 +1268,33 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, xprobe, exit, toggle   ' Pin M
       jtag.TMS_High       
       jtag.TCK_Pulse        ' Go to Update DR, new data in effect
 
-      ' Check if the bit gets measured by the probe channel
-      if (jFlush == 1 and ina[xprobe] == 0) or (jFlush == 0 and ina[xprobe] == 1)
-        pst.Str(String(CR, LF, "Register bit: "))
-        pst.Dec(num)
-        pst.Str(String(CR, LF))
-        
-        if (jLoopPause == 1)
-          pst.Str(@MsgPressSpacebarToContinue)
-          if (pst.CharIn <> " ")
-            exit := 1      
+      if (ch_current := ina & chmask) <> ch_start    ' Check for change on one or more channels
+        ch_current ^= ch_start                       ' Isolate the bits that changed (will be set to 1)
+
+        ' Check each channel individually
+        ch := 0
+        repeat while (ch < g#MAX_CHAN)
+          if (exit)
             quit
-          else
+            
+          if (ch_current & 1)
+            'if (jFlush == 1 and ina[xprobe] == 0) or (jFlush == 0 and ina[xprobe] == 1)
+            pst.Str(String(CR, LF, "CH"))
+            pst.Dec(ch)
+            pst.Str(String(" -> Register bit: "))
+            pst.Dec(num)
             pst.Str(String(CR, LF))
+                                  
+            if (jLoopPause == 1)
+              pst.Str(@MsgPressSpacebarToContinue)
+              if (pst.CharIn <> " ")
+                exit := 1      
+                quit
+              else
+                pst.Str(String(CR, LF))
+
+          ch += 1            ' Increment current channel
+          ch_current >>= 1   ' Shift to the next bit in the channel mask 
               
       jtag.TMS_High       
       jtag.TCK_Pulse        ' Go to Select DR Scan
@@ -1301,7 +1307,6 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, xprobe, exit, toggle   ' Pin M
 
     pst.Char("|")   ' Indicate each time a bit has walked all the way through the Boundary Scan Register
 
-  jProbe := xprobe
   jtag.Restore_Idle   ' Reset JTAG TAP to Run-Test-Idle state
   pst.Str(String(CR, LF, "Pin mapper complete."))
 
