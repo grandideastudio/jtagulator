@@ -99,8 +99,10 @@ VAR                   ' Globally accessible variables
   long jTRST
   long jPinsKnown     ' Parameter for BYPASS_Scan
   long jIgnoreReg     ' Parameter for OPCODE_Discovery
-  long jProbe         ' Parameters for EXTEST_Scan
+  long jIR            ' Parameters for EXTEST_Scan
+  long jProbe         
   long jLoopPause
+  long jFlush
   
   long uTXD           ' UART pins (as seen from the target) (must stay in this order)
   long uRXD
@@ -469,8 +471,10 @@ PRI JTAG_Init
   jIgnoreReg := 1
 
   ' EXTEST_Scan
+  jIR := $00
   jProbe := 0
-  jLoopPause := 1
+  jLoopPause := 0
+  jFlush := 1
 
 
 PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}], i, match, data_in, data_out, xtdi, xtdo, xtck, xtms    ' Identify JTAG pinout (IDCODE Scan or Combined Scan)
@@ -1104,7 +1108,7 @@ PRI OPCODE_Discovery | num, ctr, irLen, drLen, opcode_max, opcodeH, opcodeL, opc
   pst.Str(String(CR, LF, "IR/DR discovery complete."))
 
 
-PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xprobe, exit, toggle   ' Pin Mapper (EXTEST Scan) (Pinout already known, requires single device in the chain) 
+PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, xprobe, exit, toggle   ' Pin Mapper (EXTEST Scan) (Pinout already known, requires single device in the chain) 
   if (Set_JTAG(1) == -1)  ' Ask user for the known JTAG pinout
     return                  ' Abort if error
 
@@ -1132,16 +1136,58 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xprobe, exit, toggle   ' Pin Mapper
   else
     pst.Dec(irLen)
 
-  ' Get data register length (boundary scan)
-  drLen := jtag.Detect_DR_Length($00000000)  
+  pst.Str(String(CR, LF, LF, "Enter EXTEST instruction (in hex) ["))
+  pst.Hex(jIR, Round_Up(irLen) >> 2)
+  pst.Str(String("]: ")) 
+  ' Receive hexadecimal value from the user and perform input sanitization
+  ' This has do be done directly in the object since we may need to handle user input up to 32 bits
+  pst.StrInMax(@vCmd,  MAX_LEN_CMD)
+  if (vCmd[0]==0)   ' If carriage return was pressed...          
+    xir := jIR & Bits_To_Value(irLen)    ' Keep current setting, but adjust for a possible change in IR length
+  else
+    if strsize(@vCmd) > (Round_Up(irLen) >> 2)  ' If value is larger than the actual IR length
+      pst.Str(@ErrOutOfRange)
+      return
+    ' Make sure each character in the string is hexadecimal ("0"-"9","A"-"F","a"-"f")
+    repeat i from 0 to strsize(@vCmd)-1
+      num := vCmd[i]
+      num := -15 + --num & %11011111 + 39*(num > 56)   ' Borrowed from the Parallax Serial Terminal (PST) StrToBase method     
+      if (num < 0) or (num => 16)
+        pst.Str(@ErrOutOfRange)
+        return
+    xir := pst.StrToBase(@vCmd, 16)   ' Convert valid string into actual value
+  jIR := xir   ' Update global with new value
+    
+  ' Get data register length based on user provided instruction (should hopefully be Boundary Scan)
+  drLen := jtag.Detect_DR_Length(xir)
   pst.Str(String(CR, LF, "Boundary Scan Register length: "))
-  if (drLen == 0)
+  if (drLen =< 1)
     pst.Str(String("N/A"))
     pst.Str(@ErrOutOfRange)
     return
   else
     pst.Dec(drLen)
 
+  pst.Str(String(CR, LF, LF, "Fill Boundary Scan Register with HIGH or LOW? ["))
+  if (jFlush == 0)
+    pst.Str(String("h/L]: "))
+  else
+    pst.Str(String("H/l]: "))  
+  pst.StrInMax(@vCmd,  MAX_LEN_CMD) ' Wait here to receive a carriage return terminated string or one of MAX_LEN_CMD bytes (the result is null terminated) 
+  if (strsize(@vCmd) =< 1)            ' We're only looking for a single character (or NULL, which will have a string size of 0)
+    case vCmd[0]                        ' Check the first character of the input string
+        0:                                ' The user only entered a CR, so keep the same value and pass through.
+        "L", "l":                         
+          jFlush := 0                 ' Disable flag
+        "H", "h":
+          jFlush := 1                 ' Enable flag
+        other:
+          pst.Str(@ErrOutOfRange)
+          return
+  else
+    pst.Str(@ErrOutOfRange)
+    return
+        
   pst.Str(String(CR, LF, LF, "Enter probe pin ["))
   pst.Dec(jProbe)               ' Display current value
   pst.Str(String("]: "))
@@ -1175,7 +1221,13 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xprobe, exit, toggle   ' Pin Mapper
     pst.Str(@ErrOutOfRange)
     return
   
-  pst.Str(@MsgEXTESTNote)         
+  pst.Str(@MsgEXTESTNote)
+  if (jFlush == 1)
+    pst.Str(String("LOW"))
+  else
+    pst.Str(String("HIGH"))
+  pst.Str(@MsgEXTESTNote2)
+        
   pst.Str(@MsgPressSpacebarToBegin)
   if (pst.CharIn <> " ")
     pst.Str(@ErrEXTESTAborted)
@@ -1185,9 +1237,10 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xprobe, exit, toggle   ' Pin Mapper
 
   dira[xprobe] := 0       ' Set probe pin as input
   jtag.Enter_Shift_DR     ' Go to Shift DR
+
+  'drLen := 4096
   
   exit := 0
-  toggle := 0
   repeat
     if (exit)
       quit
@@ -1199,7 +1252,7 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xprobe, exit, toggle   ' Pin Mapper
       
     ' Fill the Boundary Scan Register
       repeat i from 0 to drLen-1
-        if (toggle == 0)   ' All 1s with walking 0
+        if (jFlush == 1)   ' All 1s with walking 0
           if (i == num)          
             jtag.TDI_Low        
           else
@@ -1217,17 +1270,17 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xprobe, exit, toggle   ' Pin Mapper
 
         ' Progress indicator
         ++ctr
-        Display_Progress(ctr, $3000, 1)
+        Display_Progress(ctr, $2000, 1)
 
       jtag.TMS_High       
       jtag.TCK_Pulse        ' Go to Update DR, new data in effect
 
       ' Check if the bit gets measured by the probe channel
-      if (toggle == 0 and ina[xprobe] == 0) or (toggle == 1 and ina[xprobe] == 1)
-        pst.Str(String(CR, LF, "Detected! Register location: "))
+      if (jFlush == 1 and ina[xprobe] == 0) or (jFlush == 0 and ina[xprobe] == 1)
+        pst.Str(String(CR, LF, "Register bit: "))
         pst.Dec(num)
         pst.Str(String(CR, LF))
-
+        
         if (jLoopPause == 1)
           pst.Str(@MsgPressSpacebarToContinue)
           if (pst.CharIn <> " ")
@@ -1244,9 +1297,6 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xprobe, exit, toggle   ' Pin Mapper
 
       jtag.TMS_Low        
       jtag.TCK_Pulse        ' Go to Shift DR Scan
-
-    !toggle
-    pst.Dec(toggle)
 
   jProbe := xprobe
   jtag.Restore_Idle   ' Reset JTAG TAP to Run-Test-Idle state
@@ -2798,8 +2848,9 @@ MsgSUMPNote                 byte CR, LF, LF, "Note: Switch to analyzer software 
 MsgOCDNote                  byte CR, LF, LF, "Example: openocd -f interface/buspirate.cfg -c ", QUOTE
                             byte "transport select jtag; buspirate_port /dev/ttyUSB0", QUOTE, CR, LF, 0
 
-MsgEXTESTNote               byte CR, LF, "Note: Hold probe onto desired target pin. This scan will not detect"
-                            byte CR, LF, "dedicated input pins nor pins that are tied to a fixed voltage level.", CR, LF, 0
+MsgEXTESTNote               byte CR, LF, "Note: Hold probe onto desired target pin. Searching for ", 0
+MsgEXTESTNote2              byte " level on pin.", CR, LF, "This scan will not detect dedicated input pins nor pins that are tied to"
+                            byte CR, LF, "a fixed voltage level.", CR, LF, 0
 
 ErrEEPROMNotResponding      byte CR, LF, "EEPROM not responding!", 0                            
 ErrTargetIOVoltage          byte CR, LF, "Target I/O voltage must be defined!", 0
