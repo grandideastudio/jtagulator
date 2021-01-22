@@ -1210,12 +1210,6 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chma
     return
   
   pst.Str(@MsgEXTESTNote)
-  if (jFlush == 1)
-    pst.Str(String("LOW"))
-  else
-    pst.Str(String("HIGH"))
-  pst.Str(@MsgEXTESTNote2)
-        
   pst.Str(@MsgPressSpacebarToBegin)
   if (pst.CharIn <> " ")
     pst.Str(@ErrEXTESTAborted)
@@ -2856,9 +2850,8 @@ MsgSUMPNote                 byte CR, LF, LF, "Note: Switch to analyzer software 
 MsgOCDNote                  byte CR, LF, LF, "Example: openocd -f interface/buspirate.cfg -c ", QUOTE
                             byte "transport select jtag; buspirate_port /dev/ttyUSB0", QUOTE, CR, LF, 0
 
-MsgEXTESTNote               byte CR, LF, "Note: Hold probe onto desired target pin. Searching for ", 0
-MsgEXTESTNote2              byte " level on pin.", CR, LF, "This scan will not detect dedicated input pins nor pins that are tied to"
-                            byte CR, LF, "a fixed voltage level.", CR, LF, 0
+MsgEXTESTNote               byte CR, LF, "Note: Connect channel(s) to desired target pin(s). This scan may not detect"
+                            byte CR, LF, "dedicated input pins nor pins that are tied to fixed voltage levels.", CR, LF, 0
 
 ErrEEPROMNotResponding      byte CR, LF, "EEPROM not responding!", 0                            
 ErrTargetIOVoltage          byte CR, LF, "Target I/O voltage must be defined!", 0
