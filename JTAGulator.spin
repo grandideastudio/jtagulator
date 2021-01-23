@@ -1272,7 +1272,7 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chma
         ch := 0
         repeat while (ch < g#MAX_CHAN)
           if (ch_current & 1)
-            if (jFlush == 1 and ina[ch] == 0)
+            if (jFlush == 1)
               ' Flush the register with all 1s to see if we detect a change on the specific channel
               jtag.Enter_Shift_DR     ' Go to Shift DR
 
@@ -1287,7 +1287,7 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chma
               if (ina[ch] == 1)
                 valid := 1
                 
-            elseif (jFlush == 0 and ina[ch] == 1)
+            elseif (jFlush == 0)
               ' Flush the register with all 0s to see if we detect a change on the specific channel
                 jtag.Enter_Shift_DR     ' Go to Shift DR
 
