@@ -136,13 +136,13 @@ PUB Detect_Devices : num
   TCK_Pulse        ' Go to Update IR, new instruction in effect
 
   TMS_High       
-  TCK_Pulse        ' Go to Select DR Scan
+  TCK_Pulse        ' Go to Select DR
 
   TMS_Low        
-  TCK_Pulse        ' Go to Capture DR Scan
+  TCK_Pulse        ' Go to Capture DR
 
   TMS_Low        
-  TCK_Pulse        ' Go to Shift DR Scan
+  TCK_Pulse        ' Go to Shift DR
                           
   repeat MAX_DEVICES_LEN      ' Send 1s to fill DRs of all devices in the chain (In BYPASS mode, DR length = 1 bit)
     TCK_Pulse 
@@ -420,7 +420,7 @@ PUB Enter_Shift_DR      '
     TAP must be in Run-Test-Idle state before being called.
 }
   TMS_High
-  TCK_Pulse        ' Go to Select DR Scan
+  TCK_Pulse        ' Go to Select DR
 
   TMS_Low
   TCK_Pulse        ' Go to Capture DR
@@ -435,10 +435,10 @@ PUB Enter_Shift_IR
     TAP must be in Run-Test-Idle state before being called.
 }
   TMS_High
-  TCK_Pulse        ' Go to Select DR Scan
+  TCK_Pulse        ' Go to Select DR
 
   TMS_High
-  TCK_Pulse        ' Go to Select IR Scan
+  TCK_Pulse        ' Go to Select IR
 
   TMS_Low
   TCK_Pulse        ' Go to Capture IR
