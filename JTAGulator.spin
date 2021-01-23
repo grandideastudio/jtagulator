@@ -1225,8 +1225,6 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chma
   chmask &= $00FFFFFF                             ' Mask bits representing CH23..0
   ch_start := ina & chmask                        ' Read current state of pins
 
-  jtag.Enter_Shift_DR     ' Go to Shift DR
-  
   exit := 0
   valid := 0
   repeat
@@ -1239,68 +1237,28 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chma
 
       if (exit)
         quit
-        
-    ' Fill the Boundary Scan Register
-      repeat i from 0 to drLen-1
-        if (jFlush == 1)   ' All 1s with walking 0
-          if (i == num)          
-            jtag.TDI_Low        
-          else
-            jtag.TDI_High              
-        else               ' All 0s with walking 1
-          if (i == num)          
-            jtag.TDI_High        
-          else
-            jtag.TDI_Low              
-          
-        if (i == drLen-1)  ' If at final bit...
-          jtag.TMS_High       ' Go to Exit1
 
-        jtag.TCK_Pulse
+      ' Fill the Boundary Scan Register
+      jtag.Fill_Register(drLen, jFlush, num)
 
-        ' Progress indicator
-        ++ctr
-        Display_Progress(ctr, drLen-1, 1)     ' Indicate each time the Boundary Scan Register is filled
-
-      jtag.TMS_High       
-      jtag.TCK_Pulse        ' Go to Update DR, new data in effect
-
+      ' Progress indicator
+      ++ctr
+      Display_Progress(ctr, 1, 1)                    ' Indicate each time the Boundary Scan Register is filled
+      
       if (ch_current := ina & chmask) <> ch_start    ' Check for change on one or more channels
-        ch_current ^= ch_start                       ' Isolate the bits that changed (will be set to 1)
+        ch_current ^= ch_start                         ' Isolate the bits that changed (will be set to 1)
 
         ' Check each channel individually
         ch := 0
         repeat while (ch < g#MAX_CHAN)
           if (ch_current & 1)
-            if (jFlush == 1)
-              ' Flush the register with all 1s to see if we detect a change on the specific channel
-              jtag.Enter_Shift_DR     ' Go to Shift DR
 
-              jtag.TDI_High
-              repeat drLen
-                jtag.TCK_Pulse
-
-              jtag.TMS_High           ' Go to Exit1
-              jtag.TCK_Pulse
-              jtag.TCK_Pulse          ' Go to Update DR
-              
-              if (ina[ch] == 1)
-                valid := 1
-                
-            elseif (jFlush == 0)
-              ' Flush the register with all 0s to see if we detect a change on the specific channel
-                jtag.Enter_Shift_DR     ' Go to Shift DR
-
-                jtag.TDI_Low
-                repeat drLen
-                  jtag.TCK_Pulse
-
-                jtag.TMS_High           ' Go to Exit1
-                jtag.TCK_Pulse
-                jtag.TCK_Pulse          ' Go to Update DR
-              
-                if (ina[ch] == 0)
-                  valid := 1           
+            ' Test 10 or 01 on the specific channel to make sure we still see a change 
+            jtag.Fill_Register(drLen, jFlush, -1)
+            if (jFlush == 1 and ina[ch] == 1) or (jFlush == 0 and ina[ch] == 0)
+              jtag.Fill_Register(drLen, jFlush, num)
+                if (jFlush == 1 and ina[ch] == 0) or (jFlush == 0 and ina[ch] == 1)            
+                  valid := 1
 
           if (valid)
             valid := 0
@@ -1321,8 +1279,6 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chma
 
           ch += 1            ' Increment current channel
           ch_current >>= 1   ' Shift to the next bit in the channel mask 
-              
-      jtag.Enter_Shift_DR  ' Go to Shift DR        
 
     if (exit <> 1)
       pst.Char("|")   ' Indicate each time a bit has walked all the way through the Boundary Scan Register
