@@ -1106,7 +1106,7 @@ PRI OPCODE_Discovery | num, ctr, irLen, drLen, opcode_max, opcodeH, opcodeL, opc
   pst.Str(String(CR, LF, "IR/DR discovery complete."))
 
 
-PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chmask, exit, valid   ' Pin Mapper (EXTEST Scan) (Pinout already known, requires single device in the chain) 
+PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chmask, exit, valid, test_data   ' Pin Mapper (EXTEST Scan) (Pinout already known, requires single device in the chain) 
   if (Set_JTAG(1) == -1)  ' Ask user for the known JTAG pinout
     return                  ' Abort if error
 
@@ -1226,7 +1226,6 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chma
   ch_start := ina & chmask                        ' Read current state of pins
 
   exit := 0
-  valid := 0
   repeat
     if (exit)
       quit
@@ -1239,6 +1238,7 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chma
         quit
 
       ' Fill the Boundary Scan Register
+      ' All 1s with walking 0 or all 0s with walking 1 depending on jFlush
       jtag.Fill_Register(drLen, jFlush, num)
 
       ' Progress indicator
@@ -1250,17 +1250,23 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chma
 
         ' Check each channel individually
         ch := 0
+        valid := 0
         repeat while (ch < g#MAX_CHAN)
           if (ch_current & 1)
+            test_data := rr.random                     ' Get 32-bit random number for testing of detected pin
 
-            ' Test 10 or 01 on the specific channel to make sure we still see a change 
-            jtag.Fill_Register(drLen, jFlush, -1)
-            if (jFlush == 1 and ina[ch] == 1) or (jFlush == 0 and ina[ch] == 0)
-              jtag.Fill_Register(drLen, jFlush, num)
-                if (jFlush == 1 and ina[ch] == 0) or (jFlush == 0 and ina[ch] == 1)            
-                  valid := 1
+            repeat 32
+              if (test_data & 1)
+                jtag.Fill_Register(drLen, jFlush, -1)
+              else              
+                jtag.Fill_Register(drLen, jFlush, num)
 
-          if (valid)
+              if (jFlush == 1 and ina[ch] == test_data & 1) or (jFlush == 0 and ina[ch] == !(test_data & 1))
+                valid += 1
+                     
+              test_data >>= 1 
+
+          if (valid == 32)  ' If all 32-bits were read properly from the detected pin...
             valid := 0
           
             pst.Str(String(CR, LF, "CH"))
