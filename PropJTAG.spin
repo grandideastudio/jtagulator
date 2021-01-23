@@ -319,6 +319,39 @@ PUB Get_Device_IDs(num, idptr) | data, i, bits
   Restore_Idle                      ' Reset TAP to Run-Test-Idle
 
 
+PUB Fill_Register(length, fill_value, bit) | i
+{
+    This method fills the currently selected data register with fill_value (must be 0 or 1).
+    If bit is a positive integer, the inverse fill_value will be loaded into the location specified by bit.
+    TAP must be in Run-Test-Idle state before being called.
+    Leaves the TAP in the Run-Test-Idle state.
+}
+  Enter_Shift_DR   ' Go to Shift DR
+ 
+  repeat i from 0 to length-1
+    if (fill_value == 1)   ' All 1s with walking 0
+      if (bit <> -1 and i == bit)          
+        TDI_Low        
+      else
+        TDI_High              
+    else                   ' All 0s with walking 1
+      if (bit <> -1 and i == bit)          
+        TDI_High        
+      else
+        TDI_Low              
+          
+    if (i == length-1)  ' If at final bit...
+      TMS_High            ' Go to Exit1
+
+    TCK_Pulse
+
+  TMS_High       
+  TCK_Pulse        ' Go to Update DR, new data in effect
+
+  TMS_Low
+  TCK_Pulse        ' Go to Run-Test-Idle
+        
+          
 PUB Send_Instruction(instruction, num_bits) : ret_value
 {
     This method loads the supplied instruction of num_bits length into the target's Instruction Register (IR).
