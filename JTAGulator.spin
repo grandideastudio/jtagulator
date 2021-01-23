@@ -480,7 +480,7 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
     if (Get_Channels(3) == -1)   ' Get the channel range to use
       return
     Display_Permutations((chEnd - chStart + 1), 3)  ' TDO, TCK, TMS
-  else              ' Combined IDCODE Scan and BYPASS Scan
+  else              ' Combined IDCODE Scan and BYPASS Scan (aka JTAG Scan)
     if (Get_Channels(4) == -1)   ' Get the channel range to use
       return
     Display_Permutations((chEnd - chStart + 1), 4)  ' TDI, TDO, TCK, TMS
@@ -1106,7 +1106,7 @@ PRI OPCODE_Discovery | num, ctr, irLen, drLen, opcode_max, opcodeH, opcodeL, opc
   pst.Str(String(CR, LF, "IR/DR discovery complete."))
 
 
-PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chmask, exit, toggle   ' Pin Mapper (EXTEST Scan) (Pinout already known, requires single device in the chain) 
+PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chmask, exit, valid   ' Pin Mapper (EXTEST Scan) (Pinout already known, requires single device in the chain) 
   if (Set_JTAG(1) == -1)  ' Ask user for the known JTAG pinout
     return                  ' Abort if error
 
@@ -1228,15 +1228,18 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chma
   jtag.Enter_Shift_DR     ' Go to Shift DR
   
   exit := 0
+  valid := 0
   repeat
     if (exit)
       quit
       
     repeat num from 0 to drLen-1
       if (pst.RxEmpty == 0)
-        exit := 1      
+        exit := 1
+
+      if (exit)
         quit
-      
+        
     ' Fill the Boundary Scan Register
       repeat i from 0 to drLen-1
         if (jFlush == 1)   ' All 1s with walking 0
@@ -1268,11 +1271,40 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chma
         ' Check each channel individually
         ch := 0
         repeat while (ch < g#MAX_CHAN)
-          if (exit)
-            quit
-            
           if (ch_current & 1)
-            'if (jFlush == 1 and ina[xprobe] == 0) or (jFlush == 0 and ina[xprobe] == 1)
+            if (jFlush == 1 and ina[ch] == 0)
+              ' Flush the register with all 1s to see if we detect a change on the specific channel
+              jtag.Enter_Shift_DR     ' Go to Shift DR
+
+              jtag.TDI_High
+              repeat drLen
+                jtag.TCK_Pulse
+
+              jtag.TMS_High           ' Go to Exit1
+              jtag.TCK_Pulse
+              jtag.TCK_Pulse          ' Go to Update DR
+              
+              if (ina[ch] == 1)
+                valid := 1
+                
+            elseif (jFlush == 0 and ina[ch] == 1)
+              ' Flush the register with all 0s to see if we detect a change on the specific channel
+                jtag.Enter_Shift_DR     ' Go to Shift DR
+
+                jtag.TDI_Low
+                repeat drLen
+                  jtag.TCK_Pulse
+
+                jtag.TMS_High           ' Go to Exit1
+                jtag.TCK_Pulse
+                jtag.TCK_Pulse          ' Go to Update DR
+              
+                if (ina[ch] == 0)
+                  valid := 1           
+
+          if (valid)
+            valid := 0
+          
             pst.Str(String(CR, LF, "CH"))
             pst.Dec(ch)
             pst.Str(String(" -> Register bit: "))
@@ -1285,21 +1317,15 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chma
                 exit := 1      
                 quit
               else
-                pst.Str(String(CR, LF))
+                pst.Str(String(CR, LF))        
 
           ch += 1            ' Increment current channel
           ch_current >>= 1   ' Shift to the next bit in the channel mask 
               
-      jtag.TMS_High       
-      jtag.TCK_Pulse        ' Go to Select DR Scan
+      jtag.Enter_Shift_DR  ' Go to Shift DR        
 
-      jtag.TMS_Low        
-      jtag.TCK_Pulse        ' Go to Capture DR Scan
-
-      jtag.TMS_Low        
-      jtag.TCK_Pulse        ' Go to Shift DR Scan
-
-    pst.Char("|")   ' Indicate each time a bit has walked all the way through the Boundary Scan Register
+    if (exit <> 1)
+      pst.Char("|")   ' Indicate each time a bit has walked all the way through the Boundary Scan Register
 
   jtag.Restore_Idle   ' Reset JTAG TAP to Run-Test-Idle state
   pst.Str(String(CR, LF, "Pin mapper complete."))
