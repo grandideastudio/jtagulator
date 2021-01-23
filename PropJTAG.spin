@@ -329,12 +329,12 @@ PUB Fill_Register(length, fill_value, bit) | i
   Enter_Shift_DR   ' Go to Shift DR
  
   repeat i from 0 to length-1
-    if (fill_value == 1)   ' All 1s with walking 0
+    if (fill_value == 1)   
       if (bit <> -1 and i == bit)          
         TDI_Low        
       else
         TDI_High              
-    else                   ' All 0s with walking 1
+    else          
       if (bit <> -1 and i == bit)          
         TDI_High        
       else
