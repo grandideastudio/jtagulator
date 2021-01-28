@@ -1251,11 +1251,11 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chma
 
         ' Check each channel individually
         ch := 0
-        valid := 0
         repeat while (ch < g#MAX_CHAN)
           if (ch_current & 1)
             test_data := rr.random                     ' Get random number for testing of detected pin
 
+            valid := 0
             repeat 8
               if (test_data & 1)
                 jtag.Fill_Register(drLen, jFlush, -1)
@@ -1267,22 +1267,22 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chma
                      
               test_data >>= 1 
 
-          if (valid == 8)  ' If all 8-bits were read properly from the detected pin...
-            valid := 0
+            if (valid == 8)  ' If all 8-bits were read properly from the detected pin...
+              valid := 0
           
-            pst.Str(String(CR, LF, "CH"))
-            pst.Dec(ch)
-            pst.Str(String(" -> Register bit: "))
-            pst.Dec(num)
-            pst.Str(String(CR, LF))
+              pst.Str(String(CR, LF, "CH"))
+              pst.Dec(ch)
+              pst.Str(String(" -> Register bit: "))
+              pst.Dec(num)
+              pst.Str(String(CR, LF))
                                   
-            if (jLoopPause == 1)
-              pst.Str(@MsgPressSpacebarToContinue)
-              if (pst.CharIn <> " ")
-                exit := 1      
-                quit
-              else
-                pst.Str(String(CR, LF))        
+              if (jLoopPause == 1)
+                pst.Str(@MsgPressSpacebarToContinue)
+                if (pst.CharIn <> " ")
+                  exit := 1      
+                  quit
+                else
+                  pst.Str(String(CR, LF))        
 
           ch += 1            ' Increment current channel
           ch_current >>= 1   ' Shift to the next bit in the channel mask 
