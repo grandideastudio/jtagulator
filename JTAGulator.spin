@@ -868,7 +868,7 @@ PRI RTCK_Scan : err | ctr, num, known, matches, xtck, xrtck, tckStart, tckEnd   
 
   if (known == 1)
     pst.Str(String(CR, LF, "Enter X if pin is unknown."))
-    pst.Str(String(CR, LF, "Enter TCK pin ["))
+    pst.Str(@MsgEnterTCKPin)
     pst.Dec(jTCK)               ' Display current value
     pst.Str(String("]: "))
     xtck := Get_Pin             ' Get new value from user
@@ -1053,13 +1053,13 @@ PRI OPCODE_Discovery | num, ctr, irLen, drLen, opcode_max, opcodeH, opcodeL, opc
     jPinsKnown := 0
     return
   elseif (num > 1)
-    pst.Str(String(CR, LF, "Too many devices in the chain!"))
+    pst.Str(@ErrTooManyDevices)
     return 
   pst.Str(String(CR, LF))
    
   ' Get instruction register length
   irLen := jtag.Detect_IR_Length 
-  pst.Str(String("Instruction Register (IR) length: "))
+  pst.Str(@MsgIRLength)
   if (irLen == 0)
     pst.Str(String("N/A"))
     pst.Str(@ErrOutOfRange)
@@ -1121,12 +1121,13 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chma
     jPinsKnown := 0
     return
   elseif (num > 1)
-    pst.Str(String(CR, LF, "Too many devices in the chain!"))
+    pst.Str(@ErrTooManyDevices)
     return
    
   ' Get instruction register length
-  irLen := jtag.Detect_IR_Length 
-  pst.Str(String(CR, LF, "Instruction Register (IR) length: "))
+  irLen := jtag.Detect_IR_Length
+  pst.Str(String(CR, LF))
+  pst.Str(@MsgIRLength)
   if (irLen == 0)
     pst.Str(String("N/A"))
     pst.Str(@ErrOutOfRange)
@@ -1218,7 +1219,7 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chma
   pst.Str(@MsgJTAGulating)          
 
   ' Calculate probe mask based on available channels
-  u.Set_Pins_Input(0, g#MAX_CHAN-1)               ' Set all channels to inputs
+  u.Set_Pins_Input(0, g#MAX_CHAN-1)               ' Set all channels to inputs (default HIGH due to level translators)
   jtag.Config(jTDI, jTDO, jTCK, jTMS)             ' Re-configure JTAG
     
   chmask := !(|<jTDI | |<jTDO | |<jTCK | |<jTMS)  ' Set bits for channels used for JTAG
@@ -1253,9 +1254,9 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chma
         valid := 0
         repeat while (ch < g#MAX_CHAN)
           if (ch_current & 1)
-            test_data := rr.random                     ' Get 32-bit random number for testing of detected pin
+            test_data := rr.random                     ' Get random number for testing of detected pin
 
-            repeat 32
+            repeat 8
               if (test_data & 1)
                 jtag.Fill_Register(drLen, jFlush, -1)
               else              
@@ -1266,7 +1267,7 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chma
                      
               test_data >>= 1 
 
-          if (valid == 32)  ' If all 32-bits were read properly from the detected pin...
+          if (valid == 8)  ' If all 8-bits were read properly from the detected pin...
             valid := 0
           
             pst.Str(String(CR, LF, "CH"))
@@ -1295,7 +1296,7 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chma
 
 PRI Set_JTAG(getTDI) : err | xtdi, xtdo, xtck, xtms, buf, c     ' Set JTAG configuration to known values
   if (getTDI == 1)          
-    pst.Str(String(CR, LF, "Enter TDI pin ["))
+    pst.Str(@MsgEnterTDIPin)
     pst.Dec(jTDI)             ' Display current value
     pst.Str(String("]: "))
     xtdi := Get_Decimal_Pin   ' Get new value from user
@@ -1308,7 +1309,7 @@ PRI Set_JTAG(getTDI) : err | xtdi, xtdo, xtck, xtms, buf, c     ' Set JTAG confi
     pst.Str(String(CR, LF, "TDI not needed to retrieve Device ID.", CR, LF))
     xtdi := g#PROP_SDA          ' Set TDI to a temporary pin so it doesn't interfere with enumeration
 
-  pst.Str(String(CR, LF, "Enter TDO pin ["))
+  pst.Str(@MsgEnterTDOPin)
   pst.Dec(jTDO)               ' Display current value
   pst.Str(String("]: "))
   xtdo := Get_Decimal_Pin     ' Get new value from user
@@ -1318,7 +1319,7 @@ PRI Set_JTAG(getTDI) : err | xtdi, xtdo, xtck, xtms, buf, c     ' Set JTAG confi
     pst.Str(@ErrOutOfRange)
     return -1
 
-  pst.Str(String(CR, LF, "Enter TCK pin ["))
+  pst.Str(@MsgEnterTCKPin)
   pst.Dec(jTCK)               ' Display current value
   pst.Str(String("]: "))
   xtck := Get_Decimal_Pin     ' Get new value from user
@@ -1328,7 +1329,7 @@ PRI Set_JTAG(getTDI) : err | xtdi, xtdo, xtck, xtms, buf, c     ' Set JTAG confi
     pst.Str(@ErrOutOfRange)
     return -1
 
-  pst.Str(String(CR, LF, "Enter TMS pin ["))
+  pst.Str(@MsgEnterTMSPin)
   pst.Dec(jTMS)               ' Display current value
   pst.Str(String("]: "))
   xtms := Get_Decimal_Pin     ' Get new value from user
@@ -1364,7 +1365,7 @@ PRI Set_JTAG(getTDI) : err | xtdi, xtdo, xtck, xtms, buf, c     ' Set JTAG confi
 
 PRI Set_JTAG_Partial : err | xtdi, xtdo, xtck, xtms, buf, num, c     ' Set JTAG configuration to known values (used w/ partially known pinout)
   ' An "X" or "x" character will be sent by the user for any pin that is unknown. This will result in Get_Pin returning a -2 value.     
-  pst.Str(String(CR, LF, "Enter TDI pin ["))
+  pst.Str(@MsgEnterTDIPin)
   pst.Dec(jTDI)               ' Display current value
   pst.Str(String("]: "))
   xtdi := Get_Pin             ' Get new value from user
@@ -1374,7 +1375,7 @@ PRI Set_JTAG_Partial : err | xtdi, xtdo, xtck, xtms, buf, num, c     ' Set JTAG 
     pst.Str(@ErrOutOfRange)
     return -1
 
-  pst.Str(String(CR, LF, "Enter TDO pin ["))
+  pst.Str(@MsgEnterTDOPin)
   pst.Dec(jTDO)               ' Display current value
   pst.Str(String("]: "))
   xtdo := Get_Pin             ' Get new value from user
@@ -1384,7 +1385,7 @@ PRI Set_JTAG_Partial : err | xtdi, xtdo, xtck, xtms, buf, num, c     ' Set JTAG 
     pst.Str(@ErrOutOfRange)
     return -1
 
-  pst.Str(String(CR, LF, "Enter TCK pin ["))
+  pst.Str(@MsgEnterTCKPin)
   pst.Dec(jTCK)               ' Display current value
   pst.Str(String("]: "))
   xtck := Get_Pin             ' Get new value from user
@@ -1394,7 +1395,7 @@ PRI Set_JTAG_Partial : err | xtdi, xtdo, xtck, xtms, buf, num, c     ' Set JTAG 
     pst.Str(@ErrOutOfRange)
     return -1
 
-  pst.Str(String(CR, LF, "Enter TMS pin ["))
+  pst.Str(@MsgEnterTMSPin)
   pst.Dec(jTMS)               ' Display current value
   pst.Str(String("]: "))
   xtms := Get_Pin             ' Get new value from user
@@ -2825,6 +2826,12 @@ MsgUnknownPin               byte CR, LF, "Enter X for any unknown pin.", 0
 
 MsgScanComplete             byte " scan complete.", 0
 MsgIDCODEDisplayComplete    byte CR, LF, "IDCODE listing complete.", 0
+MsgEnterTDIPin              byte CR, LF, "Enter TDI pin [", 0
+MsgEnterTDOPin              byte CR, LF, "Enter TDO pin [", 0
+MsgEnterTCKPin              byte CR, LF, "Enter TCK pin [", 0
+MsgEnterTMSPin              byte CR, LF, "Enter TMS pin [", 0
+MsgIRLength                 byte "Instruction Register (IR) length: ", 0
+
 MsgUARTPinout               byte CR, LF, "UART pin naming is from the target's perspective.", 0
 
 MsgSWDWarning               byte CR, LF, "Warning: JTAGulator HW Rev. B and earlier have compatibility issues w/"
@@ -2846,6 +2853,7 @@ ErrTargetIOVoltage          byte CR, LF, "Target I/O voltage must be defined!", 
 ErrOutOfRange               byte CR, LF, "Value out of range!", 0
 ErrPinCollision             byte CR, LF, "Pin numbers must be unique!", 0
 ErrNoDeviceFound            byte CR, LF, "No target device(s) found!", 0
+ErrTooManyDevices           byte CR, LF, "Too many devices in the chain!", 0
 
 ErrJTAGAborted              byte CR, LF, "JTAG scan aborted!", 0
 ErrIDCODEAborted            byte CR, LF, "IDCODE scan aborted!", 0
