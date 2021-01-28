@@ -2623,7 +2623,7 @@ MsgScanComplete             byte " scan complete.", 0
 MsgIDCODEDisplayComplete    byte CR, LF, "IDCODE listing complete.", 0
 MsgUARTPinout               byte CR, LF, "UART pin naming is from the target's perspective.", 0
 
-MsgSWDWarning               byte CR, LF, "Warning: JTAGulator HW Rev. B and earlier have compatibility issues w/"
+MsgSWDWarning               byte CR, LF, "Warning: The JTAGulator's front-end circuitry is incompatible w/"
                             byte CR, LF, "many SWD-based target devices. Detection results may be affected.", CR, LF, 0
 
 MsgModeWarning              byte CR, LF, "Warning: This mode persists through JTAGulator resets, power cycles,"
