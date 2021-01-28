@@ -126,7 +126,7 @@ PUB Detect_Devices : num
 
   ' Force all devices in the chain (if they exist) into BYPASS mode using opcode of all 1s
   TDI_High             
-  repeat MAX_IR_CHAIN_LEN - 1 ' Send lots of 1s to account for multiple devices in the chain and varying IR lengths
+  repeat MAX_IR_CHAIN_LEN     ' Send lots of 1s to account for multiple devices in the chain and varying IR lengths
     TCK_Pulse
 
   TMS_High       
@@ -181,7 +181,7 @@ PUB Detect_IR_Length : num
 
   ' Flush the IR
   TDI_Low                    
-  repeat MAX_IR_LEN - 1       ' Since the length is unknown, send lots of 0s
+  repeat MAX_IR_LEN           ' Since the length is unknown, send lots of 0s
     TCK_Pulse
 
   ' Once we are sure that the IR is filled with 0s
@@ -222,7 +222,7 @@ PUB Detect_DR_Length(value) : num | len
   ' At this point, a specific DR will be selected, so we can now determine its length.
   ' Flush the DR
   TDI_Low              
-  repeat MAX_DR_LEN - 1       ' Since the length is unknown, send lots of 0s
+  repeat MAX_DR_LEN           ' Since the length is unknown, send lots of 0s
     TCK_Pulse
 
   ' Once we are sure that the DR is filled with 0s
@@ -322,7 +322,7 @@ PUB Get_Device_IDs(num, idptr) | data, i, bits
 PUB Fill_Register(length, fill_value, bit) | i
 {
     This method fills the currently selected data register with fill_value (must be 0 or 1).
-    If bit is a positive integer, the inverse fill_value will be loaded into the location specified by bit.
+    If bit is a positive integer, the inverted value of fill_value will be loaded into the location specified by bit.
     TAP must be in Run-Test-Idle state before being called.
     Leaves the TAP in the Run-Test-Idle state.
 }
