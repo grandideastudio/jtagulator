@@ -1224,8 +1224,7 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chma
     
   chmask := !(|<jTDI | |<jTDO | |<jTCK | |<jTMS)  ' Set bits for channels used for JTAG
   chmask &= $00FFFFFF                             ' Mask bits representing CH23..0
-  ch_start := ina & chmask                        ' Read current state of pins
-
+          
   exit := 0
   repeat
     if (exit)
@@ -1237,6 +1236,8 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chma
 
       if (exit)
         quit
+
+      ch_start := ina & chmask                        ' Read current state of pins
 
       ' Fill the Boundary Scan Register
       ' All 1s with walking 0 or all 0s with walking 1 depending on jFlush
@@ -1250,26 +1251,27 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chma
         ch_current ^= ch_start                         ' Isolate the bits that changed (will be set to 1)
 
         ' Check each channel individually
-        ch := 0
+        ch := 0                    
         repeat while (ch < g#MAX_CHAN)
           if (ch_current & 1)
-            test_data := rr.random                     ' Get random number for testing of detected pin
-
+            test_data := i := $AA                      ' Set byte for testing of detected channel
+            
             valid := 0
-            repeat 8
-              if (test_data & 1)
+            repeat 8                                   
+              if (i & 1)                               ' Load the specific register bit...
                 jtag.Fill_Register(drLen, jFlush, -1)
               else              
                 jtag.Fill_Register(drLen, jFlush, num)
 
-              if (jFlush == 1 and ina[ch] == test_data & 1) or (jFlush == 0 and ina[ch] == !(test_data & 1))
-                valid += 1
-                     
-              test_data >>= 1 
+              valid <<= 1                              
+              valid |= ina[ch]                         ' ...and read the result
+              i >>= 1 
 
-            if (valid == 8)  ' If all 8-bits were read properly from the detected pin...
-              valid := 0
-          
+            valid ><= 8     ' Bitwise reverse since LSB came in first (we want MSB to be first)
+            if (jFlush == 0)
+              valid := !valid & $FF   ' Invert bits
+ 
+            if (test_data == valid)  ' If all 8-bits were read properly, then we've found a valid physical pin
               pst.Str(String(CR, LF, "CH"))
               pst.Dec(ch)
               pst.Str(String(" -> Register bit: "))
@@ -1285,7 +1287,7 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chma
                   pst.Str(String(CR, LF))        
 
           ch += 1            ' Increment current channel
-          ch_current >>= 1   ' Shift to the next bit in the channel mask 
+          ch_current >>= 1   ' Shift to the next bit in the channel mask    
 
     if (exit <> 1)
       pst.Char("|")   ' Indicate each time a bit has walked all the way through the Boundary Scan Register
