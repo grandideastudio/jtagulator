@@ -2621,7 +2621,7 @@ MsgUnknownPin               byte CR, LF, "Enter X for any unknown pin.", 0
 
 MsgScanComplete             byte " scan complete.", 0
 MsgIDCODEDisplayComplete    byte CR, LF, "IDCODE listing complete.", 0
-MsgUARTPinout               byte CR, LF, "UART pin naming is from the target's perspective.", 0
+MsgUARTPinout               byte CR, LF, "Note: UART pin naming is from the target's perspective.", 0
 
 MsgSWDWarning               byte CR, LF, "Warning: The JTAGulator's front-end circuitry is incompatible w/"
                             byte CR, LF, "many SWD-based target devices. Detection results may be affected.", CR, LF, 0
