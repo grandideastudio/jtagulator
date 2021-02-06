@@ -518,13 +518,13 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
           next
   
         if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
-          pst.RxFlush
           if (type == 0)
             JTAG_Scan_Cleanup(num, 0, xtdo, xtck, xtms)  ' TDI isn't used during an IDCODE Scan
             pst.Str(@ErrIDCODEAborted)
           else
             JTAG_Scan_Cleanup(num, xtdi, xtdo, xtck, xtms)
             pst.Str(@ErrJTAGAborted)
+          pst.RxFlush
           return
 
         u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH (in case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#)
@@ -557,9 +557,9 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
                 next
             
               if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
-                pst.RxFlush
                 JTAG_Scan_Cleanup(num, xtdi, xtdo, xtck, xtms)
                 pst.Str(@ErrJTAGAborted)
+                pst.RxFlush
                 return
 
               u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH (in case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#)
@@ -619,13 +619,13 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
                 next
               
               if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
-                pst.RxFlush
                 if (type == 0)
                   JTAG_Scan_Cleanup(num, 0, xtdo, xtck, xtms)  ' TDI isn't used during an IDCODE Scan
                   pst.Str(@ErrIDCODEAborted)
                 else
                   JTAG_Scan_Cleanup(num, xtdi, xtdo, xtck, xtms)
                   pst.Str(@ErrJTAGAborted)
+                pst.RxFlush
                 return
 
               u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH (in case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#)
@@ -749,8 +749,8 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
                       
           if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
             JTAG_Scan_Cleanup(num, xtdi, xtdo, xtck, xtms)
-            pst.RxFlush
             pst.Str(@ErrBYPASSAborted)
+            pst.RxFlush
             return
 
           u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH (in case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#)
@@ -784,8 +784,8 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
 
               if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
                 JTAG_Scan_Cleanup(num, xtdi, xtdo, xtck, xtms)
-                pst.RxFlush
                 pst.Str(@ErrBYPASSAborted)
+                pst.RxFlush
                 return
 
               u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH (in case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#)
@@ -903,8 +903,8 @@ PRI RTCK_Scan : err | ctr, num, known, matches, xtck, xrtck, tckStart, tckEnd   
         next
 
       if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
-        pst.RxFlush
         pst.Str(@ErrRTCKAborted)
+        pst.RxFlush
         return
 
       u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH (in case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#)
@@ -1094,8 +1094,8 @@ PRI OPCODE_Discovery | num, ctr, irLen, drLen, opcode_max, opcodeH, opcodeL, opc
         ctr := 0    ' Clear counter for progress indicator
 
       if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
-        pst.RxFlush
         pst.Str(@ErrDiscoveryAborted)
+        pst.RxFlush
         return
 
       ' Progress indicator
@@ -1231,7 +1231,7 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chma
       quit
       
     repeat num from 0 to drLen-1
-      if (pst.RxEmpty == 0)
+      if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
         exit := 1
 
       if (exit)
@@ -1293,6 +1293,8 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chma
       pst.Char("|")   ' Indicate each time a bit has walked all the way through the Boundary Scan Register
 
   jtag.Restore_Idle   ' Reset JTAG TAP to Run-Test-Idle state
+  pst.RxFlush
+  
   pst.Str(String(CR, LF, "Pin mapper complete."))
 
 
@@ -1747,8 +1749,8 @@ PRI UART_Scan | baud_idx, i, j, ctr, num, xstr[MAX_LEN_UART_USER + 1], xtxd, xrx
       repeat baud_idx from 0 to (constant(BaudRateEnd - BaudRate) >> 2) - 1   ' For every possible baud rate in BaudRate table...
         if (pst.RxEmpty == 0)        ' Abort scan if any key is pressed
           UART_Scan_Cleanup(num, xtxd, xrxd, xbaud)
-          pst.RxFlush
           pst.Str(@ErrUARTAborted)
+          pst.RxFlush
           return
 
         uBaud := BaudRate[baud_idx]        ' Store current baud rate into uBaud variable
@@ -1823,7 +1825,7 @@ PRI UART_Scan_TXD | i, t, ch, chmask, ctr, ctr_in, num, exit, xtxd, xbaud    ' I
       ++ctr
       Display_Progress(ctr, $4000, 1)
     
-      if (pst.RxEmpty == 0)
+      if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
         exit := 1
         quit
       
@@ -1872,7 +1874,7 @@ PRI UART_Scan_TXD | i, t, ch, chmask, ctr, ctr_in, num, exit, xtxd, xbaud    ' I
         ch += 1        ' Increment current channel   
         chmask >>= 1   ' Shift to the next bit in the channel mask 
         
-    if (pst.RxEmpty == 0)
+    if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
       quit    
 
   if (num == 0)
@@ -2175,7 +2177,7 @@ PRI Monitor_IO_Pins | value, prev   ' Read all channels (input, continuous)
   dira[g#MAX_CHAN-1..0]~            ' Set all channels as inputs
   prev := -1
   
-  repeat until (pst.RxEmpty == 0)
+  repeat until (pst.RxEmpty == 0)   ' Repeat until any key is pressed
     value := ina[g#MAX_CHAN-1..0]     ' Read all channels
     if (value <> prev)                ' If there's a change in state...
       prev := value                   ' Save new value
@@ -2310,8 +2312,8 @@ PRI SWD_IDCODE_Scan | response, idcode, ctr, num, xclk, xio     ' Identify SWD p
 
       if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
         SWD_Scan_Cleanup(num, xclk, xio)
-        pst.RxFlush
         pst.Str(@ErrIDCODEAborted)
+        pst.RxFlush
         return
 
       u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH (in case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#)
