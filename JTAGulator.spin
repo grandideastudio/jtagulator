@@ -100,8 +100,8 @@ VAR                   ' Globally accessible variables
   long jPinsKnown     ' Parameter for BYPASS_Scan
   long jIgnoreReg     ' Parameter for OPCODE_Discovery
   long jIR            ' Parameters for EXTEST_Scan
+  long jDRFill
   long jLoopPause
-  long jFlush
   
   long uTXD           ' UART pins (as seen from the target) (must stay in this order)
   long uRXD
@@ -472,7 +472,7 @@ PRI JTAG_Init
   ' EXTEST_Scan
   jIR := $00
   jLoopPause := 0
-  jFlush := 1
+  jDRFill := 0
 
 
 PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}], i, match, data_in, data_out, xtdi, xtdo, xtck, xtms    ' Identify JTAG pinout (IDCODE Scan or Combined Scan)
@@ -1171,7 +1171,7 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chma
     return
 
   pst.Str(String(CR, LF, LF, "Fill Boundary Scan Register with HIGH or LOW? ["))
-  if (jFlush == 0)
+  if (jDRFill == 0)
     pst.Str(String("h/L]: "))
   else
     pst.Str(String("H/l]: "))  
@@ -1180,9 +1180,9 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chma
     case vCmd[0]                        ' Check the first character of the input string
         0:                                ' The user only entered a CR, so keep the same value and pass through.
         "L", "l":                         
-          jFlush := 0                 ' Disable flag
+          jDRFill := 0                    ' Disable flag
         "H", "h":
-          jFlush := 1                 ' Enable flag
+          jDRFill := 1                    ' Enable flag
         other:
           pst.Str(@ErrOutOfRange)
           return
@@ -1237,11 +1237,11 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chma
       if (exit)
         quit
 
-      ch_start := ina & chmask                        ' Read current state of pins
+      ch_start := ina & chmask                       ' Read current state of pins
 
       ' Fill the Boundary Scan Register
-      ' All 1s with walking 0 or all 0s with walking 1 depending on jFlush
-      jtag.Fill_Register(drLen, jFlush, num)
+      ' All 1s with walking 0 or all 0s with walking 1 depending on jDRFill
+      jtag.Fill_Register(drLen, jDRFill, num)
 
       ' Progress indicator
       ++ctr
@@ -1259,16 +1259,16 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chma
             valid := 0
             repeat 8                                   
               if (i & 1)                               ' Load the specific register bit...
-                jtag.Fill_Register(drLen, jFlush, -1)
+                jtag.Fill_Register(drLen, jDRFill, -1)
               else              
-                jtag.Fill_Register(drLen, jFlush, num)
+                jtag.Fill_Register(drLen, jDRFill, num)
 
               valid <<= 1                              
               valid |= ina[ch]                         ' ...and read the result
               i >>= 1 
 
             valid ><= 8     ' Bitwise reverse since LSB came in first (we want MSB to be first)
-            if (jFlush == 0)
+            if (jDRFill == 0)
               valid := !valid & $FF   ' Invert bits
  
             if (test_data == valid)  ' If all 8-bits were read properly, then we've found a valid physical pin
