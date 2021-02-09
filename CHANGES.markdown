@@ -70,7 +70,7 @@ Release date: **October 6, 2020**
 ---
 Release date: **June 17, 2020**
 
-* SWD: Added support for detecting [ARM Serial Wire Debug (SWD)](https://developer.arm.com/architectures/cpu-architecture/debug-visibility-and-trace/coresight-architecture/serial-wire-debug) interfaces. There are compatibility issues with many SWD-based targets and JTAGulator Rev. B and earlier hardware, which affect signal levels and detection results. See discussion in [Pull Request #30](https://github.com/grandideastudio/jtagulator/pull/30) (thanks to adamgreen). 
+* SWD: Added support for detecting [ARM Serial Wire Debug (SWD)](https://developer.arm.com/architectures/cpu-architecture/debug-visibility-and-trace/coresight-architecture/serial-wire-debug) interfaces. The JTAGulator's front-end circuitry is incompatible with many SWD-based targets. Detection results may be affected. See discussion in [Pull Request #30](https://github.com/grandideastudio/jtagulator/pull/30) (thanks to adamgreen). 
 
 * UART: Increased user string input size for `UART_Scan` to 16 bytes for both ASCII and hexadecimal input. [Issue #34](https://github.com/grandideastudio/jtagulator/issues/34)
 
