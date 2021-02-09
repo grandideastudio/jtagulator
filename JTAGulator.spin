@@ -99,6 +99,9 @@ VAR                   ' Globally accessible variables
   long jTRST
   long jPinsKnown     ' Parameter for BYPASS_Scan
   long jIgnoreReg     ' Parameter for OPCODE_Discovery
+  long jIR            ' Parameters for EXTEST_Scan
+  long jDRFill
+  long jLoopPause
   
   long uTXD           ' UART pins (as seen from the target) (must stay in this order)
   long uRXD
@@ -302,6 +305,12 @@ PRI Do_JTAG_Menu(cmd)
       else
         OPCODE_Discovery
 
+    "P", "p":                 ' Pin Mapper (EXTEST Scan) (Pinout already known, requires single device in the chain)
+      if (vTargetIO == -1)
+        pst.Str(@ErrTargetIOVoltage)
+      else
+        EXTEST_Scan
+        
     "O", "o":                 ' OpenOCD interface (Pinout already known) 
       if (vTargetIO == -1)
         pst.Str(@ErrTargetIOVoltage)
@@ -460,13 +469,18 @@ PRI JTAG_Init
   ' OPCODE_Discovery
   jIgnoreReg := 1
 
+  ' EXTEST_Scan
+  jIR := $00
+  jLoopPause := 0
+  jDRFill := 0
+
 
 PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}], i, match, data_in, data_out, xtdi, xtdo, xtck, xtms    ' Identify JTAG pinout (IDCODE Scan or Combined Scan)
   if (type == 0)    ' IDCODE Scan only
     if (Get_Channels(3) == -1)   ' Get the channel range to use
       return
     Display_Permutations((chEnd - chStart + 1), 3)  ' TDO, TCK, TMS
-  else              ' Combined IDCODE Scan and BYPASS Scan
+  else              ' Combined IDCODE Scan and BYPASS Scan (aka JTAG Scan)
     if (Get_Channels(4) == -1)   ' Get the channel range to use
       return
     Display_Permutations((chEnd - chStart + 1), 4)  ' TDI, TDO, TCK, TMS
@@ -504,13 +518,13 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
           next
   
         if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
-          pst.RxFlush
           if (type == 0)
             JTAG_Scan_Cleanup(num, 0, xtdo, xtck, xtms)  ' TDI isn't used during an IDCODE Scan
             pst.Str(@ErrIDCODEAborted)
           else
             JTAG_Scan_Cleanup(num, xtdi, xtdo, xtck, xtms)
             pst.Str(@ErrJTAGAborted)
+          pst.RxFlush
           return
 
         u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH (in case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#)
@@ -543,9 +557,9 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
                 next
             
               if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
-                pst.RxFlush
                 JTAG_Scan_Cleanup(num, xtdi, xtdo, xtck, xtms)
                 pst.Str(@ErrJTAGAborted)
+                pst.RxFlush
                 return
 
               u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH (in case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#)
@@ -605,13 +619,13 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
                 next
               
               if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
-                pst.RxFlush
                 if (type == 0)
                   JTAG_Scan_Cleanup(num, 0, xtdo, xtck, xtms)  ' TDI isn't used during an IDCODE Scan
                   pst.Str(@ErrIDCODEAborted)
                 else
                   JTAG_Scan_Cleanup(num, xtdi, xtdo, xtck, xtms)
                   pst.Str(@ErrJTAGAborted)
+                pst.RxFlush
                 return
 
               u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH (in case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#)
@@ -735,8 +749,8 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
                       
           if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
             JTAG_Scan_Cleanup(num, xtdi, xtdo, xtck, xtms)
-            pst.RxFlush
             pst.Str(@ErrBYPASSAborted)
+            pst.RxFlush
             return
 
           u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH (in case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#)
@@ -770,8 +784,8 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
 
               if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
                 JTAG_Scan_Cleanup(num, xtdi, xtdo, xtck, xtms)
-                pst.RxFlush
                 pst.Str(@ErrBYPASSAborted)
+                pst.RxFlush
                 return
 
               u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH (in case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#)
@@ -854,7 +868,7 @@ PRI RTCK_Scan : err | ctr, num, known, matches, xtck, xrtck, tckStart, tckEnd   
 
   if (known == 1)
     pst.Str(String(CR, LF, "Enter X if pin is unknown."))
-    pst.Str(String(CR, LF, "Enter TCK pin ["))
+    pst.Str(@MsgEnterTCKPin)
     pst.Dec(jTCK)               ' Display current value
     pst.Str(String("]: "))
     xtck := Get_Pin             ' Get new value from user
@@ -889,8 +903,8 @@ PRI RTCK_Scan : err | ctr, num, known, matches, xtck, xrtck, tckStart, tckEnd   
         next
 
       if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
-        pst.RxFlush
         pst.Str(@ErrRTCKAborted)
+        pst.RxFlush
         return
 
       u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH (in case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#)
@@ -1039,13 +1053,13 @@ PRI OPCODE_Discovery | num, ctr, irLen, drLen, opcode_max, opcodeH, opcodeL, opc
     jPinsKnown := 0
     return
   elseif (num > 1)
-    pst.Str(String(CR, LF, "Too many devices in the chain!"))
+    pst.Str(@ErrTooManyDevices)
     return 
   pst.Str(String(CR, LF))
    
   ' Get instruction register length
   irLen := jtag.Detect_IR_Length 
-  pst.Str(String("Instruction Register (IR) length: "))
+  pst.Str(@MsgIRLength)
   if (irLen == 0)
     pst.Str(String("N/A"))
     pst.Str(@ErrOutOfRange)
@@ -1080,8 +1094,8 @@ PRI OPCODE_Discovery | num, ctr, irLen, drLen, opcode_max, opcodeH, opcodeL, opc
         ctr := 0    ' Clear counter for progress indicator
 
       if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
-        pst.RxFlush
         pst.Str(@ErrDiscoveryAborted)
+        pst.RxFlush
         return
 
       ' Progress indicator
@@ -1091,10 +1105,201 @@ PRI OPCODE_Discovery | num, ctr, irLen, drLen, opcode_max, opcodeH, opcodeL, opc
   jtag.Restore_Idle   ' Reset JTAG TAP to Run-Test-Idle state
   pst.Str(String(CR, LF, "IR/DR discovery complete."))
 
+
+PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chmask, exit, valid, test_data   ' Pin Mapper (EXTEST Scan) (Pinout already known, requires single device in the chain) 
+  if (Set_JTAG(1) == -1)  ' Ask user for the known JTAG pinout
+    return                  ' Abort if error
+
+  u.TXSEnable                                 ' Enable level shifter outputs
+  u.Set_Pins_High(0, g#MAX_CHAN-1)            ' In case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#
+  jtag.Config(jTDI, jTDO, jTCK, jTMS)         ' Configure JTAG
+    
+  ' Get number of devices in the chain
+  num := jtag.Detect_Devices         
+  if (num == 0)
+    pst.Str(@ErrNoDeviceFound)
+    jPinsKnown := 0
+    return
+  elseif (num > 1)
+    pst.Str(@ErrTooManyDevices)
+    return
+   
+  ' Get instruction register length
+  irLen := jtag.Detect_IR_Length
+  pst.Str(String(CR, LF))
+  pst.Str(@MsgIRLength)
+  if (irLen == 0)
+    pst.Str(String("N/A"))
+    pst.Str(@ErrOutOfRange)
+    return
+  else
+    pst.Dec(irLen)
+
+  pst.Str(String(CR, LF, LF, "Enter EXTEST instruction (in hex) ["))
+  pst.Hex(jIR, Round_Up(irLen) >> 2)
+  pst.Str(String("]: ")) 
+  ' Receive hexadecimal value from the user and perform input sanitization
+  ' This has do be done directly in the object since we may need to handle user input up to 32 bits
+  pst.StrInMax(@vCmd,  MAX_LEN_CMD)
+  if (vCmd[0]==0)   ' If carriage return was pressed...          
+    xir := jIR & Bits_To_Value(irLen)    ' Keep current setting, but adjust for a possible change in IR length
+  else
+    if strsize(@vCmd) > (Round_Up(irLen) >> 2)  ' If value is larger than the actual IR length
+      pst.Str(@ErrOutOfRange)
+      return
+    ' Make sure each character in the string is hexadecimal ("0"-"9","A"-"F","a"-"f")
+    repeat i from 0 to strsize(@vCmd)-1
+      num := vCmd[i]
+      num := -15 + --num & %11011111 + 39*(num > 56)   ' Borrowed from the Parallax Serial Terminal (PST) StrToBase method     
+      if (num < 0) or (num => 16)
+        pst.Str(@ErrOutOfRange)
+        return
+    xir := pst.StrToBase(@vCmd, 16)   ' Convert valid string into actual value
+  jIR := xir   ' Update global with new value
+    
+  ' Get data register length based on user provided instruction (should hopefully be Boundary Scan)
+  drLen := jtag.Detect_DR_Length(xir)
+  pst.Str(String(CR, LF, "Boundary Scan Register length: "))
+  if (drLen == 0)
+    pst.Str(String("N/A"))
+    pst.Str(@ErrOutOfRange)
+    return
+  else
+    pst.Dec(drLen)
+  if (drLen == 1)
+    pst.Str(@ErrOutOfRange)
+    return
+
+  pst.Str(String(CR, LF, LF, "Fill Boundary Scan Register with HIGH or LOW? ["))
+  if (jDRFill == 0)
+    pst.Str(String("h/L]: "))
+  else
+    pst.Str(String("H/l]: "))  
+  pst.StrInMax(@vCmd,  MAX_LEN_CMD) ' Wait here to receive a carriage return terminated string or one of MAX_LEN_CMD bytes (the result is null terminated) 
+  if (strsize(@vCmd) =< 1)            ' We're only looking for a single character (or NULL, which will have a string size of 0)
+    case vCmd[0]                        ' Check the first character of the input string
+        0:                                ' The user only entered a CR, so keep the same value and pass through.
+        "L", "l":                         
+          jDRFill := 0                    ' Disable flag
+        "H", "h":
+          jDRFill := 1                    ' Enable flag
+        other:
+          pst.Str(@ErrOutOfRange)
+          return
+  else
+    pst.Str(@ErrOutOfRange)
+    return
+
+  pst.Str(String(CR, LF, LF, "Pause after successful detection? ["))
+  if (jLoopPause == 0)
+    pst.Str(String("y/N]: "))
+  else
+    pst.Str(String("Y/n]: "))  
+  pst.StrInMax(@vCmd,  MAX_LEN_CMD) ' Wait here to receive a carriage return terminated string or one of MAX_LEN_CMD bytes (the result is null terminated) 
+  if (strsize(@vCmd) =< 1)            ' We're only looking for a single character (or NULL, which will have a string size of 0)
+    case vCmd[0]                        ' Check the first character of the input string
+        0:                                ' The user only entered a CR, so keep the same value and pass through.
+        "N", "n":                         
+          jLoopPause := 0                 ' Disable flag
+        "Y", "y":
+          jLoopPause := 1                 ' Enable flag
+        other:
+          pst.Str(@ErrOutOfRange)
+          return
+  else
+    pst.Str(@ErrOutOfRange)
+    return
   
+  pst.Str(@MsgPressSpacebarToBegin)
+  if (pst.CharIn <> " ")
+    pst.Str(@ErrEXTESTAborted)
+    return
+
+  pst.Str(@MsgJTAGulating)          
+
+  ' Calculate probe mask based on available channels
+  u.Set_Pins_Input(0, g#MAX_CHAN-1)               ' Set all channels to inputs (default HIGH due to level translators)
+  jtag.Config(jTDI, jTDO, jTCK, jTMS)             ' Re-configure JTAG
+    
+  chmask := !(|<jTDI | |<jTDO | |<jTCK | |<jTMS)  ' Set bits for channels used for JTAG
+  chmask &= $00FFFFFF                             ' Mask bits representing CH23..0
+          
+  exit := 0
+  repeat
+    if (exit)
+      quit
+      
+    repeat num from 0 to drLen-1
+      if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
+        exit := 1
+
+      if (exit)
+        quit
+
+      ch_start := ina & chmask                       ' Read current state of pins
+
+      ' Fill the Boundary Scan Register
+      ' All 1s with walking 0 or all 0s with walking 1 depending on jDRFill
+      jtag.Fill_Register(drLen, jDRFill, num)
+
+      ' Progress indicator
+      ++ctr
+      Display_Progress(ctr, 1, 1)                    ' Indicate each time the Boundary Scan Register is filled
+      
+      if (ch_current := ina & chmask) <> ch_start    ' Check for change on one or more channels
+        ch_current ^= ch_start                         ' Isolate the bits that changed (will be set to 1)
+
+        ' Check each channel individually
+        ch := 0                    
+        repeat while (ch < g#MAX_CHAN)
+          if (ch_current & 1)
+            test_data := i := $AA                      ' Set byte for testing of detected channel
+            
+            valid := 0
+            repeat 8                                   
+              if (i & 1)                               ' Load the specific register bit...
+                jtag.Fill_Register(drLen, jDRFill, -1)
+              else              
+                jtag.Fill_Register(drLen, jDRFill, num)
+
+              valid <<= 1                              
+              valid |= ina[ch]                         ' ...and read the result
+              i >>= 1 
+
+            valid ><= 8     ' Bitwise reverse since LSB came in first (we want MSB to be first)
+            if (jDRFill == 0)
+              valid := !valid & $FF   ' Invert bits
+ 
+            if (test_data == valid)  ' If all 8-bits were read properly, then we've found a valid physical pin
+              pst.Str(String(CR, LF, "CH"))
+              pst.Dec(ch)
+              pst.Str(String(" -> Register bit: "))
+              pst.Dec(num)
+              pst.Str(String(CR, LF))
+                                  
+              if (jLoopPause == 1)
+                pst.Str(@MsgPressSpacebarToContinue)
+                if (pst.CharIn <> " ")
+                  exit := 1      
+                  quit
+                else
+                  pst.Str(String(CR, LF))        
+
+          ch += 1            ' Increment current channel
+          ch_current >>= 1   ' Shift to the next bit in the channel mask    
+
+    if (exit <> 1)
+      pst.Char("|")   ' Indicate each time a bit has walked all the way through the Boundary Scan Register
+
+  jtag.Restore_Idle   ' Reset JTAG TAP to Run-Test-Idle state
+  pst.RxFlush
+  
+  pst.Str(String(CR, LF, "Pin mapper complete."))
+
+
 PRI Set_JTAG(getTDI) : err | xtdi, xtdo, xtck, xtms, buf, c     ' Set JTAG configuration to known values
   if (getTDI == 1)          
-    pst.Str(String(CR, LF, "Enter TDI pin ["))
+    pst.Str(@MsgEnterTDIPin)
     pst.Dec(jTDI)             ' Display current value
     pst.Str(String("]: "))
     xtdi := Get_Decimal_Pin   ' Get new value from user
@@ -1107,7 +1312,7 @@ PRI Set_JTAG(getTDI) : err | xtdi, xtdo, xtck, xtms, buf, c     ' Set JTAG confi
     pst.Str(String(CR, LF, "TDI not needed to retrieve Device ID.", CR, LF))
     xtdi := g#PROP_SDA          ' Set TDI to a temporary pin so it doesn't interfere with enumeration
 
-  pst.Str(String(CR, LF, "Enter TDO pin ["))
+  pst.Str(@MsgEnterTDOPin)
   pst.Dec(jTDO)               ' Display current value
   pst.Str(String("]: "))
   xtdo := Get_Decimal_Pin     ' Get new value from user
@@ -1117,7 +1322,7 @@ PRI Set_JTAG(getTDI) : err | xtdi, xtdo, xtck, xtms, buf, c     ' Set JTAG confi
     pst.Str(@ErrOutOfRange)
     return -1
 
-  pst.Str(String(CR, LF, "Enter TCK pin ["))
+  pst.Str(@MsgEnterTCKPin)
   pst.Dec(jTCK)               ' Display current value
   pst.Str(String("]: "))
   xtck := Get_Decimal_Pin     ' Get new value from user
@@ -1127,7 +1332,7 @@ PRI Set_JTAG(getTDI) : err | xtdi, xtdo, xtck, xtms, buf, c     ' Set JTAG confi
     pst.Str(@ErrOutOfRange)
     return -1
 
-  pst.Str(String(CR, LF, "Enter TMS pin ["))
+  pst.Str(@MsgEnterTMSPin)
   pst.Dec(jTMS)               ' Display current value
   pst.Str(String("]: "))
   xtms := Get_Decimal_Pin     ' Get new value from user
@@ -1163,7 +1368,7 @@ PRI Set_JTAG(getTDI) : err | xtdi, xtdo, xtck, xtms, buf, c     ' Set JTAG confi
 
 PRI Set_JTAG_Partial : err | xtdi, xtdo, xtck, xtms, buf, num, c     ' Set JTAG configuration to known values (used w/ partially known pinout)
   ' An "X" or "x" character will be sent by the user for any pin that is unknown. This will result in Get_Pin returning a -2 value.     
-  pst.Str(String(CR, LF, "Enter TDI pin ["))
+  pst.Str(@MsgEnterTDIPin)
   pst.Dec(jTDI)               ' Display current value
   pst.Str(String("]: "))
   xtdi := Get_Pin             ' Get new value from user
@@ -1173,7 +1378,7 @@ PRI Set_JTAG_Partial : err | xtdi, xtdo, xtck, xtms, buf, num, c     ' Set JTAG 
     pst.Str(@ErrOutOfRange)
     return -1
 
-  pst.Str(String(CR, LF, "Enter TDO pin ["))
+  pst.Str(@MsgEnterTDOPin)
   pst.Dec(jTDO)               ' Display current value
   pst.Str(String("]: "))
   xtdo := Get_Pin             ' Get new value from user
@@ -1183,7 +1388,7 @@ PRI Set_JTAG_Partial : err | xtdi, xtdo, xtck, xtms, buf, num, c     ' Set JTAG 
     pst.Str(@ErrOutOfRange)
     return -1
 
-  pst.Str(String(CR, LF, "Enter TCK pin ["))
+  pst.Str(@MsgEnterTCKPin)
   pst.Dec(jTCK)               ' Display current value
   pst.Str(String("]: "))
   xtck := Get_Pin             ' Get new value from user
@@ -1193,7 +1398,7 @@ PRI Set_JTAG_Partial : err | xtdi, xtdo, xtck, xtms, buf, num, c     ' Set JTAG 
     pst.Str(@ErrOutOfRange)
     return -1
 
-  pst.Str(String(CR, LF, "Enter TMS pin ["))
+  pst.Str(@MsgEnterTMSPin)
   pst.Dec(jTMS)               ' Display current value
   pst.Str(String("]: "))
   xtms := Get_Pin             ' Get new value from user
@@ -1543,8 +1748,8 @@ PRI UART_Scan | baud_idx, i, j, ctr, num, xstr[MAX_LEN_UART_USER + 1], xtxd, xrx
       repeat baud_idx from 0 to (constant(BaudRateEnd - BaudRate) >> 2) - 1   ' For every possible baud rate in BaudRate table...
         if (pst.RxEmpty == 0)        ' Abort scan if any key is pressed
           UART_Scan_Cleanup(num, xtxd, xrxd, xbaud)
-          pst.RxFlush
           pst.Str(@ErrUARTAborted)
+          pst.RxFlush
           return
 
         uBaud := BaudRate[baud_idx]        ' Store current baud rate into uBaud variable
@@ -1619,7 +1824,7 @@ PRI UART_Scan_TXD | i, t, ch, chmask, ctr, ctr_in, num, exit, xtxd, xbaud    ' I
       ++ctr
       Display_Progress(ctr, $4000, 1)
     
-      if (pst.RxEmpty == 0)
+      if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
         exit := 1
         quit
       
@@ -1668,7 +1873,7 @@ PRI UART_Scan_TXD | i, t, ch, chmask, ctr, ctr_in, num, exit, xtxd, xbaud    ' I
         ch += 1        ' Increment current channel   
         chmask >>= 1   ' Shift to the next bit in the channel mask 
         
-    if (pst.RxEmpty == 0)
+    if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
       quit    
 
   if (num == 0)
@@ -1971,7 +2176,7 @@ PRI Monitor_IO_Pins | value, prev   ' Read all channels (input, continuous)
   dira[g#MAX_CHAN-1..0]~            ' Set all channels as inputs
   prev := -1
   
-  repeat until (pst.RxEmpty == 0)
+  repeat until (pst.RxEmpty == 0)   ' Repeat until any key is pressed
     value := ina[g#MAX_CHAN-1..0]     ' Read all channels
     if (value <> prev)                ' If there's a change in state...
       prev := value                   ' Save new value
@@ -2106,8 +2311,8 @@ PRI SWD_IDCODE_Scan | response, idcode, ctr, num, xclk, xio     ' Identify SWD p
 
       if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
         SWD_Scan_Cleanup(num, xclk, xio)
-        pst.RxFlush
         pst.Str(@ErrIDCODEAborted)
+        pst.RxFlush
         return
 
       u.Set_Pins_High(chStart, chEnd)     ' Set current channel range to output HIGH (in case there is a signal on the target that needs to be held HIGH, like TRST# or SRST#)
@@ -2589,6 +2794,7 @@ MenuJTAG      byte CR, LF, "JTAG Commands:", CR, LF
               byte "D   Get Device ID(s)", CR, LF
               byte "T   Test BYPASS (TDI to TDO)", CR, LF
               byte "Y   Instruction/Data Register (IR/DR) discovery", CR, LF
+              byte "P   Pin mapper (EXTEST Scan)", CR, LF
               byte "O   OpenOCD interface", 0
 
 MenuUART      byte CR, LF, "UART Commands:", CR, LF
@@ -2614,13 +2820,21 @@ MenuShared    byte CR, LF, LF, "General Commands:", CR, LF
 CharProgress  byte "-", 0   ' Character used for progress indicator
 
 ' Any messages repeated more than once are placed here to save space
-MsgPressSpacebarToBegin     byte CR, LF, "Press spacebar to begin (any other key to abort)...", 0 
+MsgPressSpacebarToBegin     byte CR, LF, "Press spacebar to begin (any other key to abort)...", 0
+MsgPressSpacebarToContinue  byte "Press spacebar to continue (any other key to abort)...", 0
+ 
 MsgJTAGulating              byte CR, LF, "JTAGulating! Press any key to abort...", CR, LF, 0
 MsgDevicesDetected          byte "Number of devices detected: ", 0
 MsgUnknownPin               byte CR, LF, "Enter X for any unknown pin.", 0
 
 MsgScanComplete             byte " scan complete.", 0
 MsgIDCODEDisplayComplete    byte CR, LF, "IDCODE listing complete.", 0
+MsgEnterTDIPin              byte CR, LF, "Enter TDI pin [", 0
+MsgEnterTDOPin              byte CR, LF, "Enter TDO pin [", 0
+MsgEnterTCKPin              byte CR, LF, "Enter TCK pin [", 0
+MsgEnterTMSPin              byte CR, LF, "Enter TMS pin [", 0
+MsgIRLength                 byte "Instruction Register (IR) length: ", 0
+
 MsgUARTPinout               byte CR, LF, "Note: UART pin naming is from the target's perspective.", 0
 
 MsgSWDWarning               byte CR, LF, "Warning: The JTAGulator's front-end circuitry is incompatible w/"
@@ -2639,13 +2853,17 @@ ErrTargetIOVoltage          byte CR, LF, "Target I/O voltage must be defined!", 
 ErrOutOfRange               byte CR, LF, "Value out of range!", 0
 ErrPinCollision             byte CR, LF, "Pin numbers must be unique!", 0
 ErrNoDeviceFound            byte CR, LF, "No target device(s) found!", 0
+ErrTooManyDevices           byte CR, LF, "Too many devices in the chain!", 0
+
 ErrJTAGAborted              byte CR, LF, "JTAG scan aborted!", 0
 ErrIDCODEAborted            byte CR, LF, "IDCODE scan aborted!", 0
 ErrBYPASSAborted            byte CR, LF, "BYPASS scan aborted!", 0
 ErrRTCKAborted              byte CR, LF, "RTCK scan aborted!", 0
 ErrUARTAborted              byte CR, LF, "UART scan aborted!", 0
+ErrEXTESTAborted            byte CR, LF, "Pin mapper aborted!", 0
 ErrDiscoveryAborted         byte CR, LF, "IR/DR discovery aborted!", 0
-         
+
+        
 ' Look-up table to correlate actual I/O voltage to DAC value
 ' Full DAC range is 0 to 3.3V @ 256 steps = 12.89mV/step
 ' TXS0108E level translator is limited from 1.4V to 3.3V per data sheet table 6.3

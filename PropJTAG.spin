@@ -77,7 +77,7 @@ CON
   MAX_IR_LEN           =  32       ' Maximum length of instruction register
   MAX_IR_CHAIN_LEN     =  MAX_DEVICES_LEN * MAX_IR_LEN  ' Maximum total length of JTAG chain w/ IR selected
   
-  MAX_DR_LEN           =  1024      ' Maximum length of data register
+  MAX_DR_LEN           =  4096     ' Maximum length of data register
 
   
 VAR
@@ -126,7 +126,7 @@ PUB Detect_Devices : num
 
   ' Force all devices in the chain (if they exist) into BYPASS mode using opcode of all 1s
   TDI_High             
-  repeat MAX_IR_CHAIN_LEN - 1 ' Send lots of 1s to account for multiple devices in the chain and varying IR lengths
+  repeat MAX_IR_CHAIN_LEN     ' Send lots of 1s to account for multiple devices in the chain and varying IR lengths
     TCK_Pulse
 
   TMS_High       
@@ -136,13 +136,13 @@ PUB Detect_Devices : num
   TCK_Pulse        ' Go to Update IR, new instruction in effect
 
   TMS_High       
-  TCK_Pulse        ' Go to Select DR Scan
+  TCK_Pulse        ' Go to Select DR
 
   TMS_Low        
-  TCK_Pulse        ' Go to Capture DR Scan
+  TCK_Pulse        ' Go to Capture DR
 
   TMS_Low        
-  TCK_Pulse        ' Go to Shift DR Scan
+  TCK_Pulse        ' Go to Shift DR
                           
   repeat MAX_DEVICES_LEN      ' Send 1s to fill DRs of all devices in the chain (In BYPASS mode, DR length = 1 bit)
     TCK_Pulse 
@@ -181,7 +181,7 @@ PUB Detect_IR_Length : num
 
   ' Flush the IR
   TDI_Low                    
-  repeat MAX_IR_LEN - 1       ' Since the length is unknown, send lots of 0s
+  repeat MAX_IR_LEN           ' Since the length is unknown, send lots of 0s
     TCK_Pulse
 
   ' Once we are sure that the IR is filled with 0s
@@ -222,7 +222,7 @@ PUB Detect_DR_Length(value) : num | len
   ' At this point, a specific DR will be selected, so we can now determine its length.
   ' Flush the DR
   TDI_Low              
-  repeat MAX_DR_LEN - 1       ' Since the length is unknown, send lots of 0s
+  repeat MAX_DR_LEN           ' Since the length is unknown, send lots of 0s
     TCK_Pulse
 
   ' Once we are sure that the DR is filled with 0s
@@ -319,6 +319,39 @@ PUB Get_Device_IDs(num, idptr) | data, i, bits
   Restore_Idle                      ' Reset TAP to Run-Test-Idle
 
 
+PUB Fill_Register(length, fill_value, bit) | i
+{
+    This method fills the currently selected data register with fill_value (must be 0 or 1).
+    If bit is a positive integer, the inverted value of fill_value will be loaded into the location specified by bit.
+    TAP must be in Run-Test-Idle state before being called.
+    Leaves the TAP in the Run-Test-Idle state.
+}
+  Enter_Shift_DR   ' Go to Shift DR
+ 
+  repeat i from 0 to length-1
+    if (fill_value == 1)   
+      if (bit <> -1 and i == bit)          
+        TDI_Low        
+      else
+        TDI_High              
+    else          
+      if (bit <> -1 and i == bit)          
+        TDI_High        
+      else
+        TDI_Low              
+          
+    if (i == length-1)  ' If at final bit...
+      TMS_High            ' Go to Exit1
+
+    TCK_Pulse
+
+  TMS_High       
+  TCK_Pulse        ' Go to Update DR, new data in effect
+
+  TMS_Low
+  TCK_Pulse        ' Go to Run-Test-Idle
+        
+          
 PUB Send_Instruction(instruction, num_bits) : ret_value
 {
     This method loads the supplied instruction of num_bits length into the target's Instruction Register (IR).
@@ -414,13 +447,13 @@ PRI Shift_Array(array, num_bits) : ret_value | i
     ret_value |= TDO_Read     ' Receive data, shift order depends on target
 
        
-PRI Enter_Shift_DR      ' 
+PUB Enter_Shift_DR      ' 
 {
     Move TAP to the Shift-DR state.
     TAP must be in Run-Test-Idle state before being called.
 }
   TMS_High
-  TCK_Pulse        ' Go to Select DR Scan
+  TCK_Pulse        ' Go to Select DR
 
   TMS_Low
   TCK_Pulse        ' Go to Capture DR
@@ -429,16 +462,16 @@ PRI Enter_Shift_DR      '
   TCK_Pulse        ' Go to Shift DR
   
 
-PRI Enter_Shift_IR  
+PUB Enter_Shift_IR  
 {
     Move TAP to the Shift-IR state.
     TAP must be in Run-Test-Idle state before being called.
 }
   TMS_High
-  TCK_Pulse        ' Go to Select DR Scan
+  TCK_Pulse        ' Go to Select DR
 
   TMS_High
-  TCK_Pulse        ' Go to Select IR Scan
+  TCK_Pulse        ' Go to Select IR
 
   TMS_Low
   TCK_Pulse        ' Go to Capture IR
