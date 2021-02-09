@@ -471,8 +471,8 @@ PRI JTAG_Init
 
   ' EXTEST_Scan
   jIR := $00
-  jLoopPause := 0
   jDRFill := 0
+  jLoopPause := 0
 
 
 PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}], i, match, data_in, data_out, xtdi, xtdo, xtck, xtms    ' Identify JTAG pinout (IDCODE Scan or Combined Scan)
