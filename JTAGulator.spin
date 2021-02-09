@@ -3,7 +3,7 @@
 | JTAGulator                                      |
 |                                                 |
 | Author: Joe Grand                               |                     
-| Copyright (c) 2013-2020 Grand Idea Studio, Inc. |
+| Copyright (c) 2013-2021 Grand Idea Studio, Inc. |
 | Web: http://www.grandideastudio.com             |
 |                                                 |
 | Distributed under a Creative Commons            |
