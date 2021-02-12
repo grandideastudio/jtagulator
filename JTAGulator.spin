@@ -1019,7 +1019,7 @@ PRI BYPASS_Known | num, dataIn, dataOut   ' Test BYPASS (TDI to TDO) (Pinout alr
     pst.Str(String(CR, LF, "No Match!"))
 
 
-PRI OPCODE_Discovery | num, ctr, irLen, drLen, opcode_max, opcodeH, opcodeL, opcode   ' Discover DR length for every instruction (Pinout already known, requires single device in the chain)
+PRI OPCODE_Discovery | num, ctr, gap_ctr, irLen, drLen, opcode_max, opcodeH, opcodeL, opcode   ' Discover DR length for every instruction (Pinout already known, requires single device in the chain)
   if (Set_JTAG(1) == -1)  ' Ask user for the known JTAG pinout
     return                  ' Abort if error
 
@@ -1079,29 +1079,31 @@ PRI OPCODE_Discovery | num, ctr, irLen, drLen, opcode_max, opcodeH, opcodeL, opc
   pst.Str(@MsgJTAGulating)          
 
   ctr := 0
+  gap_ctr := 0
   ' For every possible instruction...
   repeat opcodeH from 0 to opcode_max.WORD[1]         ' Propeller Spin performs all mathematic operations using 32-bit signed math (MSB is the sign bit)
     repeat opcodeL from 0 to opcode_max.WORD[0]         ' So, we need to nest two loops in order to support the full 32-bit maximum IR length (thanks to balrog, whixr, and atdiy of #tymkrs)
-      opcode := (opcodeH << 16) | opcodeL
-      drLen := jtag.Detect_DR_Length(opcode)              ' Get the DR length
-
-      if (drLen > 1) or (drLen == 1 and jIgnoreReg == 0)                                      
-        if (ctr > 1)
-          pst.Str(@CharProgress)                            ' Include a progress marker if there's a gap between instructions (for easier readibility)
-          pst.Str(String(CR, LF))
-   
-        Display_JTAG_IRDR(irLen, opcode, drLen)           ' Display the result
-        ctr := 0    ' Clear counter for progress indicator
-
-      if (pst.RxEmpty == 0)  ' Abort scan if any key is pressed
+      if (pst.RxEmpty == 0)                       ' Abort scan if any key is pressed
         pst.Str(@ErrDiscoveryAborted)
         pst.RxFlush
         return
 
+      opcode := (opcodeH << 16) | opcodeL
+      drLen := jtag.Detect_DR_Length(opcode)      ' Get the DR length
+              
+      if (drLen > 1 or jIgnoreReg == 0)
+        if (gap_ctr > 1 and jIgnoreReg == 1)        ' Include a visible marker if there's a gap between instructions (for easier readibility)
+          pst.Str(@CharProgress)
+          pst.Str(String(CR, LF))
+        
+        Display_JTAG_IRDR(irLen, opcode, drLen)   ' Display the result
+        gap_ctr := 0             
+
       ' Progress indicator
       ++ctr
-      Display_Progress(ctr, 32, 1)
-
+      ++gap_ctr
+      Display_Progress(ctr, 8, jIgnoreReg)
+        
   jtag.Restore_Idle   ' Reset JTAG TAP to Run-Test-Idle state
   pst.Str(String(CR, LF, "IR/DR discovery complete."))
 
