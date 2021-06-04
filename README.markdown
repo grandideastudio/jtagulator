@@ -16,7 +16,7 @@ Videos: [YouTube playlist](https://www.youtube.com/playlist?list=PLsyTdiI7kVn8H8
 Firmware
 --------
 
-The JTAGulator firmware is built with the [Parallax Propeller Tool version 1.3.2](https://www1.parallax.com/downloads/propeller-tool-software-windows-spin-assembly) for Windows. If you wish to compile code or contribute to the project, we recommend using this software. Alternative [development environments](https://www.parallax.com/downloads/propeller-1-software/) are untested and unsupported.
+The JTAGulator firmware is built with the [Parallax Propeller Tool version 1.3.2](http://www.grandideastudio.com/wp-content/uploads/P8X32A-Setup-Propeller-Tool-v1.3.2.zip) for Windows. If you wish to compile code or contribute to the project, we recommend using this software. Alternative [development environments](https://www.parallax.com/downloads/propeller-1-software/) are untested and unsupported.
 
 Official releases: [https://github.com/grandideastudio/jtagulator/releases](https://github.com/grandideastudio/jtagulator/releases)
 
