@@ -2848,7 +2848,7 @@ MsgModeWarning              byte CR, LF, "Warning: This mode persists through JT
 MsgSUMPNote                 byte CR, LF, LF, "Note: Switch to analyzer software and use Openbench Logic Sniffer driver @ 115.2kbps", CR, LF, 0
 
 MsgOCDNote                  byte CR, LF, LF, "Example: openocd -f interface/buspirate.cfg -c ", QUOTE
-                            byte "transport select jtag; buspirate_port /dev/ttyUSB0", QUOTE, CR, LF, 0
+                            byte "transport select jtag; buspirate port /dev/ttyUSB0", QUOTE, CR, LF, 0
 
 ErrEEPROMNotResponding      byte CR, LF, "EEPROM not responding!", 0                            
 ErrTargetIOVoltage          byte CR, LF, "Target I/O voltage must be defined!", 0
