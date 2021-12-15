@@ -8,7 +8,7 @@ Visit the JTAGulator [GitHub repository](https://github.com/grandideastudio/jtag
 ----
 Release date: **April 14, 2021**
 
-* JTAG: Added Pin Mapper (EXTEST Scan) (`P`) to associate physical pins of a target chip with their positions in the JTAG Boundary Scan Register. The command uses JTAG's EXTEST instruction to shift known data onto the pins and looks for the result on any of JTAGulator's available channels. This can be useful for chip- or board-level reverse engineering or to provide information needed to access an external device connected to the target chip.
+* JTAG: Added Pin Mapper (EXTEST Scan) (`P`) to associate physical pins of a target chip with their positions in the JTAG Boundary Scan Register. The command uses JTAG's EXTEST instruction to shift known data onto the pins and looks for the result on any of JTAGulator's available channels. This can be useful for chip- or board-level reverse engineering or to provide information needed to access an external device connected to the target chip. Requires a known JTAG pinout and assumes a single device/TAP in the chain.
 
 * JTAG: Revised `Get_Device_IDs` to prevent reading multiple Device IDs from certain targets when only one actual Device ID exists.
 
