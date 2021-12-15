@@ -131,9 +131,9 @@ Release date: **March 12, 2018**
 ---
 Release date: **November 3, 2016**
 
-* JTAG: Added command to transfer an instruction and data to/from a target (`X`). This is useful for testing and preliminary fuzzing. Requires a known JTAG pinout and assumes a single device in the chain.
+* JTAG: Added command to transfer an instruction and data to/from a target (`X`). This is useful for testing and preliminary fuzzing. Requires a known JTAG pinout and assumes a single device/TAP in the chain.
 
-* JTAG: Added Instruction/Data Register (IR/DR) discovery command (`Y`). Inspired by UrJTAG's `discovery` command, this is useful for identifying available (and possibly undocumented) instructions of a target. Requires a known JTAG pinout and assumes a single device in the chain.
+* JTAG: Added Instruction/Data Register (IR/DR) discovery command (`Y`). Inspired by UrJTAG's `discovery` command, this is useful for identifying available (and possibly undocumented) instructions of a target. Requires a known JTAG pinout and assumes a single device/TAP in the chain.
 
 * JTAG: Added `Detect_IR_Length` and `Detect_DR_Length` methods to automatically detect the length of the Instruction Register (IR) and Data Register (DR, given a specified IR), respectively.
 
