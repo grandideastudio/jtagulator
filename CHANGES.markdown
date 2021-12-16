@@ -4,6 +4,13 @@ JTAGulator Change Log
 Visit the JTAGulator [GitHub repository](https://github.com/grandideastudio/jtagulator/commits/master) for full commit comments.
 
 
+<a id="v1_11_1"></a>1.11.1
+----
+Release date: **xx**
+
+* General: Minor text string updates.
+
+
 <a id="v1_11"></a>1.11
 ----
 Release date: **April 14, 2021**
