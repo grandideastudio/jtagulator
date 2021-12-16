@@ -2855,7 +2855,7 @@ ErrTargetIOVoltage          byte CR, LF, "Target I/O voltage must be defined!", 
 ErrOutOfRange               byte CR, LF, "Value out of range!", 0
 ErrPinCollision             byte CR, LF, "Pin numbers must be unique!", 0
 ErrNoDeviceFound            byte CR, LF, "No target device(s) found!", 0
-ErrTooManyDevices           byte CR, LF, "Too many devices in the chain!", 0
+ErrTooManyDevices           byte CR, LF, "More than one device detected in the chain!", 0
 
 ErrJTAGAborted              byte CR, LF, "JTAG scan aborted!", 0
 ErrIDCODEAborted            byte CR, LF, "IDCODE scan aborted!", 0
@@ -2864,8 +2864,7 @@ ErrRTCKAborted              byte CR, LF, "RTCK scan aborted!", 0
 ErrUARTAborted              byte CR, LF, "UART scan aborted!", 0
 ErrEXTESTAborted            byte CR, LF, "Pin mapper aborted!", 0
 ErrDiscoveryAborted         byte CR, LF, "IR/DR discovery aborted!", 0
-
-        
+                                               
 ' Look-up table to correlate actual I/O voltage to DAC value
 ' Full DAC range is 0 to 3.3V @ 256 steps = 12.89mV/step
 ' TXS0108E level translator is limited from 1.4V to 3.3V per data sheet table 6.3
