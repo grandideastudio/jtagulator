@@ -29,7 +29,7 @@ Author
 ------
 Created by Joe Grand of [Grand Idea Studio](http://www.grandideastudio.com). 
 
-Contributions by [@kbembedded](https://github.com/kbembedded), [@BenGardiner](https://github.com/BenGardiner), Bryan Angelo, [@adamgreen](https://github.com/adamgreen), [@0ff](https://github.com/0ff), [@stephengroat](https://github.com/stephengroat), [@alexmaloteaux](https://github.com/alexmaloteaux), HexView, [@piggybanks](https://github.com/piggybanks), Crypt, [@dummys](https://github.com/dummys), Bob Heinemann
+Contributions by [@kbembedded](https://github.com/kbembedded), [@BenGardiner](https://github.com/BenGardiner), Bryan Angelo, [@adamgreen](https://github.com/adamgreen), [@0ff](https://github.com/0ff), [@stephengroat](https://github.com/stephengroat), [@alexmaloteaux](https://github.com/alexmaloteaux), HexView, [@piggybanks](https://github.com/piggybanks), Crypt, [@dummys](https://github.com/dummys), and Bob Heinemann.
 
 License
 -------
