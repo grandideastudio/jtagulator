@@ -6,7 +6,7 @@ Visit the JTAGulator [GitHub repository](https://github.com/grandideastudio/jtag
 
 <a id="v1_11_1"></a>1.11.1
 ----
-Release date: **xx**
+Release date: **April 6, 2023**
 
 * General: Minor text string updates.
 
