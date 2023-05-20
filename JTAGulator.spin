@@ -193,12 +193,12 @@ PUB main | cmd
 
 PRI Wait_For_Space(err) | ch ' Space to continue (return), enter to repeat message, -1 for any other key
   repeat
-		pst.Str(@MsgPressSpacebarToBegin)
+    pst.Str(@MsgPressSpacebarToBegin)
     ch := pst.CharIn
     if (ch == LF) or (ch == CR)
-    	next
+      next
     elseif (ch <> " ")
-			pst.Str(err)
+      pst.Str(err)
       return -1
   until (ch == " ")
   return
@@ -263,7 +263,7 @@ PRI Do_Main_Menu(cmd)
       if (vTargetIO == -1)
         pst.Str(@ErrTargetIOVoltage)
       else
-      	Read_IO_Pins          ' GPIO: Read all channels (input, one shot)
+        Read_IO_Pins          ' GPIO: Read all channels (input, one shot)
         IDCODE_Scan(0)        ' JTAG: IDCODE Scan
         IDCODE_Scan(1)        ' JTAG: IDCODE and BYPASS Scan (doesn't seem to do full BYPASS scan...)
         BYPASS_Scan           ' JTAG: BYPASS Scan
@@ -510,12 +510,12 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
   if (Get_Settings == -1)      ' Get configurable scan settings
     return
 
-	if (type == 0)
-		err := @ErrIDCODEAborted
-	else
-		err := @ErrJTAGAborted
+  if (type == 0)
+    err := @ErrIDCODEAborted
+  else
+    err := @ErrJTAGAborted
   if (Wait_For_Space(err) == -1)
-  	return
+    return
 
   longfill(@id, 0, jtag#MAX_DEVICES_LEN)           ' Clear IDCODE buffer
 
@@ -748,7 +748,7 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
     
   pst.Str(@MsgPressSpacebarToBegin)
   if (Wait_For_Space(@ErrBYPASSAborted) == -1)
-  	return
+    return
 
   pst.Str(@MsgJTAGulating)
   u.TXSEnable   ' Enable level shifter outputs
@@ -909,7 +909,7 @@ PRI RTCK_Scan : err | ctr, num, known, matches, xtck, xrtck, tckStart, tckEnd   
     
   pst.Str(@MsgPressSpacebarToBegin)
   if (Wait_For_Space(@ErrRTCKAborted) == -1)
-  	return
+    return
 
   pst.Str(@MsgJTAGulating)
   u.TXSEnable   ' Enable level shifter outputs
@@ -1092,7 +1092,7 @@ PRI OPCODE_Discovery | num, ctr, gap_ctr, irLen, drLen, opcode_max, opcodeH, opc
     
   pst.Str(@MsgPressSpacebarToBegin)
   if (Wait_For_Space(@ErrDiscoveryAborted) == -1)
-  	return
+    return
 
   pst.Str(@MsgJTAGulating)          
 
@@ -1232,7 +1232,7 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chma
   
   pst.Str(@MsgPressSpacebarToBegin)
   if (Wait_For_Space(@ErrEXTESTAborted) == -1)
-  	return
+    return
 
   pst.Str(@MsgJTAGulating)          
 
@@ -1742,7 +1742,7 @@ PRI UART_Scan | baud_idx, i, j, ctr, num, xstr[MAX_LEN_UART_USER + 1], xtxd, xrx
         
   pst.Str(@MsgPressSpacebarToBegin)
   if (Wait_For_Space(@ErrUARTAborted) == -1)
-  	return
+    return
         
   pst.Str(@MsgJTAGulating)
   u.TXSEnable   ' Enable level shifter outputs
@@ -1821,7 +1821,7 @@ PRI UART_Scan_TXD | i, t, ch, chmask, ctr, ctr_in, num, exit, xtxd, xbaud    ' I
 
   pst.Str(@MsgPressSpacebarToBegin)
   if (Wait_For_Space(@ErrUARTAborted) == -1)
-  	return
+    return
 
   pst.Str(@MsgJTAGulating)
   
@@ -2311,7 +2311,7 @@ PRI SWD_IDCODE_Scan | response, idcode, ctr, num, xclk, xio     ' Identify SWD p
     
   pst.Str(@MsgPressSpacebarToBegin)
   if (Wait_For_Space(@ErrIDCODEAborted) == -1)
-  	return
+    return
 
   pst.Str(@MsgJTAGulating)
   u.TXSEnable   ' Enable level shifter outputs
