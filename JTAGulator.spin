@@ -2,7 +2,7 @@
 +-------------------------------------------------+
 | JTAGulator                                      |
 |                                                 |
-| Author: Joe Grand                               |
+| Author: Joe Grand                               |                     
 | Copyright (c) 2013-2021 Grand Idea Studio, Inc. |
 | Web: http://www.grandideastudio.com             |
 |                                                 |
@@ -33,7 +33,7 @@ Command listing is available in the DAT section at the end of this file.
 CON
   _clkmode = xtal1 + pll16x
   _xinfreq = 5_000_000           ' 5 MHz clock * 16x PLL = 80 MHz system clock speed
-  _stack   = 256                 ' Ensure we have this minimum stack space available
+  _stack   = 256                 ' Ensure we have this minimum stack space available        
 
   ' Serial terminal
   ' Control characters
@@ -148,6 +148,7 @@ OBJ
   sump          : "PropSUMP"               ' OLS/SUMP protocol for logic analyzer mode
   ocd           : "PropOCD"                ' OpenOCD binary protocol     
 
+  
 PUB main | cmd
   System_Init        ' Initialize system/hardware
   JTAG_Init          ' Initialize JTAG-specific items
