@@ -3,6 +3,14 @@ JTAGulator Change Log
 
 Visit the JTAGulator [GitHub repository](https://github.com/grandideastudio/jtagulator/commits/master) for full commit comments.
 
+<a id="v1_12_0"></a>1.12.0
+----
+Release date: **May 19, 2023**
+
+* General: Add "A" option to use all scan methods
+* General: Don't break out of command if "enter" pressed
+* General: Readme additions for terminal firmware compilation and programming
+
 
 <a id="v1_11_1"></a>1.11.1
 ----

@@ -2,7 +2,7 @@
 +-------------------------------------------------+
 | JTAGulator                                      |
 |                                                 |
-| Author: Joe Grand                               |                     
+| Author: Joe Grand                               |
 | Copyright (c) 2013-2021 Grand Idea Studio, Inc. |
 | Web: http://www.grandideastudio.com             |
 |                                                 |
@@ -23,7 +23,7 @@ http://www.jtagulator.com
 
 Each interface object contains the low-level routines and operational details
 for that particular on-chip debugging interface. This keeps the main JTAGulator
-object a bit cleaner. 
+object a bit cleaner.
 
 Command listing is available in the DAT section at the end of this file.
 
@@ -33,7 +33,7 @@ Command listing is available in the DAT section at the end of this file.
 CON
   _clkmode = xtal1 + pll16x
   _xinfreq = 5_000_000           ' 5 MHz clock * 16x PLL = 80 MHz system clock speed
-  _stack   = 256                 ' Ensure we have this minimum stack space available        
+  _stack   = 256                 ' Ensure we have this minimum stack space available
 
   ' Serial terminal
   ' Control characters
@@ -148,7 +148,6 @@ OBJ
   sump          : "PropSUMP"               ' OLS/SUMP protocol for logic analyzer mode
   ocd           : "PropOCD"                ' OpenOCD binary protocol     
 
-  
 PUB main | cmd
   System_Init        ' Initialize system/hardware
   JTAG_Init          ' Initialize JTAG-specific items
@@ -192,6 +191,18 @@ PUB main | cmd
     else
       Display_Invalid_Command
 
+PRI Wait_For_Space(err) | ch ' Space to continue (return), enter to repeat message, -1 for any other key
+  repeat
+		pst.Str(@MsgPressSpacebarToBegin)
+    ch := pst.CharIn
+    if (ch == LF) or (ch == CR)
+    	next
+    elseif (ch <> " ")
+			pst.Str(err)
+      return -1
+  until (ch == " ")
+  return
+  
 
 PRI Do_Mode | ackbit     ' Read EEPROM to determine/select operating mode
   ' JTAGulator's EEPROM (64KB) is larger than required by the Propeller, so there is 32KB of additional,
@@ -248,6 +259,18 @@ PRI Do_Main_Menu(cmd)
     "S", "s":                 ' Switch to SWD submenu
       idMenu := MENU_SWD
 
+    "A", "a":                 ' Scan all supported protocols
+      if (vTargetIO == -1)
+        pst.Str(@ErrTargetIOVoltage)
+      else
+      	Read_IO_Pins          ' GPIO: Read all channels (input, one shot)
+        IDCODE_Scan(0)        ' JTAG: IDCODE Scan
+        IDCODE_Scan(1)        ' JTAG: IDCODE and BYPASS Scan (doesn't seem to do full BYPASS scan...)
+        BYPASS_Scan           ' JTAG: BYPASS Scan
+        RTCK_Scan             ' JTAG: Identify RTCK (Adaptive Clocking)
+        SWD_IDCODE_Scan       ' SWD: Identify SWD pinout (IDCODE Scan)
+        UART_Scan             ' UART: Identify UART pinout
+
     "V", "v":                 ' Set target I/O voltage
       Set_Target_IO_Voltage
       
@@ -267,7 +290,7 @@ PRI Do_JTAG_Menu(cmd)
       if (vTargetIO == -1)
         pst.Str(@ErrTargetIOVoltage)
       else
-        IDCODE_Scan(1)   ' Combined IDCODE Scan and BYPASS Scan
+        IDCODE_Scan(1)        ' Combined IDCODE Scan and BYPASS Scan
         
     "I", "i":                 ' Identify JTAG pinout (IDCODE Scan)
       if (vTargetIO == -1)
@@ -454,9 +477,8 @@ PRI Display_Command_Prompt
   
 
 PRI Display_Invalid_Command
-  pst.Str(String(CR, LF, "?"))
+  pst.Str(String(CR, LF, "? (type H to display available commands)"))
   
-       
 CON {{ JTAG METHODS }}
 
 PRI JTAG_Init
@@ -475,7 +497,7 @@ PRI JTAG_Init
   jLoopPause := 0
 
 
-PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}], i, match, data_in, data_out, xtdi, xtdo, xtck, xtms    ' Identify JTAG pinout (IDCODE Scan or Combined Scan)
+PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}], i, match, data_in, data_out, xtdi, xtdo, xtck, xtms, err    ' Identify JTAG pinout (IDCODE Scan or Combined Scan)
   if (type == 0)    ' IDCODE Scan only
     if (Get_Channels(3) == -1)   ' Get the channel range to use
       return
@@ -487,14 +509,13 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
 
   if (Get_Settings == -1)      ' Get configurable scan settings
     return
-    
-  pst.Str(@MsgPressSpacebarToBegin)
-  if (pst.CharIn <> " ")
-    if (type == 0)
-      pst.Str(@ErrIDCODEAborted)
-    else
-      pst.Str(@ErrJTAGAborted)
-    return
+
+	if (type == 0)
+		err := @ErrIDCODEAborted
+	else
+		err := @ErrJTAGAborted
+  if (Wait_For_Space(err) == -1)
+  	return
 
   longfill(@id, 0, jtag#MAX_DEVICES_LEN)           ' Clear IDCODE buffer
 
@@ -726,9 +747,8 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
     return
     
   pst.Str(@MsgPressSpacebarToBegin)
-  if (pst.CharIn <> " ")
-    pst.Str(@ErrBYPASSAborted)
-    return
+  if (Wait_For_Space(@ErrBYPASSAborted) == -1)
+  	return
 
   pst.Str(@MsgJTAGulating)
   u.TXSEnable   ' Enable level shifter outputs
@@ -888,9 +908,8 @@ PRI RTCK_Scan : err | ctr, num, known, matches, xtck, xrtck, tckStart, tckEnd   
     return
     
   pst.Str(@MsgPressSpacebarToBegin)
-  if (pst.CharIn <> " ")
-    pst.Str(@ErrRTCKAborted)
-    return
+  if (Wait_For_Space(@ErrRTCKAborted) == -1)
+  	return
 
   pst.Str(@MsgJTAGulating)
   u.TXSEnable   ' Enable level shifter outputs
@@ -1072,9 +1091,8 @@ PRI OPCODE_Discovery | num, ctr, gap_ctr, irLen, drLen, opcode_max, opcodeH, opc
   pst.Dec(opcode_max + 1)
     
   pst.Str(@MsgPressSpacebarToBegin)
-  if (pst.CharIn <> " ")
-    pst.Str(@ErrDiscoveryAborted)
-    return
+  if (Wait_For_Space(@ErrDiscoveryAborted) == -1)
+  	return
 
   pst.Str(@MsgJTAGulating)          
 
@@ -1213,9 +1231,8 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chma
     return
   
   pst.Str(@MsgPressSpacebarToBegin)
-  if (pst.CharIn <> " ")
-    pst.Str(@ErrEXTESTAborted)
-    return
+  if (Wait_For_Space(@ErrEXTESTAborted) == -1)
+  	return
 
   pst.Str(@MsgJTAGulating)          
 
@@ -1724,9 +1741,8 @@ PRI UART_Scan | baud_idx, i, j, ctr, num, xstr[MAX_LEN_UART_USER + 1], xtxd, xrx
     return
         
   pst.Str(@MsgPressSpacebarToBegin)
-  if (pst.CharIn <> " ")
-    pst.Str(@ErrUARTAborted)
-    return
+  if (Wait_For_Space(@ErrUARTAborted) == -1)
+  	return
         
   pst.Str(@MsgJTAGulating)
   u.TXSEnable   ' Enable level shifter outputs
@@ -1804,9 +1820,8 @@ PRI UART_Scan_TXD | i, t, ch, chmask, ctr, ctr_in, num, exit, xtxd, xbaud    ' I
     return
 
   pst.Str(@MsgPressSpacebarToBegin)
-  if (pst.CharIn <> " ")
-    pst.Str(@ErrUARTAborted)
-    return
+  if (Wait_For_Space(@ErrUARTAborted) == -1)
+  	return
 
   pst.Str(@MsgJTAGulating)
   
@@ -2295,9 +2310,8 @@ PRI SWD_IDCODE_Scan | response, idcode, ctr, num, xclk, xio     ' Identify SWD p
     return
     
   pst.Str(@MsgPressSpacebarToBegin)
-  if (pst.CharIn <> " ")
-    pst.Str(@ErrIDCODEAborted)
-    return
+  if (Wait_For_Space(@ErrIDCODEAborted) == -1)
+  	return
 
   pst.Str(@MsgJTAGulating)
   u.TXSEnable   ' Enable level shifter outputs
@@ -2772,7 +2786,7 @@ InitHeader    byte CR, LF, LF
               byte "           Welcome to JTAGulator. Press 'H' for available commands.", CR, LF
               byte "         Warning: Use of this tool may affect target system behavior!", 0
 
-VersionInfo   byte CR, LF, "JTAGulator FW 1.11.1", CR, LF
+VersionInfo   byte CR, LF, "JTAGulator FW 1.12.0", CR, LF
               byte "Designed by Joe Grand, Grand Idea Studio, Inc.", CR, LF
               byte "Main: jtagulator.com", CR, LF
               byte "Source: github.com/grandideastudio/jtagulator", CR, LF
@@ -2782,7 +2796,10 @@ MenuMain      byte CR, LF, "Target Interfaces:", CR, LF
               byte "J   JTAG", CR, LF
               byte "U   UART", CR, LF
               byte "G   GPIO", CR, LF
-              byte "S   SWD", CR, LF, LF
+              byte "S   SWD", CR, LF
+              byte "A   All (JTAG IDCODE + BYPASS, UART, GPIO, SWD)", CR, LF
+              byte LF
+
               byte "General Commands:", CR, LF
               byte "V   Set target I/O voltage", CR, LF
               byte "I   Display version information", CR, LF
@@ -2873,4 +2890,4 @@ VoltageTable  byte  109, 116, 124, 132, 140, 147, 155, 163, 171, 179, 186, 194, 
 
 ' Look-up table of accepted values for use with UART_Scan
 BaudRate      long  300, 600, 1200, 1800, 2400, 3600, 4800, 7200, 9600, 14400, 19200, 28800, 31250 {MIDI}, 38400, 57600, 76800, 115200, 153600, 230400, 250000 {DMX}, 307200
-BaudRateEnd
+BaudRateEnd
