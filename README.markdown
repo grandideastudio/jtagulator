@@ -22,6 +22,13 @@ Official releases: [https://github.com/grandideastudio/jtagulator/tags](https://
 
 Demonstration of the firmware update process: [https://www.youtube.com/watch?v=xlXwy-weG1M](https://www.youtube.com/watch?v=xlXwy-weG1M)
 
+Firmware compilation using [OpenSpin](https://github.com/parallaxinc/OpenSpin): `openspin -o JTAGulator.eeprom -e -v JTAGulator.spin`
+
+Firmware testing using [PropLoader](https://github.com/parallaxinc/PropLoader): `proploader -p /dev/SERIALPORT -v JTAGulator.eeprom`
+
+Firmware updating (permanently write to EEPROM): `proploader -p /dev/SERIALPORT -v -e JTAGulator.eeprom`
+
+
 *Note: This is a development repository. Interim commits may be unstable.*
 
 
@@ -29,7 +36,7 @@ Author
 ------
 Created by Joe Grand of [Grand Idea Studio](http://www.grandideastudio.com). 
 
-Contributions by [@kbembedded](https://github.com/kbembedded), [@BenGardiner](https://github.com/BenGardiner), Bryan Angelo, [@adamgreen](https://github.com/adamgreen), [@0ff](https://github.com/0ff), [@stephengroat](https://github.com/stephengroat), [@alexmaloteaux](https://github.com/alexmaloteaux), HexView, [@piggybanks](https://github.com/piggybanks), Crypt, [@dummys](https://github.com/dummys), and Bob Heinemann.
+Contributions by [@samyk](https://github.com/samyk), [@kbembedded](https://github.com/kbembedded), [@BenGardiner](https://github.com/BenGardiner), Bryan Angelo, [@adamgreen](https://github.com/adamgreen), [@0ff](https://github.com/0ff), [@stephengroat](https://github.com/stephengroat), [@alexmaloteaux](https://github.com/alexmaloteaux), HexView, [@piggybanks](https://github.com/piggybanks), Crypt, [@dummys](https://github.com/dummys), and Bob Heinemann.
 
 License
 -------
