@@ -3,7 +3,7 @@
 | JTAGulator                                      |
 |                                                 |
 | Author: Joe Grand                               |                     
-| Copyright (c) 2013-2021 Grand Idea Studio, Inc. |
+| Copyright (c) 2013-2023 Grand Idea Studio, Inc. |
 | Web: http://www.grandideastudio.com             |
 |                                                 |
 | Distributed under a Creative Commons            |
@@ -191,18 +191,6 @@ PUB main | cmd
 
     else
       Display_Invalid_Command
-
-PRI Wait_For_Space(err) | ch ' Space to continue (return), enter to repeat message, -1 for any other key
-  repeat
-    pst.Str(@MsgPressSpacebarToBegin)
-    ch := pst.CharIn
-    if (ch == LF) or (ch == CR)
-      next
-    elseif (ch <> " ")
-      pst.Str(err)
-      return -1
-  until (ch == " ")
-  return
   
 
 PRI Do_Mode | ackbit     ' Read EEPROM to determine/select operating mode
@@ -265,11 +253,19 @@ PRI Do_Main_Menu(cmd)
         pst.Str(@ErrTargetIOVoltage)
       else
         Read_IO_Pins          ' GPIO: Read all channels (input, one shot)
+        pst.Str(@MsgSpacer)
+        IDCODE_Scan(1)        ' JTAG: Combined Scan
+        pst.Str(@MsgSpacer)
         IDCODE_Scan(0)        ' JTAG: IDCODE Scan
-        IDCODE_Scan(1)        ' JTAG: IDCODE and BYPASS Scan (doesn't seem to do full BYPASS scan...)
+        pst.Str(@MsgSpacer)
         BYPASS_Scan           ' JTAG: BYPASS Scan
+        pst.Str(@MsgSpacer)
         RTCK_Scan             ' JTAG: Identify RTCK (Adaptive Clocking)
+        pst.Str(@MsgSpacer)
         SWD_IDCODE_Scan       ' SWD: Identify SWD pinout (IDCODE Scan)
+        pst.Str(@MsgSpacer)
+        UART_Scan_TXD         ' UART: Identify UART pinout (TXD only, continuous automatic baud rate detection) 
+        pst.Str(@MsgSpacer)        
         UART_Scan             ' UART: Identify UART pinout
 
     "V", "v":                 ' Set target I/O voltage
@@ -478,7 +474,8 @@ PRI Display_Command_Prompt
   
 
 PRI Display_Invalid_Command
-  pst.Str(String(CR, LF, "? (type H to display available commands)"))
+  pst.Str(String(CR, LF, "? Press 'H' for available commands."))
+
   
 CON {{ JTAG METHODS }}
 
@@ -515,6 +512,7 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
     err := @ErrIDCODEAborted
   else
     err := @ErrJTAGAborted
+    
   if (Wait_For_Space(err) == -1)
     return
 
@@ -695,7 +693,7 @@ PRI IDCODE_Scan(type) | value, value_new, ctr, num, id[32 {jtag#MAX_DEVICES_LEN}
     pst.Str(String(CR, LF, "IDCODE"))
   else
     JTAG_Scan_Cleanup(num, xtdi, xtdo, xtck, xtms)
-    pst.Str(String(CR, LF, "JTAG"))
+    pst.Str(String(CR, LF, "JTAG combined"))
 
   pst.Str(@MsgScanComplete)
 
@@ -746,8 +744,7 @@ PRI BYPASS_Scan | value, value_new, ctr, num, data_in, data_out, xtdi, xtdo, xtc
 
   if (Get_Settings == -1)      ' Get configurable scan settings
     return
-    
-  pst.Str(@MsgPressSpacebarToBegin)
+
   if (Wait_For_Space(@ErrBYPASSAborted) == -1)
     return
 
@@ -907,8 +904,7 @@ PRI RTCK_Scan : err | ctr, num, known, matches, xtck, xrtck, tckStart, tckEnd   
   
   if (Get_Settings == -1)      ' Get configurable scan settings
     return
-    
-  pst.Str(@MsgPressSpacebarToBegin)
+
   if (Wait_For_Space(@ErrRTCKAborted) == -1)
     return
 
@@ -1090,8 +1086,7 @@ PRI OPCODE_Discovery | num, ctr, gap_ctr, irLen, drLen, opcode_max, opcodeH, opc
   pst.Str(String(CR, LF, "Possible instructions: "))
   opcode_max := Bits_to_Value(irLen)   ' 2^n - 1
   pst.Dec(opcode_max + 1)
-    
-  pst.Str(@MsgPressSpacebarToBegin)
+
   if (Wait_For_Space(@ErrDiscoveryAborted) == -1)
     return
 
@@ -1230,8 +1225,7 @@ PRI EXTEST_Scan | num, ctr, i, irLen, drLen, xir, ch, ch_start, ch_current, chma
   else
     pst.Str(@ErrOutOfRange)
     return
-  
-  pst.Str(@MsgPressSpacebarToBegin)
+
   if (Wait_For_Space(@ErrEXTESTAborted) == -1)
     return
 
@@ -1740,8 +1734,7 @@ PRI UART_Scan | baud_idx, i, j, ctr, num, xstr[MAX_LEN_UART_USER + 1], xtxd, xrx
 
   if (Get_Settings == -1)          ' Get configurable scan settings
     return
-        
-  pst.Str(@MsgPressSpacebarToBegin)
+
   if (Wait_For_Space(@ErrUARTAborted) == -1)
     return
         
@@ -1820,10 +1813,10 @@ PRI UART_Scan_TXD | i, t, ch, chmask, ctr, ctr_in, num, exit, xtxd, xbaud    ' I
   if (UART_Get_NonStandard == -1)   ' Ignore non-standard baud rates?
     return
 
-  pst.Str(@MsgPressSpacebarToBegin)
   if (Wait_For_Space(@ErrUARTAborted) == -1)
     return
 
+  pst.Str(String(CR, LF, "Note: This scan will continuously monitor all channels for UART", CR, LF, "activity until aborted.")) 
   pst.Str(@MsgJTAGulating)
   
   u.TXSEnable                       ' Enable level shifter outputs
@@ -2309,8 +2302,7 @@ PRI SWD_IDCODE_Scan | response, idcode, ctr, num, xclk, xio     ' Identify SWD p
 
   if (Get_Settings == -1)      ' Get configurable scan settings
     return
-    
-  pst.Str(@MsgPressSpacebarToBegin)
+
   if (Wait_For_Space(@ErrIDCODEAborted) == -1)
     return
 
@@ -2771,6 +2763,20 @@ PRI writeLong(addrReg, data) : ackbit | startTime
     
   return false ' write completed successfully
 
+
+PRI Wait_For_Space(errMsg) | ch ' Wait for spacebar to continue, ignore Enter key, any other key return -1
+  pst.Str(@MsgPressSpacebarToBegin)
+
+  repeat
+    ch := pst.CharInNoEcho
+    if (ch == LF) or (ch == CR)
+      next
+    elseif (ch <> " ")
+      pst.Str(errMsg)
+      return -1
+  until (ch == " ")
+  return
+  
                
 DAT  
 InitHeader    byte CR, LF, LF
@@ -2790,15 +2796,14 @@ InitHeader    byte CR, LF, LF
 VersionInfo   byte CR, LF, "JTAGulator FW 1.12.0", CR, LF
               byte "Designed by Joe Grand, Grand Idea Studio, Inc.", CR, LF
               byte "Main: jtagulator.com", CR, LF
-              byte "Source: github.com/grandideastudio/jtagulator", CR, LF
-              byte "Support: www.parallax.com/support", 0
+              byte "Source: github.com/grandideastudio/jtagulator", 0
 
 MenuMain      byte CR, LF, "Target Interfaces:", CR, LF
               byte "J   JTAG", CR, LF
               byte "U   UART", CR, LF
               byte "G   GPIO", CR, LF
               byte "S   SWD", CR, LF
-              byte "A   All (JTAG IDCODE + BYPASS, UART, GPIO, SWD)", CR, LF
+              byte "A   All (GPIO, JTAG, SWD, UART)", CR, LF
               byte LF
 
               byte "General Commands:", CR, LF
@@ -2807,7 +2812,7 @@ MenuMain      byte CR, LF, "Target Interfaces:", CR, LF
               byte "H   Display available commands", 0
               
 MenuJTAG      byte CR, LF, "JTAG Commands:", CR, LF
-              byte "J   Identify JTAG pinout", CR, LF
+              byte "J   Identify JTAG pinout (Combined Scan)", CR, LF
               byte "I   Identify JTAG pinout (IDCODE Scan)", CR, LF
               byte "B   Identify JTAG pinout (BYPASS Scan)", CR, LF
               byte "R   Identify RTCK (adaptive clocking)", CR, LF
@@ -2840,7 +2845,7 @@ MenuShared    byte CR, LF, LF, "General Commands:", CR, LF
 CharProgress  byte "-", 0   ' Character used for progress indicator
 
 ' Any messages repeated more than once are placed here to save space
-MsgPressSpacebarToBegin     byte CR, LF, "Press spacebar to begin (any other key to abort)...", 0
+MsgPressSpacebarToBegin     byte CR, LF, "Press spacebar to begin (any other key besides Enter to abort)...", 0
 MsgPressSpacebarToContinue  byte "Press spacebar to continue (any other key to abort)...", 0
  
 MsgJTAGulating              byte CR, LF, "JTAGulating! Press any key to abort...", CR, LF, 0
@@ -2858,7 +2863,9 @@ MsgIRLength                 byte "Instruction Register (IR) length: ", 0
 MsgUARTPinout               byte CR, LF, "Note: UART pin naming is from the target's perspective.", 0
 
 MsgSWDWarning               byte CR, LF, "Warning: The JTAGulator's front-end circuitry is incompatible w/"
-                            byte CR, LF, "many SWD-based target devices. Detection results may be affected.", CR, LF, 0
+                            byte CR, LF, "many SWD-based target devices. Detection results may be affected."
+                            byte CR, LF, "Visit github.com/grandideastudio/jtagulator/wiki/Hardware-Modifications"
+                            byte CR, LF, "for details.", CR, LF, 0
 
 MsgModeWarning              byte CR, LF, "Warning: This mode persists through JTAGulator resets, power cycles,"
                             byte CR, LF, "and firmware updates. It can only be exited manually by the user.", CR, LF, 0
@@ -2868,6 +2875,7 @@ MsgSUMPNote                 byte CR, LF, LF, "Note: Switch to analyzer software 
 MsgOCDNote                  byte CR, LF, LF, "Example: openocd -f interface/buspirate.cfg -c ", QUOTE
                             byte "transport select jtag; buspirate port /dev/ttyUSB0", QUOTE, CR, LF, 0
 
+MsgSpacer                   byte CR, LF, LF, "-----", 0
 ErrEEPROMNotResponding      byte CR, LF, "EEPROM not responding!", 0                            
 ErrTargetIOVoltage          byte CR, LF, "Target I/O voltage must be defined!", 0
 ErrOutOfRange               byte CR, LF, "Value out of range!", 0
@@ -2875,7 +2883,7 @@ ErrPinCollision             byte CR, LF, "Pin numbers must be unique!", 0
 ErrNoDeviceFound            byte CR, LF, "No target device(s) found!", 0
 ErrTooManyDevices           byte CR, LF, "More than one device detected in the chain!", 0
 
-ErrJTAGAborted              byte CR, LF, "JTAG scan aborted!", 0
+ErrJTAGAborted              byte CR, LF, "JTAG combined scan aborted!", 0
 ErrIDCODEAborted            byte CR, LF, "IDCODE scan aborted!", 0
 ErrBYPASSAborted            byte CR, LF, "BYPASS scan aborted!", 0
 ErrRTCKAborted              byte CR, LF, "RTCK scan aborted!", 0
@@ -2891,4 +2899,4 @@ VoltageTable  byte  109, 116, 124, 132, 140, 147, 155, 163, 171, 179, 186, 194, 
 
 ' Look-up table of accepted values for use with UART_Scan
 BaudRate      long  300, 600, 1200, 1800, 2400, 3600, 4800, 7200, 9600, 14400, 19200, 28800, 31250 {MIDI}, 38400, 57600, 76800, 115200, 153600, 230400, 250000 {DMX}, 307200
-BaudRateEnd
+BaudRateEnd
