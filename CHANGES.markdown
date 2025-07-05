@@ -4,6 +4,15 @@ JTAGulator Change Log
 Visit the JTAGulator [GitHub repository](https://github.com/grandideastudio/jtagulator/commits/master) for full commit comments.
 
 
+<a id="v1_12"></a>ID Tracker
+----
+
+Release date: **July 5, 2025**
+
+* General: Added the ability to use jtag idcode to identify the manufacturer
+
+
+
 <a id="v1_12"></a>1.12
 ----
 Release date: **June 5, 2023**
